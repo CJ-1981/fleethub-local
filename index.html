@@ -622,7 +622,8 @@ async function openFile() {
     if (!S.data.settings) S.data.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
     if (!S.data.vehicles) S.data.vehicles = [];
     if (!S.data.bookings) S.data.bookings = [];
-    // ensure settings has all keys
+    // Ensure sortOrder exists on all vehicles (handles imports/legacy files)
+    S.data.vehicles.forEach((v, i) => { if (v.sortOrder === undefined || v.sortOrder === null) v.sortOrder = i; });
     for (const k of Object.keys(DEFAULT_SETTINGS)) { if (!S.data.settings[k]) S.data.settings[k] = JSON.parse(JSON.stringify(DEFAULT_SETTINGS[k])); }
     saveRecentFile(handle.name);
     enterApp();
@@ -942,9 +943,15 @@ function renderDashboard() {
   const widgetStartDate = new Date();
   widgetStartDate.setHours(0, 0, 0, 0);
 
-  // Get German holidays for dashboard widget
+  // Get German holidays for dashboard widget (include next year for year boundary)
   const widgetYear = widgetStartDate.getFullYear();
-  const widgetHolidays = S.data.settings.germanState ? getGermanHolidays(widgetYear, S.data.settings.germanState) : [];
+  const widgetEndDate = new Date(widgetStartDate);
+  widgetEndDate.setDate(widgetEndDate.getDate() + widgetDays - 1);
+  const widgetEndYear = widgetEndDate.getFullYear();
+  const widgetYears = new Set([widgetYear, widgetEndYear]);
+  const widgetHolidays = S.data.settings.germanState
+    ? [...widgetYears].flatMap(y => getGermanHolidays(y, S.data.settings.germanState))
+    : [];
   const widgetHolidayMap = {};
   widgetHolidays.forEach(h => {
     widgetHolidayMap[h.date] = h;
@@ -981,7 +988,7 @@ function renderDashboard() {
     widgetDateCells.push(`<div class="gantt-date-cell${isToday ? ' today' : ''}${holidayClass}" style="${bgStyle}" ${holidayTitle}>${date.toLocaleDateString('en-US', {weekday:'short',month:'numeric',day:'numeric'})}${holidayIcon}</div>`);
   }
 
-  const widgetRows = vehicles.length ? vehicles.slice(0, 5).map(v => {
+  const widgetRows = vehicles.length ? [...vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)).slice(0, 5).map(v => {
     const vehicleBookings = bookings.filter(b => {
       const bStart = new Date(b.periodStart);
       const bEnd = new Date(b.periodEnd);
@@ -1016,7 +1023,7 @@ function renderDashboard() {
 
       return `<div class="gantt-booking-bar ${esc(b.status)}"
         style="left:${leftPos}px;width:${width}px;background-color:${barColor}!important;color:#fff!important;${isCancelled ? 'opacity:0.6;text-decoration:line-through;' : ''}"
-        title="${escAttr(b.userName)} - ${escAttr(b.purpose)}"
+        data-tooltip="${escAttr(b.userName)} - ${escAttr(b.purpose)}"
         onclick="editBooking('${b.id}')"
       >${esc(b.userName)}</div>`;
     }).join('');
@@ -1035,7 +1042,7 @@ function renderDashboard() {
           let holidayClass = '';
           let titleAttr = '';
           if (holiday) {
-            titleAttr = `title="${escAttr(holiday.name)} (${holiday.isNationwide ? 'Nationwide' : 'State-specific'} holiday)"`;
+            titleAttr = `data-tooltip="${escAttr(holiday.name)} (${holiday.isNationwide ? 'Nationwide' : 'State-specific'} holiday)"`;
             holidayClass = holiday.isNationwide ? ' holiday-nationwide' : ' holiday-state';
           } else if (isToday) {
             bgStyle = 'background:var(--highlight-bg)!important;';
@@ -1129,9 +1136,15 @@ function renderCalendar() {
     startDate.setDate(startDate.getDate() - daysToMonday);
   }
 
-  // Get German holidays if configured
+  // Get German holidays if configured (include next year for year boundary views)
   const currentYear = startDate.getFullYear();
-  const holidays = S.data.settings.germanState ? getGermanHolidays(currentYear, S.data.settings.germanState) : [];
+  const viewEndDate = new Date(startDate);
+  viewEndDate.setDate(viewEndDate.getDate() + daysToShow - 1);
+  const endYear = viewEndDate.getFullYear();
+  const yearsToFetch = new Set([currentYear, endYear]);
+  const holidays = S.data.settings.germanState
+    ? [...yearsToFetch].flatMap(y => getGermanHolidays(y, S.data.settings.germanState))
+    : [];
   const holidayMap = {};
   holidays.forEach(h => {
     holidayMap[h.date] = h;
@@ -1174,56 +1187,51 @@ function renderCalendar() {
   const dayWidth = 120; // pixels per work day
   const hourWidth = dayWidth / (workEndHour - workStartHour);
 
+  // Helper: map a date to x-position on the Gantt timeline
+  const firstVisibleDate = dateCells[0].date;
+  const msPerDay = 86400000;
+  function ganttX(date) {
+    const dayOffset = (date - firstVisibleDate) / msPerDay;
+    const hour = date.getHours() + date.getMinutes() / 60;
+    return dayOffset * dayWidth + Math.max(0, Math.min(workEndHour - workStartHour, hour - workStartHour)) * hourWidth;
+  }
+
   // Generate vehicle rows with booking bars
   const vehicleRows = vehicles.length ? vehicles.map(v => {
     const vehicleBookings = bookings.filter(b => b.vehicleId === v.id && b.status !== 'cancelled');
+
+    // Pre-compute overlap slot assignments for this vehicle's bookings
+    const sortedVB = [...vehicleBookings].sort((a, b) => new Date(a.periodStart) - new Date(b.periodStart));
+    const slotAssignments = new Map();
+    const slotEnds = [];
+    for (const ob of sortedVB) {
+      const oStart = new Date(ob.periodStart);
+      const oEnd = new Date(ob.periodEnd);
+      let slot = -1;
+      for (let si = 0; si < slotEnds.length; si++) {
+        if (slotEnds[si] <= oStart) { slot = si; slotEnds[si] = oEnd; break; }
+      }
+      if (slot === -1) { slot = slotEnds.length; slotEnds.push(oEnd); }
+      slotAssignments.set(ob.id, slot);
+    }
 
     const bookingBars = vehicleBookings.map(b => {
       const bStart = new Date(b.periodStart);
       const bEnd = new Date(b.periodEnd);
 
-      // Find which day this booking starts on
-      let dayIndex = -1;
-      for (let i = 0; i < dateCells.length; i++) {
-        const cellDate = dateCells[i].date;
-        if (cellDate.toDateString() === bStart.toDateString()) {
-          dayIndex = i;
-          break;
-        }
-      }
+      // Clamp booking to visible range (supports bookings starting before or ending after)
+      const lastVisibleEnd = new Date(dateCells[dateCells.length - 1].date);
+      lastVisibleEnd.setDate(lastVisibleEnd.getDate() + 1);
+      const cStart = new Date(Math.max(bStart.getTime(), firstVisibleDate.getTime()));
+      const cEnd = new Date(Math.min(bEnd.getTime(), lastVisibleEnd.getTime()));
 
-      if (dayIndex === -1) return ''; // Booking outside visible range
+      if (cStart >= cEnd) return ''; // Booking entirely outside visible range
 
-      // Calculate position within the day (relative to 6am-8pm)
-      const startHour = bStart.getHours() + bStart.getMinutes() / 60;
-      const endHour = bEnd.getHours() + bEnd.getMinutes() / 60;
+      const leftOffset = ganttX(cStart);
+      const rightOffset = ganttX(cEnd);
+      const barWidth = Math.max(rightOffset - leftOffset, 4);
 
-      // Clamp to work hours
-      const visibleStart = Math.max(startHour, workStartHour);
-      const visibleEnd = Math.min(endHour, workEndHour);
-
-      if (visibleStart >= visibleEnd) return ''; // Booking entirely outside work hours
-
-      const leftOffset = dayIndex * dayWidth + (visibleStart - workStartHour) * hourWidth;
-      const barWidth = (visibleEnd - visibleStart) * hourWidth;
-
-      // Handle overlapping bookings - greedy slot assignment
-      const sortedBookings = [...vehicleBookings].sort((a, b) => new Date(a.periodStart) - new Date(b.periodStart));
-      const slotEnds = []; // track when each vertical slot becomes free
-      let overlapIndex = 0;
-      for (let si = 0; si < slotEnds.length; si++) {
-        if (slotEnds[si] <= bStart) {
-          overlapIndex = si;
-          slotEnds[si] = bEnd;
-          break;
-        }
-      }
-      if (overlapIndex === 0 && slotEnds.length > 0 && slotEnds[0] > bStart) {
-        overlapIndex = slotEnds.length;
-        slotEnds.push(bEnd);
-      } else if (slotEnds.length === 0) {
-        slotEnds.push(bEnd);
-      }
+      const overlapIndex = slotAssignments.get(b.id) || 0;
       const topOffset = overlapIndex * 52; // 48px bar height + 4px spacing
 
       // Status color mapping for inline styles (ensures colors always render)
@@ -1239,7 +1247,7 @@ function renderCalendar() {
 
       return `<div class="gantt-booking-bar ${esc(b.status)}"
         style="left:${leftOffset}px;width:${Math.max(barWidth, 4)}px;top:${topOffset}px;background-color:${barColor}!important;color:#fff!important;${isCancelled ? 'opacity:0.6;text-decoration:line-through;' : ''}"
-        title="${escAttr(b.userName)} - ${escAttr(b.purpose)} (${fmtDateTime(b.periodStart)} to ${fmtDateTime(b.periodEnd)})"
+        data-tooltip="${escAttr(b.userName)} - ${escAttr(b.purpose)} (${fmtDateTime(b.periodStart)} to ${fmtDateTime(b.periodEnd)})"
         onclick="editBooking('${b.id}')"
       >${esc(b.userName)}</div>`;
     }).join('');
@@ -1254,7 +1262,7 @@ function renderCalendar() {
           let holidayClass = '';
           let titleAttr = '';
           if (cell.holiday) {
-            titleAttr = `title="${escAttr(cell.holiday.name)} (${cell.holiday.isNationwide ? 'Nationwide' : 'State-specific'} holiday)"`;
+            titleAttr = `data-tooltip="${escAttr(cell.holiday.name)} (${cell.holiday.isNationwide ? 'Nationwide' : 'State-specific'} holiday)"`;
             holidayClass = cell.holiday.isNationwide ? ' holiday-nationwide' : ' holiday-state';
           } else if (isToday) {
             bgStyle = 'background:var(--highlight-bg)!important;';
@@ -1556,7 +1564,7 @@ function editBooking(id, preselectedVehicleId) {
     const val = (eb.customFields || {})[col.key] || '';
     if (col.type === 'select') return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><select class="form-input cf-field" data-key="${esc(col.key)}">${(col.options || []).map(o => `<option value="${esc(o)}"${val === o ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
     if (col.type === 'multiselect') {
-      const selectedValues = Array.isArray(val) ? val : (val ? [val] : []);
+      const selectedValues = Array.isArray(val) ? val : (val ? val.split(',').map(v => v.trim()).filter(Boolean) : []);
       return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><div style="display:flex;flex-wrap:wrap;gap:8px">${(col.options || []).map(o => `<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" class="cf-field" data-key="${esc(col.key)}" value="${esc(o)}"${selectedValues.includes(o) ? ' checked' : ''}> ${esc(o)}</label>`).join('')}</div></div>`;
     }
     if (col.type === 'number') return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><input class="form-input cf-field" type="number" data-key="${esc(col.key)}" value="${esc(val)}"></div>`;
@@ -1971,7 +1979,11 @@ async function importJSON() {
     const file = await handle.getFile();
     const text = await file.text();
     const imported = JSON.parse(text);
-    if (imported.vehicles) S.data.vehicles = imported.vehicles;
+    if (imported.vehicles) {
+      S.data.vehicles = imported.vehicles;
+      // Ensure sortOrder exists on all imported vehicles
+      S.data.vehicles.forEach((v, i) => { if (v.sortOrder === undefined || v.sortOrder === null) v.sortOrder = i; });
+    }
     if (imported.bookings) S.data.bookings = imported.bookings;
     if (imported.settings) Object.assign(S.data.settings, imported.settings);
     markDirty(); render(); showToast('Data imported successfully', 'success');
@@ -2209,25 +2221,14 @@ function isFormElement(el) {
 // ===================== GANTT TOOLTIP =====================
 document.addEventListener('mousemove', (e) => {
   const tooltip = document.getElementById('gantt-tooltip');
-  // Check for booking bar tooltip
-  let target = e.target.closest('.gantt-booking-bar');
-  if (target && target.title) {
-    tooltip.textContent = target.title;
-    tooltip.style.display = 'block';
-    const rect = target.getBoundingClientRect();
-    tooltip.style.left = (rect.left + rect.width / 2) + 'px';
-    tooltip.style.top = (rect.top - 40) + 'px';
-    tooltip.style.transform = 'translateX(-50%)';
-    return;
-  }
-  // Check for date cell tooltip
-  target = e.target.closest('[data-tooltip]');
+  // Check for data-tooltip on any element (booking bars, date cells, time cells)
+  const target = e.target.closest('[data-tooltip]');
   if (target) {
     tooltip.textContent = target.getAttribute('data-tooltip');
     tooltip.style.display = 'block';
     const rect = target.getBoundingClientRect();
     tooltip.style.left = (rect.left + rect.width / 2) + 'px';
-    tooltip.style.top = (rect.top - 35) + 'px';
+    tooltip.style.top = (rect.top - 40) + 'px';
     tooltip.style.transform = 'translateX(-50%)';
   } else {
     tooltip.style.display = 'none';
@@ -2291,6 +2292,8 @@ function loadFromInput(input) {
       if (!S.data.settings) S.data.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
       if (!S.data.vehicles) S.data.vehicles = [];
       if (!S.data.bookings) S.data.bookings = [];
+      // Ensure sortOrder exists on all vehicles (handles imports/legacy files)
+      S.data.vehicles.forEach((v, i) => { if (v.sortOrder === undefined || v.sortOrder === null) v.sortOrder = i; });
       for (const k of Object.keys(DEFAULT_SETTINGS)) { if (!S.data.settings[k]) S.data.settings[k] = JSON.parse(JSON.stringify(DEFAULT_SETTINGS[k])); }
       S.fileName = file.name;
       S.fileHandle = null;
