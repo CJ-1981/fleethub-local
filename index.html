@@ -481,8 +481,8 @@ function getDefaultData() {
 }
 
 function genId() { return Date.now().toString(36) + Math.random().toString(36).substr(2, 9); }
-function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-function escAttr(s) { if (!s) return ''; return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+function esc(s) { if (s == null || s === '') return ''; const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
+function escAttr(s) { if (s == null || s === '') return ''; return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
 function fmtDate(d) { if (!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
 function fmtDateTime(d) { if (!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
 function isToday(d) { if (!d) return false; const dt = new Date(d), now = new Date(); return dt.toDateString() === now.toDateString(); }
@@ -1022,6 +1022,7 @@ function renderDashboard() {
       const bEnd = new Date(b.periodEnd);
       const clampedStart = new Date(Math.max(bStart, widgetStartDate));
       const clampedEnd = new Date(Math.min(bEnd, widgetViewEnd));
+      if (clampedStart >= clampedEnd) return '';
       const startOffset = (clampedStart - widgetStartDate) / (1000 * 60 * 60);
       const duration = (clampedEnd - clampedStart) / (1000 * 60 * 60);
       const leftPos = startOffset * (dayWidth / 24);
@@ -2271,18 +2272,19 @@ function isFormElement(el) {
 }
 
 // ===================== GANTT TOOLTIP =====================
+const ganttTooltipEl = document.getElementById('gantt-tooltip');
 document.addEventListener('mousemove', (e) => {
-  const tooltip = document.getElementById('gantt-tooltip');
+  if (!ganttTooltipEl) return;
   // Check for data-tooltip on any element (booking bars, date cells, time cells)
   const target = e.target.closest('.gantt-booking-bar[data-tooltip], .gantt-date-cell[data-tooltip], .gantt-time-cell[data-tooltip], .gantt-row-label[data-tooltip]');
   if (target) {
-    tooltip.textContent = target.getAttribute('data-tooltip');
-    tooltip.style.display = 'block';
-    tooltip.style.left = e.clientX + 'px';
-    tooltip.style.top = (e.clientY - 40) + 'px';
-    tooltip.style.transform = 'translateX(-50%)';
+    ganttTooltipEl.textContent = target.getAttribute('data-tooltip');
+    ganttTooltipEl.style.display = 'block';
+    ganttTooltipEl.style.left = e.clientX + 'px';
+    ganttTooltipEl.style.top = (e.clientY - 40) + 'px';
+    ganttTooltipEl.style.transform = 'translateX(-50%)';
   } else {
-    tooltip.style.display = 'none';
+    ganttTooltipEl.style.display = 'none';
   }
 });
 
