@@ -18,6 +18,7 @@
   --destructive:#b91c1c;--destructive-bg:#fee2e2;--destructive-border:#dc2626;
   --info:#254fad;--info-bg:#dbeafe;--info-border:#458fff;
   --coral:#aa2d00;--forest:#0a2e0e;--cream:#f5e9d4;--mustard:#d9a441;
+	  --highlight-bg:#fef9c3;
   --radius-sm:6px;--radius-md:10px;--radius-lg:12px;
   --font:'Inter',system-ui,-apple-system,sans-serif;
   --header-h:56px;--sidebar-w:240px;
@@ -258,6 +259,35 @@ select.form-input{cursor:pointer}
 .toast-success{background:var(--success-bg);color:var(--success);border-color:var(--success-border)}
 .toast-error{background:var(--destructive-bg);color:var(--destructive);border-color:var(--destructive-border)}
 .toast-info{background:var(--info-bg);color:var(--info);border-color:var(--info-border)}
+
+/* Gantt Chart */
+.gantt-container{overflow:auto;max-height:600px;border:1px solid var(--hairline);border-radius:var(--radius-sm)}
+.gantt-header-row{display:grid;grid-template-columns:150px 1fr;position:sticky;top:0;z-index:10;background:var(--surface-strong)}
+.gantt-corner-cell{padding:8px 12px;font-weight:600;font-size:12px;border-bottom:1px solid var(--hairline);border-right:1px solid var(--hairline)}
+.gantt-date-cells{display:flex}
+.gantt-date-cell{flex:0 0 120px;padding:8px 4px;text-align:center;font-size:11px;font-weight:500;border-bottom:1px solid var(--hairline);border-right:1px solid var(--hairline)}
+.gantt-date-cell.today{background:var(--highlight-bg)}
+.gantt-row{display:grid;grid-template-columns:150px 1fr;min-height:60px;border-bottom:1px solid var(--hairline)}
+.gantt-row-label{padding:8px 12px;font-size:13px;font-weight:500;border-right:1px solid var(--hairline);display:flex;align-items:center}
+.gantt-timeline{position:relative;min-height:60px;background:var(--surface-soft}
+.gantt-time-cell{position:absolute;flex:0 0 120px;height:100%;border-right:1px solid var(--hairline);background:var(--canvas);top:0}
+.gantt-booking-bar{position:absolute;height:36px;top:6px;border-radius:4px;font-size:12px;font-weight:500;cursor:pointer;transition:opacity .15s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px;line-height:36px;z-index:5}
+.gantt-booking-bar:hover{opacity:.8}
+.gantt-booking-bar.pending{background:var(--mustard);color:#fff}
+.gantt-booking-bar.confirmed{background:var(--info);color:#fff}
+.gantt-booking-bar.in-use{background:var(--success);color:#fff}
+.gantt-booking-bar.returned{background:var(--muted);color:#fff}
+.gantt-booking-bar.cancelled{background:var(--destructive);color:#fff;opacity:.6;text-decoration:line-through}
+.gantt-nav-controls{display:flex;gap:4px;margin-left:auto}
+.gantt-view-toggle{display:flex;gap:4px;margin-left:8px}
+.dashboard-gantt{max-height:280px;overflow:auto;border:1px solid var(--hairline);border-radius:var(--radius-sm);margin-bottom:16px}
+.dashboard-gantt .gantt-row{min-height:40px}
+.dashboard-gantt .gantt-booking-bar{height:28px;top:4px;font-size:11px;line-height:28px}
+@media(max-width:768px){
+  .gantt-row{grid-template-columns:100px 1fr}
+  .gantt-corner-cell,.gantt-row-label{padding:6px 8px;font-size:12px}
+  .gantt-date-cell{flex:0 0 80px;padding:6px 2px;font-size:10px}
+}
 </style>
 </head>
 <body>
@@ -389,6 +419,9 @@ select.form-input{cursor:pointer}
 <!-- Toast Container -->
 <div class="toast-container" id="toast-container"></div>
 
+<!-- Gantt Tooltip -->
+<div id="gantt-tooltip" style="position:fixed;display:none;padding:8px 12px;background:var(--ink);color:#fff;font-size:12px;border-radius:4px;pointer-events:none;z-index:10000;max-width:300px;white-space:normal"></div>
+
 <script>
 // ===================== STATE =====================
 const S = {
@@ -412,6 +445,8 @@ const S = {
   chatMessages: [],
   chatLoading: false,
   settingsTab: 'statuses',
+  calendarView: 'week',
+  calendarStart: new Date().toISOString(),
 };
 
 const DEFAULT_SETTINGS = {
@@ -671,10 +706,11 @@ window.addEventListener('beforeunload', (e) => {
 
 // ===================== NAVIGATION =====================
 const TABS = [
-  { id: 'dashboard', label: 'Dashboard', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>' },
-  { id: 'bookings', label: 'Bookings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>' },
-  { id: 'vehicles', label: 'Vehicles', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>' },
-  { id: 'settings', label: 'Settings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>' },
+  { id: 'dashboard', label: 'Dashboard', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>', shortcut: '1' },
+  { id: 'calendar', label: 'Calendar', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>', shortcut: '2' },
+  { id: 'bookings', label: 'Bookings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>', shortcut: '3' },
+  { id: 'vehicles', label: 'Vehicles', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M14 10l-2-6"/><path d="M18 10h2"/></svg>', shortcut: '4' },
+  { id: 'settings', label: 'Settings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>', shortcut: '5' },
 ];
 
 function setTab(tab) { S.activeTab = tab; S.bookingPage = 1; render(); }
@@ -683,8 +719,9 @@ function renderNav() {
   const pendingCount = S.data.bookings.filter(b => b.status === 'pending').length;
   document.getElementById('sidebar-nav').innerHTML = TABS.map(t => {
     const badge = t.id === 'bookings' && pendingCount ? `<span class="badge">${pendingCount}</span>` : '';
+    const shortcut = t.shortcut ? `<span style="margin-left:auto;font-size:11px;color:var(--muted);opacity:.6">[${t.shortcut}]</span>` : '';
     return `<button class="sidebar-nav-item${S.activeTab === t.id ? ' active' : ''}" onclick="setTab('${t.id}')">
-      ${t.icon}${t.label}${badge}
+      ${t.icon}${t.label}${badge}${shortcut}
     </button>`;
   }).join('');
   document.getElementById('mobile-nav').innerHTML = `<div class="mobile-nav-inner">${TABS.map(t => {
@@ -721,10 +758,31 @@ function render() {
   const mc = document.getElementById('main-content');
   switch (S.activeTab) {
     case 'dashboard': mc.innerHTML = renderDashboard(); break;
+    case 'calendar': mc.innerHTML = renderCalendar(); break;
     case 'bookings': mc.innerHTML = renderBookings(); break;
     case 'vehicles': mc.innerHTML = renderVehicles(); break;
     case 'settings': mc.innerHTML = renderSettings(); break;
   }
+}
+
+
+// ===================== CALENDAR NAVIGATION =====================
+function navigateCalendar(direction) {
+  const days = S.calendarView === 'week' ? 7 : 30;
+  const current = new Date(S.calendarStart);
+  current.setDate(current.getDate() + (direction * days));
+  S.calendarStart = current.toISOString();
+  render();
+}
+
+function setCalendarView(mode) {
+  S.calendarView = mode;
+  render();
+}
+
+function goToToday() {
+  S.calendarStart = new Date().toISOString();
+  render();
 }
 
 // ===================== DASHBOARD =====================
@@ -737,6 +795,69 @@ function renderDashboard() {
   const pendingCount = bookings.filter(b => b.status === 'pending').length;
   const activeUsers = new Set(activeBookings.map(b => b.userName)).size;
   const sharedCount = bookings.filter(b => b.shareWith && b.shareWith.length > 0).length;
+
+  // Compact Calendar Widget (showing next 3 days)
+  const widgetDays = 7;
+  const widgetStartDate = new Date();
+  widgetStartDate.setHours(0, 0, 0, 0);
+
+  const widgetDateCells = [];
+  for (let i = 0; i < widgetDays; i++) {
+    const date = new Date(widgetStartDate);
+    date.setDate(date.getDate() + i);
+    widgetDateCells.push(`<div class="gantt-date-cell">${date.toLocaleDateString('en-US', {weekday:'short',month:'numeric',day:'numeric'})}</div>`);
+  }
+
+  const widgetRows = vehicles.length ? vehicles.slice(0, 5).map(v => {
+    const vehicleBookings = bookings.filter(b => {
+      const bStart = new Date(b.periodStart);
+      const bEnd = new Date(b.periodEnd);
+      const viewEnd = new Date(widgetStartDate);
+      viewEnd.setDate(viewEnd.getDate() + widgetDays);
+      return b.vehicleId === v.id && b.status !== 'cancelled' && bEnd >= widgetStartDate && bStart <= viewEnd;
+    });
+
+    const bookingBars = vehicleBookings.map(b => {
+      const bStart = new Date(b.periodStart);
+      const bEnd = new Date(b.periodEnd);
+      const startOffset = (bStart - widgetStartDate) / (1000 * 60 * 60);
+      const duration = (bEnd - bStart) / (1000 * 60 * 60);
+      const dayWidth = 120;
+      const leftPos = Math.max(0, startOffset * (dayWidth / 24));
+      const width = Math.max(duration * (dayWidth / 24), 4);
+
+      return `<div class="gantt-booking-bar ${esc(b.status)}"
+        style="left:${leftPos}px;width:${width}px"
+        title="${esc(b.userName)} - ${esc(b.purpose)}"
+        onclick="editBooking('${b.id}')"
+      >${esc(b.userName)}</div>`;
+    }).join('');
+
+    return `<div class="gantt-row">
+      <div class="gantt-row-label">${esc(v.name)}</div>
+      <div class="gantt-timeline">
+        ${Array(widgetDays).fill(0).map((_, i) => `<div class="gantt-time-cell" style="left:${i * 120}px;width:120px"></div>`).join('')}
+        ${bookingBars}
+      </div>
+    </div>`;
+  }).join('') : '';
+
+  const dashboardGanttHtml = widgetRows ? `<div class="card">
+  <div class="card-header">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
+    Upcoming Schedule (Next 7 Days)
+    <a style="margin-left:auto;font-size:13px;color:var(--primary);cursor:pointer" onclick="setTab('calendar')">View Full Calendar →</a>
+  </div>
+  <div class="card-body" style="padding:0">
+    <div class="dashboard-gantt">
+      <div class="gantt-header-row">
+        <div class="gantt-corner-cell">Vehicle</div>
+        <div class="gantt-date-cells">${widgetDateCells.join('')}</div>
+      </div>
+      <div class="gantt-rows">${widgetRows}</div>
+    </div>
+  </div>
+</div>` : '';
 
   const fleetStatusHtml = vehicles.length ? vehicles.slice(0, 20).map(v => {
     const ab = activeBookings.find(b => b.vehicleId === v.id && (b.status === 'confirmed' || b.status === 'in-use'));
@@ -772,9 +893,135 @@ function renderDashboard() {
       <div class="stat-card"><div class="stat-icon" style="background:var(--forest)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="stat-value">${activeUsers}</div><div class="stat-label">Active Users</div></div>
       <div class="stat-card"><div class="stat-icon" style="background:var(--coral)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="stat-value">${sharedCount}</div><div class="stat-label">Shared Rides</div></div>
     </div>
+    ${dashboardGanttHtml}
     <div class="two-col">
-      <div class="card"><div class="card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> Fleet Status</div><div class="card-body">${fleetStatusHtml}</div></div>
+      <div class="card"><div class="card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M14 10l-2-6"/><path d="M18 10h2"/></svg> Today's Fleet Status</div><div class="card-body">${fleetStatusHtml}</div></div>
       <div class="card"><div class="card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg> Upcoming Bookings</div><div class="card-body">${upcomingHtml}</div></div>
+    </div>
+  </div>`;
+}
+
+// ===================== CALENDAR =====================
+function renderCalendar() {
+  const vehicles = S.data.vehicles.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const bookings = S.data.bookings;
+  const viewMode = S.calendarView || 'week';
+  const daysToShow = viewMode === 'week' ? 7 : 30; // Mon-Sun for week view
+
+  // Work hours: 6am to 8pm = 14 hours
+  const workStartHour = 6;
+  const workEndHour = 20;
+
+  const startDate = new Date(S.calendarStart);
+  const now = new Date();
+
+  // Adjust start date to Monday if in week mode
+  if (viewMode === 'week') {
+    const dayOfWeek = startDate.getDay();
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    startDate.setDate(startDate.getDate() - daysToMonday);
+  }
+
+  // Generate date cells (Mon-Sun for week view)
+  const dateCells = [];
+  for (let i = 0; i < daysToShow; i++) {
+    const date = new Date(startDate);
+    date.setDate(date.getDate() + i);
+    const isToday = date.toDateString() === now.toDateString();
+    dateCells.push({
+      date: date,
+      html: `<div class="gantt-date-cell${isToday ? ' today' : ''}">${date.toLocaleDateString('en-US', {weekday:'short',month:'numeric',day:'numeric'})}</div>`
+    });
+  }
+
+  const dayWidth = 160; // pixels per work day
+  const hourWidth = dayWidth / (workEndHour - workStartHour);
+
+  // Generate vehicle rows with booking bars
+  const vehicleRows = vehicles.length ? vehicles.map(v => {
+    const vehicleBookings = bookings.filter(b => b.vehicleId === v.id && b.status !== 'cancelled');
+
+    const bookingBars = vehicleBookings.map(b => {
+      const bStart = new Date(b.periodStart);
+      const bEnd = new Date(b.periodEnd);
+
+      // Find which day this booking starts on
+      let dayIndex = -1;
+      for (let i = 0; i < dateCells.length; i++) {
+        const cellDate = dateCells[i].date;
+        if (cellDate.toDateString() === bStart.toDateString()) {
+          dayIndex = i;
+          break;
+        }
+      }
+
+      if (dayIndex === -1) return ''; // Booking outside visible range
+
+      // Calculate position within the day (relative to 6am-8pm)
+      const startHour = bStart.getHours() + bStart.getMinutes() / 60;
+      const endHour = bEnd.getHours() + bEnd.getMinutes() / 60;
+
+      // Clamp to work hours
+      const visibleStart = Math.max(startHour, workStartHour);
+      const visibleEnd = Math.min(endHour, workEndHour);
+
+      if (visibleStart >= visibleEnd) return ''; // Booking entirely outside work hours
+
+      const leftOffset = dayIndex * dayWidth + (visibleStart - workStartHour) * hourWidth;
+      const barWidth = (visibleEnd - visibleStart) * hourWidth;
+
+      // Handle overlapping bookings
+      const overlaps = vehicleBookings.filter(ob =>
+        ob.id !== b.id &&
+        new Date(ob.periodStart) < bEnd &&
+        new Date(ob.periodEnd) > bStart
+      );
+      const overlapIndex = overlaps.sort((a, b) => new Date(a.periodStart) - new Date(b.periodStart))
+        .findIndex(ob => new Date(ob.periodStart) >= bStart) + 1;
+      const topOffset = overlapIndex * 40;
+
+      return `<div class="gantt-booking-bar ${esc(b.status)}"
+        style="left:${leftOffset}px;width:${Math.max(barWidth, 4)}px;top:${topOffset}px"
+        title="${esc(b.userName)} - ${esc(b.purpose)} (${fmtDateTime(b.periodStart)} to ${fmtDateTime(b.periodEnd)})"
+        onclick="editBooking('${b.id}')"
+      >${esc(b.userName)}</div>`;
+    }).join('');
+
+    return `<div class="gantt-row">
+      <div class="gantt-row-label">${esc(v.name)}</div>
+      <div class="gantt-timeline" style="min-width:${dateCells.length * dayWidth}px">
+        <!-- Grid lines for each work day -->
+        ${dateCells.map((cell, i) => `<div class="gantt-time-cell" style="left:${i * dayWidth}px;width:${dayWidth}px"></div>`).join('')}
+        ${bookingBars}
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty-state"><p>No vehicles to display</p></div>';
+
+  return `<div class="fade-in">
+    <div class="tab-header">
+      <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg> Schedule Calendar (${viewMode === 'week' ? 'Mon-Sun, 6am-8pm' : 'Month'})</h2>
+      <div class="tab-header-actions">
+        <div class="gantt-nav-controls">
+          <button class="btn btn-sm" onclick="navigateCalendar(-1)">← Prev</button>
+          <button class="btn btn-sm" onclick="goToToday()">Today</button>
+          <button class="btn btn-sm" onclick="navigateCalendar(1)">Next →</button>
+        </div>
+        <div class="gantt-view-toggle">
+          <button class="btn btn-sm ${viewMode === 'week' ? 'btn-primary' : ''}" onclick="setCalendarView('week')">Week</button>
+          <button class="btn btn-sm ${viewMode === 'month' ? 'btn-primary' : ''}" onclick="setCalendarView('month')">Month</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body" style="padding:0">
+        <div class="gantt-container">
+          <div class="gantt-header-row">
+            <div class="gantt-corner-cell">Vehicle</div>
+            <div class="gantt-date-cells">${dateCells.map(c => c.html).join('')}</div>
+          </div>
+          <div class="gantt-rows">${vehicleRows}</div>
+        </div>
+      </div>
     </div>
   </div>`;
 }
@@ -783,15 +1030,14 @@ function renderDashboard() {
 function renderVehicles() {
   const vehicles = S.data.vehicles.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   const rows = vehicles.length ? vehicles.map(v => {
-    return `<tr>
+    return `<tr style="cursor:pointer" onclick="editVehicle('${v.id}')">
       <td style="font-weight:500;color:var(--ink)">${esc(v.name)}</td>
       <td>${esc(v.type)}</td>
       <td>${esc(v.licensePlate || '—')}</td>
       <td><span class="badge badge-${esc(v.status)}">${esc(v.status)}</span></td>
       <td style="color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.notes || '')}</td>
       <td style="white-space:nowrap">
-        <button class="btn-icon btn-sm" onclick="editVehicle('${v.id}')" data-tooltip="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
-        <button class="btn-icon btn-sm" onclick="confirmDeleteVehicle('${v.id}')" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();confirmDeleteVehicle('${v.id}')" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
       </td>
     </tr>`;
   }).join('') : '';
@@ -894,18 +1140,21 @@ function renderBookings() {
   const rows = pageItems.map(b => {
     const v = vehicles.find(v => v.id === b.vehicleId);
     const shareCount = (b.shareWith || []).length;
-    const cfHtml = customCols.map(col => `<td style="font-size:13px">${esc((b.customFields || {})[col.key] || '—')}</td>`).join('');
-    return `<tr>
+    const cfHtml = customCols.map(col => {
+      const val = (b.customFields || {})[col.key];
+      if (Array.isArray(val)) return `<td style="font-size:13px">${val.length ? esc(val.join(', ')) : '—'}</td>`;
+      return `<td style="font-size:13px">${esc(val || '—')}</td>`;
+    }).join('');
+    return `<tr style="cursor:pointer" onclick="editBooking('${b.id}')">
       <td style="font-weight:500;color:var(--ink)">${esc(v ? v.name : 'Unknown')}</td>
       <td>${esc(b.userName)}</td>
       <td>${esc(b.purpose)}</td>
       <td style="white-space:nowrap;font-size:13px">${fmtDate(b.periodStart)}<br>${fmtDate(b.periodEnd)}</td>
       <td><span class="badge badge-${esc(b.status)}">${esc(b.status)}</span></td>
       ${cfHtml}
-      <td>${shareCount ? `<span class="badge badge-shared" style="cursor:pointer" onclick="openShareDialog('${b.id}')">${shareCount}</span>` : '—'}</td>
+      <td>${shareCount ? `<span class="badge badge-shared" style="cursor:pointer" onclick="event.stopPropagation();openShareDialog('${b.id}')">${shareCount}</span>` : '—'}</td>
       <td style="white-space:nowrap">
-        <button class="btn-icon btn-sm" onclick="editBooking('${b.id}')" data-tooltip="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
-        <button class="btn-icon btn-sm" onclick="confirmDeleteBooking('${b.id}')" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();confirmDeleteBooking('${b.id}')" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
       </td>
     </tr>`;
   }).join('');
@@ -975,6 +1224,23 @@ function shareWithConflicts() {
 
 function newBooking() { S.activeTab = 'bookings'; editBooking(null); renderNav(); }
 
+function renderUserNameField(value) {
+  const userNameConfig = S.data.settings.userNameConfig || { type: 'text', options: [] };
+
+  if (userNameConfig.type === 'select') {
+    const options = (userNameConfig.options || []).map(o => `<option value="${esc(o)}"${value === o ? ' selected' : ''}>${esc(o)}</option>`).join('');
+    return `<div class="form-group"><label class="form-label">User Name *</label><select class="form-input" id="b-user"><option value="">Select user...</option>${options}</select></div>`;
+  } else if (userNameConfig.type === 'multiselect') {
+    const selectedValues = Array.isArray(value) ? value : (value ? [value] : []);
+    return `<div class="form-group"><label class="form-label">User Name *</label>
+      <input type="hidden" id="b-user" value="${esc(value || '')}">
+      <div style="display:flex;flex-wrap:wrap;gap:8px">${(userNameConfig.options || []).map(o => \`<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" class="un-select-field" value="\${esc(o)}"\${selectedValues.includes(o) ? ' checked' : ''}> \${esc(o)}</label>\`).join('')}</div>
+    </div>\`;
+  } else {
+    return `<div class="form-group"><label class="form-label">User Name *</label><input class="form-input" id="b-user" value="${esc(value)}" placeholder="Who is booking?"></div>`;
+  }
+}
+
 function editBooking(id) {
   const b = id ? S.data.bookings.find(b => b.id === id) : null;
   S.editingBooking = b ? JSON.parse(JSON.stringify(b)) : { id: null, vehicleId: '', userName: '', purpose: '', periodStart: '', periodEnd: '', status: S.data.settings.statuses[0] || 'pending', remarks: '', customFields: {}, shareWith: [], shareNote: '' };
@@ -989,6 +1255,10 @@ function editBooking(id) {
   const customFieldsHtml = customCols.map(col => {
     const val = (eb.customFields || {})[col.key] || '';
     if (col.type === 'select') return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><select class="form-input cf-field" data-key="${esc(col.key)}">${(col.options || []).map(o => `<option value="${esc(o)}"${val === o ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
+    if (col.type === 'multiselect') {
+      const selectedValues = Array.isArray(val) ? val : (val ? [val] : []);
+      return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><div style="display:flex;flex-wrap:wrap;gap:8px">${(col.options || []).map(o => `<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" class="cf-field" data-key="${esc(col.key)}" value="${esc(o)}"${selectedValues.includes(o) ? ' checked' : ''}> ${esc(o)}</label>`).join('')}</div></div>`;
+    }
     if (col.type === 'number') return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><input class="form-input cf-field" type="number" data-key="${esc(col.key)}" value="${esc(val)}"></div>`;
     if (col.type === 'date') return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><input class="form-input cf-field" type="date" data-key="${esc(col.key)}" value="${esc(val)}"></div>`;
     return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><input class="form-input cf-field" data-key="${esc(col.key)}" value="${esc(val)}"></div>`;
@@ -996,7 +1266,7 @@ function editBooking(id) {
 
   openDialog(b ? 'Edit Booking' : 'New Booking', `
     <div class="form-group"><label class="form-label">Vehicle *</label><select class="form-input" id="b-vehicle"><option value="">Select vehicle...</option>${vehicleOptions}</select></div>
-    <div class="form-group"><label class="form-label">User Name *</label><input class="form-input" id="b-user" value="${esc(eb.userName)}" placeholder="Who is booking?"></div>
+    ${renderUserNameField(eb.userName)}
     <div class="form-group"><label class="form-label">Purpose *</label><input class="form-input" id="b-purpose" value="${esc(eb.purpose)}" placeholder="e.g. Client meeting"></div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Start *</label><input class="form-input" id="b-start" type="datetime-local" value="${eb.periodStart ? eb.periodStart.slice(0, 16) : ''}" onchange="checkConflicts()"></div>
@@ -1016,14 +1286,30 @@ function editBooking(id) {
     </div>
   `, () => {
     const vehicleId = document.getElementById('b-vehicle').value;
-    const userName = document.getElementById('b-user').value.trim();
+    // Handle userName - could be text, select, or multiselect
+    const userNameConfig = S.data.settings.userNameConfig || { type: 'text' };
+    let userName = '';
+    if (userNameConfig.type === 'multiselect') {
+      const selected = Array.from(document.querySelectorAll('.un-select-field:checked')).map(el => el.value);
+      userName = selected.join(', ');
+      document.getElementById('b-user').value = userName;
+    } else {
+      userName = document.getElementById('b-user').value.trim();
+    }
     const purpose = document.getElementById('b-purpose').value.trim();
     const periodStart = document.getElementById('b-start').value;
     const periodEnd = document.getElementById('b-end').value;
     if (!vehicleId || !userName || !purpose || !periodStart || !periodEnd) { showToast('Please fill all required fields', 'error'); return false; }
 
     const customFields = {};
-    document.querySelectorAll('.cf-field').forEach(el => { customFields[el.dataset.key] = el.value; });
+    document.querySelectorAll('.cf-field').forEach(el => {
+      if (el.type === 'checkbox') {
+        if (!customFields[el.dataset.key]) customFields[el.dataset.key] = [];
+        if (el.checked) customFields[el.dataset.key].push(el.value);
+      } else {
+        customFields[el.dataset.key] = el.value;
+      }
+    });
 
     const data = {
       vehicleId, userName, purpose,
@@ -1099,7 +1385,7 @@ function renderSettings() {
   const settings = S.data.settings;
   const tabs = [
     { id: 'statuses', label: 'Booking Statuses', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--mustard)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>' },
-    { id: 'vehicleTypes', label: 'Vehicle Types', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--forest)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>' },
+    { id: 'vehicleTypes', label: 'Vehicle Types', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--forest)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M14 10l-2-6"/><path d="M18 10h2"/></svg>' },
     { id: 'customFields', label: 'Custom Fields', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>' },
     { id: 'apiConfig', label: 'AI API Config', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--coral)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>' },
     { id: 'fileInfo', label: 'File Info', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>' },
@@ -1116,17 +1402,22 @@ function renderSettings() {
       <div class="tag-input-row"><input id="settings-input" placeholder="Add type (e.g. truck)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('vehicleTypes')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('vehicleTypes')">Add</button></div>`;
   } else if (S.settingsTab === 'customFields') {
     const cols = settings.customColumns || [];
-    content = `<div style="margin-bottom:12px">${cols.length ? `<table class="cf-table"><thead><tr><th>Label</th><th>Key</th><th>Type</th><th>Options</th><th></th></tr></thead><tbody>${cols.map(c => `<tr><td>${esc(c.label)}</td><td style="color:var(--muted)">${esc(c.key)}</td><td>${esc(c.type)}</td><td style="color:var(--muted)">${esc((c.options || []).join(', '))}</td><td><button class="btn-icon btn-sm" onclick="removeCustomField('${esc(c.key)}')" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></td></tr>`).join('')}</tbody></table>` : '<span style="font-size:13px;color:var(--muted)">No custom fields defined</span>'}</div>
-      <div style="padding:12px;border:1px solid var(--hairline);border-radius:var(--radius-sm)">
+    const userNameConfig = settings.userNameConfig || { type: 'text', options: [] };
+    content = `<div style="margin-bottom:12px"><table class="cf-table"><thead><tr><th>Label</th><th>Key</th><th>Type</th><th>Options</th><th></th></tr></thead><tbody>
+      <tr style="background:var(--highlight-bg)"><td><strong>User Name</strong> <span style="font-size:11px;color:var(--muted);margin-left:4px">(built-in)</span></td><td style="color:var(--muted)">userName</td><td>${esc(userNameConfig.type)}</td><td style="color:var(--muted)">${userNameConfig.options ? esc(userNameConfig.options.join(', ')) : '—'}</td><td><button class="btn-icon btn-sm" onclick="editUserNameConfig()" style="color:var(--link)" data-tooltip="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button></td></tr>
+      ${cols.length ? cols.map(c => `<tr><td>${esc(c.label)}</td><td style="color:var(--muted)">${esc(c.key)}</td><td>${esc(c.type)}</td><td style="color:var(--muted)">${esc((c.options || []).join(', '))}</td><td><button class="btn-icon btn-sm" onclick="editCustomField('${esc(c.key)}')" style="color:var(--link)" data-tooltip="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button> <button class="btn-icon btn-sm" onclick="removeCustomField('${esc(c.key)}')" style="color:var(--destructive)" data-tooltip="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></td></tr>`).join('') : ''}
+    </tbody></table></div>
+      <div style="padding:12px;border:1px solid var(--hairline);border-radius:var(--radius-sm)" id="cf-form">
         <div class="form-row" style="margin-bottom:8px">
           <div class="form-group" style="margin-bottom:0"><label class="form-label">Label</label><input class="form-input" id="cf-label" placeholder="e.g. Department"></div>
           <div class="form-group" style="margin-bottom:0"><label class="form-label">Key</label><input class="form-input" id="cf-key" placeholder="e.g. department"></div>
         </div>
         <div class="form-row">
-          <div class="form-group" style="margin-bottom:0"><label class="form-label">Type</label><select class="form-input" id="cf-type"><option value="text">Text</option><option value="number">Number</option><option value="date">Date</option><option value="select">Select</option></select></div>
-          <div class="form-group" style="margin-bottom:0"><label class="form-label">Options (comma-separated, for select)</label><input class="form-input" id="cf-options" placeholder="opt1, opt2, opt3"></div>
+          <div class="form-group" style="margin-bottom:0"><label class="form-label">Type</label><select class="form-input" id="cf-type" onchange="toggleCfOptions()"><option value="text">Text</option><option value="number">Number</option><option value="date">Date</option><option value="select">Select (single)</option><option value="multiselect">Multi-select</option></select></div>
+          <div class="form-group" style="margin-bottom:0" id="cf-options-group"><label class="form-label">Options (comma-separated, for select/multiselect)</label><input class="form-input" id="cf-options" placeholder="opt1, opt2, opt3"></div>
         </div>
-        <button class="btn btn-sm btn-primary" onclick="addCustomField()" style="margin-top:10px">Add Field</button>
+        <button class="btn btn-sm btn-primary" onclick="addCustomField()" style="margin-top:10px" id="cf-submit-btn">Add Field</button>
+        <button class="btn btn-sm" onclick="cancelEditCustomField()" style="margin-top:10px;display:none" id="cf-cancel-btn">Cancel</button>
       </div>`;
   } else if (S.settingsTab === 'apiConfig') {
     const curEndpoint = localStorage.getItem('fleethub_ai_endpoint') || '';
@@ -1222,6 +1513,51 @@ function removeSettingItem(key, val) {
   markDirty(); render(); showToast(`Removed "${val}"`, 'success');
 }
 
+function toggleCfOptions() {
+  const type = document.getElementById('cf-type').value;
+  const optionsGroup = document.getElementById('cf-options-group');
+  if (optionsGroup) {
+    optionsGroup.style.display = (type === 'select' || type === 'multiselect') ? 'block' : 'none';
+  }
+}
+
+function editUserNameConfig() {
+  const config = S.data.settings.userNameConfig || { type: 'text', options: [] };
+  const dialogHtml = `
+    <div class="form-group"><label class="form-label">User Name Field Type</label>
+    <select class="form-input" id="un-type" onchange="toggleUnOptions()">
+      <option value="text" ${config.type === 'text' ? 'selected' : ''}>Text</option>
+      <option value="select" ${config.type === 'select' ? 'selected' : ''}>Select (single)</option>
+      <option value="multiselect" ${config.type === 'multiselect' ? 'selected' : ''}>Multi-select</option>
+    </select></div>
+    <div class="form-group" id="un-options-group" style="margin-top:12px;display:${config.type === 'text' ? 'none' : 'block'}">
+      <label class="form-label">Known User Names (comma-separated)</label>
+      <input class="form-input" id="un-options" placeholder="John Doe, Jane Smith, Bob Wilson" value="${esc((config.options || []).join(', '))}">
+      <div class="form-hint">These options will be available when creating bookings</div>
+    </div>
+  `;
+
+  openDialog('Configure User Name Field', dialogHtml, () => {
+    const type = document.getElementById('un-type').value;
+    const optionsStr = document.getElementById('un-options').value;
+    const options = optionsStr.split(',').map(o => o.trim()).filter(Boolean);
+
+    S.data.settings.userNameConfig = { type, options: options.length ? options : undefined };
+    markDirty(); render(); showToast('User Name field configured', 'success');
+    return true;
+  });
+
+  setTimeout(() => toggleUnOptions(), 100);
+}
+
+function toggleUnOptions() {
+  const type = document.getElementById('un-type').value;
+  const optionsGroup = document.getElementById('un-options-group');
+  if (optionsGroup) {
+    optionsGroup.style.display = type === 'text' ? 'none' : 'block';
+  }
+}
+
 function addCustomField() {
   const label = document.getElementById('cf-label').value.trim();
   const key = document.getElementById('cf-key').value.trim().replace(/[^a-zA-Z0-9_]/g, '');
@@ -1229,13 +1565,58 @@ function addCustomField() {
   const options = document.getElementById('cf-options').value.split(',').map(o => o.trim()).filter(Boolean);
   if (!label || !key) { showToast('Label and Key are required', 'error'); return; }
   if (!S.data.settings.customColumns) S.data.settings.customColumns = [];
-  S.data.settings.customColumns.push({ id: genId(), key, label, type, options: type === 'select' ? options : undefined });
+  const optionsField = (type === 'select' || type === 'multiselect') ? options : undefined;
+  S.data.settings.customColumns.push({ id: genId(), key, label, type, options: optionsField });
   markDirty(); render(); showToast('Custom field added', 'success');
 }
 
 function removeCustomField(key) {
   S.data.settings.customColumns = (S.data.settings.customColumns || []).filter(c => c.key !== key);
   markDirty(); render(); showToast('Custom field removed', 'success');
+}
+
+let editingCustomFieldKey = null;
+
+function editCustomField(key) {
+  const col = S.data.settings.customColumns.find(c => c.key === key);
+  if (!col) return;
+  editingCustomFieldKey = key;
+  document.getElementById('cf-label').value = col.label;
+  document.getElementById('cf-key').value = col.key;
+  document.getElementById('cf-type').value = col.type;
+  document.getElementById('cf-options').value = (col.options || []).join(', ');
+  document.getElementById('cf-submit-btn').textContent = 'Update Field';
+  document.getElementById('cf-submit-btn').onclick = updateCustomField;
+  document.getElementById('cf-cancel-btn').style.display = 'inline-block';
+  toggleCfOptions();
+}
+
+function updateCustomField() {
+  if (!editingCustomFieldKey) return;
+  const label = document.getElementById('cf-label').value.trim();
+  const newKey = document.getElementById('cf-key').value.trim().replace(/[^a-zA-Z0-9_]/g, '');
+  const type = document.getElementById('cf-type').value;
+  const options = document.getElementById('cf-options').value.split(',').map(o => o.trim()).filter(Boolean);
+  if (!label || !newKey) { showToast('Label and Key are required', 'error'); return; }
+  const optionsField = (type === 'select' || type === 'multiselect') ? options : undefined;
+  const idx = S.data.settings.customColumns.findIndex(c => c.key === editingCustomFieldKey);
+  if (idx !== -1) {
+    S.data.settings.customColumns[idx] = { ...S.data.settings.customColumns[idx], key: newKey, label, type, options: optionsField };
+    markDirty(); render(); showToast('Custom field updated', 'success');
+  }
+  cancelEditCustomField();
+}
+
+function cancelEditCustomField() {
+  editingCustomFieldKey = null;
+  document.getElementById('cf-label').value = '';
+  document.getElementById('cf-key').value = '';
+  document.getElementById('cf-type').value = 'text';
+  document.getElementById('cf-options').value = '';
+  document.getElementById('cf-submit-btn').textContent = 'Add Field';
+  document.getElementById('cf-submit-btn').onclick = addCustomField;
+  document.getElementById('cf-cancel-btn').style.display = 'none';
+  toggleCfOptions();
 }
 
 async function importJSON() {
@@ -1360,7 +1741,17 @@ function dialogConfirm() {
 
 function dialogOverlayClick(e) { if (e.target === e.currentTarget) closeDialog(); }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDialog(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeDialog();
+  // Ctrl/Cmd+Enter to save in dialogs
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    const dialogConfirm = document.getElementById('dialog-confirm');
+    if (dialogConfirm && document.getElementById('dialog-overlay').classList.contains('active')) {
+      e.preventDefault();
+      dialogConfirm.click();
+    }
+  }
+});
 
 // ===================== CHAT =====================
 function renderChat() {
@@ -1461,6 +1852,43 @@ document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey) {
     if (e.key === 's') { e.preventDefault(); saveFile(); }
     if (e.key === 'n') { e.preventDefault(); newBooking(); }
+  }
+});
+
+// ===================== GANTT TOOLTIP =====================
+document.addEventListener('mousemove', (e) => {
+  const tooltip = document.getElementById('gantt-tooltip');
+  const target = e.target.closest('.gantt-booking-bar');
+  if (target && target.title) {
+    tooltip.textContent = target.title;
+    tooltip.style.display = 'block';
+    const rect = target.getBoundingClientRect();
+    tooltip.style.left = (rect.left + rect.width / 2) + 'px';
+    tooltip.style.top = (rect.top - 40) + 'px';
+    tooltip.style.transform = 'translateX(-50%)';
+  } else {
+    tooltip.style.display = 'none';
+  }
+});
+
+// ===================== KEYBOARD SHORTCUTS =====================
+document.addEventListener('keydown', (e) => {
+  // Only handle shortcuts when not typing in an input
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+
+  const key = e.key.toLowerCase();
+
+  // Tab navigation 1-5
+  if (key >= '1' && key <= '5') {
+    const tabIndex = parseInt(key) - 1;
+    if (TABS[tabIndex]) {
+      setTab(TABS[tabIndex].id);
+    }
+  }
+
+  // N for new booking
+  if (key === 'n') {
+    editBooking(null);
   }
 });
 
