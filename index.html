@@ -1188,7 +1188,9 @@ function renderCalendar() {
   firstVisibleDate.setHours(0, 0, 0, 0); // Normalize to midnight
   const msPerDay = 86400000;
   function ganttX(date) {
-    const dayOffset = (date.getTime() - firstVisibleDate.getTime()) / msPerDay;
+    const dateMidnight = new Date(date);
+    dateMidnight.setHours(0, 0, 0, 0);
+    const dayOffset = (dateMidnight.getTime() - firstVisibleDate.getTime()) / msPerDay;
     const hour = date.getHours() + date.getMinutes() / 60;
     return dayOffset * dayWidth + Math.max(0, Math.min(workEndHour - workStartHour, hour - workStartHour)) * hourWidth;
   }
@@ -2223,7 +2225,7 @@ function isFormElement(el) {
 document.addEventListener('mousemove', (e) => {
   const tooltip = document.getElementById('gantt-tooltip');
   // Check for data-tooltip on any element (booking bars, date cells, time cells)
-  const target = e.target.closest('[data-tooltip]');
+  const target = e.target.closest('.gantt-booking-bar[data-tooltip], .gantt-date-cell[data-tooltip], .gantt-time-cell[data-tooltip], .gantt-row-label[data-tooltip]');
   if (target) {
     tooltip.textContent = target.getAttribute('data-tooltip');
     tooltip.style.display = 'block';
