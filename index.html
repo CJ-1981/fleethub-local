@@ -991,7 +991,7 @@ function renderDashboard() {
   const widgetViewEnd = new Date(widgetStartDate);
   widgetViewEnd.setDate(widgetViewEnd.getDate() + widgetDays);
 
-  const widgetRows = vehicles.length ? [...vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)).slice(0, 5).map(v => {
+  const widgetRows = vehicles.length ? vehicles.slice(0, 5).map(v => {
     const vehicleBookings = bookings.filter(b => {
       const bStart = new Date(b.periodStart);
       const bEnd = new Date(b.periodEnd);
@@ -1495,8 +1495,10 @@ function renderBookings() {
       <td><span class="badge badge-${esc(b.status)}">${esc(b.status)}</span></td>
       ${cfHtml}
       <td>${shareCount ? `<span class="badge badge-shared" style="cursor:pointer" onclick="event.stopPropagation();openShareDialog('${b.id}')">${shareCount}</span>` : '—'}</td>
+      <td style="white-space:nowrap;font-size:12px;color:var(--muted)">${fmtDateTime(b.createdAt)}</td>
+      <td style="white-space:nowrap;font-size:12px;color:var(--muted)">${fmtDateTime(b.updatedAt)}</td>
       <td style="white-space:nowrap">
-        <button class="btn-icon btn-sm" onclick="event.stopPropagation();confirmDeleteBooking('${b.id}')" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();confirmDeleteBooking(this.dataset.id)" data-tooltip="Delete" data-id="${escAttr(b.id)}" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
       </td>
     </tr>`;
   }).join('');
@@ -1514,7 +1516,7 @@ function renderBookings() {
         <select onchange="S.bookingStatusFilter=this.value;S.bookingPage=1;render()"><option value="">All Statuses</option>${statusOptions}</select>
       </div>
     </div>
-    ${pageItems.length ? `<div class="card"><div class="table-wrap"><table><thead><tr><th>Vehicle</th><th>User</th><th>Purpose</th><th>Period</th><th>Status</th>${customCols.map(c => `<th>${esc(c.label)}</th>`).join('')}<th>Share</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${pageItems.length ? `<div class="card"><div class="table-wrap"><table><thead><tr><th>Vehicle</th><th>User</th><th>Purpose</th><th>Period</th><th>Status</th>${customCols.map(c => `<th>${esc(c.label)}</th>`).join('')}<th>Share</th><th>Created</th><th>Updated</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="pagination" style="padding:8px 12px">
         <span>Showing ${start + 1}–${Math.min(start + S.pageSize, filtered.length)} of ${filtered.length}</span>
         <div style="display:flex;gap:4px">
@@ -1941,7 +1943,7 @@ function editUserNameConfig() {
     return true;
   });
 
-  setTimeout(() => toggleUnOptions(), 100);
+  toggleUnOptions();
 }
 
 function toggleUnOptions() {
