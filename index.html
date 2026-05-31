@@ -187,8 +187,11 @@ select.form-input{cursor:pointer}
 
 /* Chat */
 .chat-panel{width:320px;border-left:1px solid var(--hairline);display:flex;flex-direction:column;background:var(--canvas);flex-shrink:0;transition:width .2s ease}
-.chat-panel.collapsed{width:40px;overflow:hidden}
-.chat-panel.collapsed .chat-header span{display:none}
+.chat-panel.collapsed{width:40px}
+.chat-panel.collapsed .chat-header span,.chat-panel.collapsed .chat-header .chat-header-actions{display:none}
+.chat-panel.collapsed .chat-header svg:first-child{display:none}
+.chat-panel.collapsed .chat-header{justify-content:center}
+.chat-panel.collapsed #chat-toggle-btn{margin-left:0}
 .chat-panel.collapsed .chat-messages,.chat-panel.collapsed .chat-input-area{display:none}
 @media(max-width:1100px){.chat-panel{display:none}}
 .chat-header{padding:12px 16px;border-bottom:1px solid var(--hairline);font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;min-height:44px}
@@ -400,14 +403,14 @@ select.form-input{cursor:pointer}
       <div class="chat-header">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
         <span>AI Assistant</span>
-        <span style="margin-left:auto;display:flex;gap:4px">
+        <span class="chat-header-actions" style="margin-left:auto;display:flex;gap:4px">
           <button class="btn-icon btn-sm" onclick="event.stopPropagation();clearChat()" data-tooltip="Clear chat">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
           </button>
-          <button class="btn-icon btn-sm" onclick="event.stopPropagation();toggleChatPanel()" data-tooltip="Collapse panel" id="chat-toggle-btn">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-          </button>
         </span>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();toggleChatPanel()" data-tooltip="Collapse panel" id="chat-toggle-btn" style="margin-left:auto">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
       </div>
       <div class="chat-messages" id="chat-messages"></div>
       <div class="chat-input-area">
