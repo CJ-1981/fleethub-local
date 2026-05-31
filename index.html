@@ -1200,8 +1200,17 @@ function renderCalendar() {
   const vehicleRows = vehicles.length ? vehicles.map(v => {
     const vehicleBookings = bookings.filter(b => b.vehicleId === v.id && b.status !== 'cancelled');
 
-    // Pre-compute overlap slot assignments for this vehicle's bookings
-    const sortedVB = [...vehicleBookings].sort((a, b) => new Date(a.periodStart) - new Date(b.periodStart));
+    // Clamp to visible range for slot assignment and rendering
+    const lastVisibleEnd = new Date(dateCells[dateCells.length - 1].date);
+    lastVisibleEnd.setDate(lastVisibleEnd.getDate() + 1);
+    const visibleBookings = vehicleBookings.filter(b => {
+      const bs = new Date(b.periodStart);
+      const be = new Date(b.periodEnd);
+      return be > firstVisibleDate && bs < lastVisibleEnd;
+    });
+
+    // Pre-compute overlap slot assignments for visible bookings only
+    const sortedVB = [...visibleBookings].sort((a, b) => new Date(a.periodStart) - new Date(b.periodStart));
     const slotAssignments = new Map();
     const slotEnds = [];
     for (const ob of sortedVB) {
@@ -1215,13 +1224,11 @@ function renderCalendar() {
       slotAssignments.set(ob.id, slot);
     }
 
-    const bookingBars = vehicleBookings.map(b => {
+    const bookingBars = visibleBookings.map(b => {
       const bStart = new Date(b.periodStart);
       const bEnd = new Date(b.periodEnd);
 
       // Clamp booking to visible range (supports bookings starting before or ending after)
-      const lastVisibleEnd = new Date(dateCells[dateCells.length - 1].date);
-      lastVisibleEnd.setDate(lastVisibleEnd.getDate() + 1);
       const cStart = new Date(Math.max(bStart.getTime(), firstVisibleDate.getTime()));
       const cEnd = new Date(Math.min(bEnd.getTime(), lastVisibleEnd.getTime()));
 
@@ -2213,8 +2220,8 @@ function showToast(msg, type = 'info') {
 document.addEventListener('keydown', e => {
   // Ctrl/Cmd+S to save (always active, even in inputs)
   if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveFile(); }
-  // Ctrl/Cmd+N for new booking (not in inputs)
-  if ((e.ctrlKey || e.metaKey) && e.key === 'n' && !isFormElement(e.target)) { e.preventDefault(); newBooking(); }
+  // Ctrl/Cmd+N for new booking (not in inputs, not during dialog)
+  if ((e.ctrlKey || e.metaKey) && e.key === 'n' && !isFormElement(e.target) && !document.getElementById('dialog-overlay')?.classList.contains('active')) { e.preventDefault(); newBooking(); }
 });
 
 function isFormElement(el) {
