@@ -283,6 +283,10 @@ select.form-input{cursor:pointer}
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 15 7 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Import JSON File
       </button>
+      <button class="btn" onclick="startDemo()" style="width:240px;justify-content:center;padding:10px 16px;color:var(--link);border-color:var(--link)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+        Try Demo
+      </button>
     </div>
     <input type="file" id="landing-file-input" accept="application/json,text/plain,*/*" style="position:absolute;opacity:0;pointer-events:none" onchange="loadFromInput(this)">
     <div id="recent-files" style="margin-top:24px;text-align:left"></div>
@@ -291,6 +295,11 @@ select.form-input{cursor:pointer}
 
 <!-- Main App -->
 <div id="app" class="app">
+  <!-- Demo Banner -->
+  <div id="demo-banner" style="display:none;padding:10px 16px;background:var(--info-bg);border-bottom:1px solid var(--info-border);color:var(--info);font-size:13px;display:none;align-items:center;gap:8px">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+    <span><strong>Demo Mode</strong> — Explore with sample data. Changes won't be saved. <button class="btn btn-sm" onclick="exitDemo()" style="margin-left:8px;padding:3px 10px">Open Real File</button></span>
+  </div>
   <!-- Lock Alert -->
   <div id="lock-alert" class="lock-alert" style="display:none">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -465,7 +474,66 @@ async function createNewFile() {
   } catch (e) { if (e.name !== 'AbortError') showToast('Failed to create file: ' + e.message, 'error'); }
 }
 
-async function saveFile() {
+async function startDemo() {
+  S.demoMode = true;
+  S.fileName = 'demo-data.json';
+  S.fileHandle = null;
+  S.data = getDemoData();
+  enterApp();
+  document.getElementById('demo-banner').style.display = 'flex';
+  showToast('Demo mode — explore freely, changes are not saved', 'info');
+}
+
+function exitDemo() {
+  S.demoMode = false;
+  document.getElementById('demo-banner').style.display = 'none';
+  closeApp();
+}
+
+function getDemoData() {
+  const now = new Date();
+  const today = now.toISOString().slice(0,10);
+  const tomorrow = new Date(now.getTime() + 86400000).toISOString().slice(0,10);
+  const nextWeek = new Date(now.getTime() + 7*86400000).toISOString().slice(0,10);
+  const yesterday = new Date(now.getTime() - 86400000).toISOString().slice(0,10);
+  return {
+    meta: { version: '1.0', lastModified: now.toISOString(), lockedBy: null, lockedAt: null, lockId: null },
+    vehicles: [
+      { id: 'v001', name: 'Toyota Hilux #1', type: 'pickup', licensePlate: 'XYZ-1234', status: 'available', notes: 'Team lead vehicle', sortOrder: 0, createdAt: '2026-01-15T08:00:00.000Z', updatedAt: now.toISOString() },
+      { id: 'v002', name: 'Honda CR-V #2', type: 'suv', licensePlate: 'ABC-5678', status: 'in-use', notes: null, sortOrder: 1, createdAt: '2026-02-01T08:00:00.000Z', updatedAt: now.toISOString() },
+      { id: 'v003', name: 'Toyota Corolla #3', type: 'sedan', licensePlate: 'DEF-9012', status: 'available', notes: 'Scheduled for oil change next week', sortOrder: 2, createdAt: '2026-03-01T08:00:00.000Z', updatedAt: now.toISOString() },
+      { id: 'v004', name: 'Ford Transit #4', type: 'van', licensePlate: 'GHI-3456', status: 'maintenance', notes: 'Cargo van for equipment transport', sortOrder: 3, createdAt: '2026-03-15T08:00:00.000Z', updatedAt: now.toISOString() },
+      { id: 'v005', name: 'Suzuki Vitara #5', type: 'suv', licensePlate: 'JKL-7890', status: 'available', notes: null, sortOrder: 4, createdAt: '2026-04-01T08:00:00.000Z', updatedAt: now.toISOString() },
+      { id: 'v006', name: 'Isuzu D-Max #6', type: 'pickup', licensePlate: 'MNO-1122', status: 'reserved', notes: 'Reserved for field inspection Thursday', sortOrder: 5, createdAt: '2026-04-15T08:00:00.000Z', updatedAt: now.toISOString() },
+      { id: 'v007', name: 'Mitsubishi Outlander #7', type: 'suv', licensePlate: 'PQR-3344', status: 'available', notes: null, sortOrder: 6, createdAt: '2026-05-01T08:00:00.000Z', updatedAt: now.toISOString() },
+      { id: 'v008', name: 'Hyundai Tucson #8', type: 'sedan', licensePlate: 'STU-5566', status: 'in-use', notes: null, sortOrder: 7, createdAt: '2026-05-10T08:00:00.000Z', updatedAt: now.toISOString() }
+    ],
+    bookings: [
+      { id: 'b001', vehicleId: 'v002', userName: 'Alice Johnson', purpose: 'Client site visit — downtown office', periodStart: today + 'T09:00:00.000Z', periodEnd: today + 'T17:00:00.000Z', status: 'confirmed', remarks: 'Bring presentation materials', customFields: { department: 'Sales', priority: 'high' }, shareWith: ['Bob Smith'], shareNote: 'Hi Bob, heading downtown, want to ride along?', createdAt: yesterday + 'T14:00:00.000Z', updatedAt: today + 'T09:00:00.000Z' },
+      { id: 'b002', vehicleId: 'v008', userName: 'Bob Smith', purpose: 'Supplier meeting — industrial park', periodStart: today + 'T10:00:00.000Z', periodEnd: today + 'T14:00:00.000Z', status: 'in-use', remarks: null, customFields: { department: 'Procurement', priority: 'medium' }, shareWith: [], shareNote: null, createdAt: yesterday + 'T16:00:00.000Z', updatedAt: today + 'T10:00:00.000Z' },
+      { id: 'b003', vehicleId: 'v001', userName: 'Carol Davis', purpose: 'Field inspection — north campus', periodStart: tomorrow + 'T08:00:00.000Z', periodEnd: tomorrow + 'T12:00:00.000Z', status: 'pending', remarks: 'Check fence condition', customFields: { department: 'Operations', priority: 'low' }, shareWith: [], shareNote: null, createdAt: today + 'T07:00:00.000Z', updatedAt: today + 'T07:00:00.000Z' },
+      { id: 'b004', vehicleId: 'v003', userName: 'David Lee', purpose: 'Airport pickup — VIP guest', periodStart: tomorrow + 'T14:00:00.000Z', periodEnd: tomorrow + 'T16:30:00.000Z', status: 'pending', remarks: 'Terminal 2, flight arrives 14:20', customFields: { department: 'Executive', priority: 'high' }, shareWith: [], shareNote: null, createdAt: today + 'T08:30:00.000Z', updatedAt: today + 'T08:30:00.000Z' },
+      { id: 'b005', vehicleId: 'v006', userName: 'Emily Chen', purpose: 'Warehouse audit — south facility', periodStart: nextWeek + 'T08:00:00.000Z', periodEnd: nextWeek + 'T16:00:00.000Z', status: 'confirmed', remarks: 'Bring clipboards and camera', customFields: { department: 'Operations', priority: 'medium' }, shareWith: ['Frank Wilson', 'Grace Kim'], shareNote: 'Warehouse audit team, leaving at 7:45 AM', createdAt: today + 'T10:00:00.000Z', updatedAt: today + 'T10:00:00.000Z' },
+      { id: 'b006', vehicleId: 'v005', userName: 'Frank Wilson', purpose: 'Safety training venue transport', periodStart: nextWeek + 'T09:00:00.000Z', periodEnd: nextWeek + 'T17:00:00.000Z', status: 'pending', remarks: null, customFields: {}, shareWith: ['Emily Chen'], shareNote: 'Ride together to training', createdAt: today + 'T11:00:00.000Z', updatedAt: today + 'T11:00:00.000Z' },
+      { id: 'b007', vehicleId: 'v002', userName: 'Grace Kim', purpose: 'Marketing event — conference center', periodStart: yesterday + 'T08:00:00.000Z', periodEnd: yesterday + 'T18:00:00.000Z', status: 'returned', remarks: 'Booth setup at Hall B', customFields: { department: 'Marketing', priority: 'medium' }, shareWith: ['Alice Johnson'], shareNote: null, createdAt: (new Date(now.getTime() - 2*86400000)).toISOString().slice(0,10) + 'T10:00:00.000Z', updatedAt: yesterday + 'T18:00:00.000Z' },
+      { id: 'b008', vehicleId: 'v007', userName: 'Henry Park', purpose: 'IT equipment delivery — branch office', periodStart: today + 'T11:00:00.000Z', periodEnd: today + 'T13:00:00.000Z', status: 'confirmed', remarks: '5 monitors and 3 laptops', customFields: { department: 'IT', priority: 'high' }, shareWith: [], shareNote: null, createdAt: yesterday + 'T09:00:00.000Z', updatedAt: today + 'T09:00:00.000Z' },
+      { id: 'b009', vehicleId: 'v001', userName: 'Iris Nakamura', purpose: 'Site survey — new plot', periodStart: yesterday + 'T09:00:00.000Z', periodEnd: yesterday + 'T15:00:00.000Z', status: 'returned', remarks: null, customFields: { department: 'Engineering', priority: 'low' }, shareWith: [], shareNote: null, createdAt: (new Date(now.getTime() - 3*86400000)).toISOString().slice(0,10) + 'T08:00:00.000Z', updatedAt: yesterday + 'T15:00:00.000Z' },
+      { id: 'b010', vehicleId: 'v003', userName: 'Jack Rivera', purpose: 'Team lunch run', periodStart: (new Date(now.getTime() - 3*86400000)).toISOString().slice(0,10) + 'T12:00:00.000Z', periodEnd: (new Date(now.getTime() - 3*86400000)).toISOString().slice(0,10) + 'T13:00:00.000Z', status: 'cancelled', remarks: 'Ordered delivery instead', customFields: {}, shareWith: [], shareNote: null, createdAt: (new Date(now.getTime() - 4*86400000)).toISOString().slice(0,10) + 'T08:00:00.000Z', updatedAt: (new Date(now.getTime() - 3*86400000)).toISOString().slice(0,10) + 'T12:30:00.000Z' }
+    ],
+    settings: {
+      statuses: ['pending', 'confirmed', 'in-use', 'returned', 'cancelled'],
+      vehicleTypes: ['sedan', 'suv', 'pickup', 'van', 'bus', 'motorcycle', 'other'],
+      customColumns: [
+        { id: 'cc01', key: 'department', label: 'Department', type: 'select', options: ['Sales', 'Operations', 'Procurement', 'Executive', 'IT', 'Marketing', 'Engineering', 'HR'] },
+        { id: 'cc02', key: 'priority', label: 'Priority', type: 'select', options: ['low', 'medium', 'high'] }
+      ],
+      shareMessage: 'Hi, I would like to share this ride with you. Is that possible?'
+    }
+  };
+}
+
+function saveFile() {
+  if (S.demoMode) { showToast('Demo mode — use Export to save a copy', 'info'); return; }
   if (!S.fileHandle) return;
   S.saving = true;
   updateSaveIndicator();
