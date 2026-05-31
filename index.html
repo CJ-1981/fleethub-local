@@ -1232,10 +1232,14 @@ function renderUserNameField(value) {
     return `<div class="form-group"><label class="form-label">User Name *</label><select class="form-input" id="b-user"><option value="">Select user...</option>${options}</select></div>`;
   } else if (userNameConfig.type === 'multiselect') {
     const selectedValues = Array.isArray(value) ? value : (value ? [value] : []);
+    const options = (userNameConfig.options || []).map(o => {
+      const checked = selectedValues.includes(o) ? ' checked' : '';
+      return '<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" class="un-select-field" value="' + esc(o) + '"' + checked + '> ' + esc(o) + '</label>';
+    }).join('');
     return `<div class="form-group"><label class="form-label">User Name *</label>
       <input type="hidden" id="b-user" value="${esc(value || '')}">
-      <div style="display:flex;flex-wrap:wrap;gap:8px">${(userNameConfig.options || []).map(o => \`<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" class="un-select-field" value="\${esc(o)}"\${selectedValues.includes(o) ? ' checked' : ''}> \${esc(o)}</label>\`).join('')}</div>
-    </div>\`;
+      <div style="display:flex;flex-wrap:wrap;gap:8px">${options}</div>
+    </div>`;
   } else {
     return `<div class="form-group"><label class="form-label">User Name *</label><input class="form-input" id="b-user" value="${esc(value)}" placeholder="Who is booking?"></div>`;
   }
