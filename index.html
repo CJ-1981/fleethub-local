@@ -55,8 +55,10 @@ button,input,select,textarea{font-family:inherit;font-size:inherit}
 .shortcut-hint{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0 4px;margin-left:auto;background:rgba(255,255,255,.2);border-radius:3px;font-size:11px;font-weight:600;line-height:1}
 
 /* Layout */
-.app{display:none;height:100vh;overflow:hidden}
+body{background:var(--surface-soft)}
+.app{display:none;min-height:100vh}
 .app.active{display:flex;flex-direction:column}
+.app-wrapper{display:flex;flex-direction:column;flex:1;width:100%;max-width:1400px;margin:0 auto;background:var(--canvas)}
 .header{height:var(--header-h);border-bottom:1px solid var(--hairline);display:flex;align-items:center;padding:0 16px;gap:12px;background:var(--canvas);flex-shrink:0;position:sticky;top:0;z-index:100}
 .header-logo{display:flex;align-items:center;gap:8px;font-weight:700;color:var(--ink);font-size:16px;text-decoration:none}
 .header-logo .logo-icon{width:32px;height:32px;background:var(--primary);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;color:#fff}
@@ -71,19 +73,19 @@ button,input,select,textarea{font-family:inherit;font-size:inherit}
 .save-indicator.unsaved{color:var(--warning)}
 .save-indicator.saving{color:var(--info)}
 
-.body-wrap{display:flex;flex:1;overflow:hidden}
+.body-wrap{display:flex;flex:1}
 .sidebar{width:var(--sidebar-w);border-right:1px solid var(--hairline);background:var(--canvas);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
 .sidebar-nav{padding:8px;flex:1}
 .sidebar-nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:var(--radius-sm);color:var(--body);cursor:pointer;font-weight:500;transition:background .15s;border:none;background:transparent;width:100%;text-align:left}
 .sidebar-nav-item:hover{background:var(--surface-soft)}
 .sidebar-nav-item.active{background:var(--primary);color:#fff}
+.sidebar-nav-item.active .nav-shortcut{color:rgba(255,255,255,.7)}
 .sidebar-nav-item svg{width:18px;height:18px;flex-shrink:0}
 .sidebar-nav-item .badge{margin-left:auto;background:var(--hairline);color:var(--body);font-size:11px;padding:1px 6px;border-radius:999px;font-weight:600}
+.nav-shortcut{margin-left:auto;font-size:11px;color:var(--muted);opacity:.6}
 .sidebar-nav-item.active .badge{background:rgba(255,255,255,.2);color:#fff}
-.sidebar-cta{padding:12px;border-top:1px solid var(--hairline)}
-.sidebar-cta .btn{width:100%;justify-content:center}
 
-.main-content{flex:1;overflow-y:auto;padding:24px;max-width:1200px}
+.main-content{flex:1;padding:24px}
 .mobile-nav{display:none;border-top:1px solid var(--hairline);overflow-x:auto;flex-shrink:0}
 .mobile-nav-inner{display:flex;padding:8px;gap:4px}
 .mobile-nav-item{display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--radius-sm);color:var(--body);font-weight:500;font-size:13px;white-space:nowrap;border:none;background:transparent;cursor:pointer}
@@ -186,17 +188,6 @@ select.form-input{cursor:pointer}
 .share-tag button:hover{color:var(--destructive)}
 
 /* Chat */
-.chat-panel{width:320px;border-left:1px solid var(--hairline);display:flex;flex-direction:column;background:var(--canvas);flex-shrink:0;transition:width .2s ease}
-.chat-panel.collapsed{width:40px}
-.chat-panel.collapsed .chat-header span,.chat-panel.collapsed .chat-header .chat-header-actions{display:none}
-.chat-panel.collapsed .chat-header svg:first-child{display:none}
-.chat-panel.collapsed .chat-header{justify-content:center}
-.chat-panel.collapsed #chat-toggle-btn{margin-left:0}
-.chat-panel.collapsed .chat-messages,.chat-panel.collapsed .chat-input-area{display:none}
-@media(max-width:1100px){.chat-panel{display:none}}
-.chat-header{padding:12px 16px;border-bottom:1px solid var(--hairline);font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;min-height:44px}
-.chat-header svg{width:18px;height:18px;flex-shrink:0}
-.chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
 .chat-msg{max-width:85%;display:flex;gap:8px}
 .chat-msg.user{align-self:flex-end;flex-direction:row-reverse}
 .chat-msg-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px}
@@ -352,6 +343,7 @@ select.form-input{cursor:pointer}
     <button class="btn btn-sm" onclick="acquireLock()" style="margin-left:auto">Take Over</button>
   </div>
 
+  <div class="app-wrapper">
   <!-- Header -->
   <header class="header">
     <a class="header-logo" href="#" style="display:flex;align-items:center;gap:8px;font-weight:700;color:var(--ink);font-size:16px;text-decoration:none">
@@ -386,40 +378,11 @@ select.form-input{cursor:pointer}
     <!-- Sidebar -->
     <nav class="sidebar">
       <div class="sidebar-nav" id="sidebar-nav"></div>
-      <div class="sidebar-cta">
-        <button class="btn btn-primary" onclick="newBooking()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-          New Booking
-          <span class="shortcut-hint">N</span>
-        </button>
-      </div>
     </nav>
 
     <!-- Main Content -->
     <main class="main-content" id="main-content"></main>
-
-    <!-- AI Chat Panel -->
-    <aside class="chat-panel" id="chat-panel">
-      <div class="chat-header">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
-        <span>AI Assistant</span>
-        <span class="chat-header-actions" style="margin-left:auto;display:flex;gap:4px">
-          <button class="btn-icon btn-sm" onclick="event.stopPropagation();clearChat()" data-tooltip="Clear chat">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-          </button>
-        </span>
-        <button class="btn-icon btn-sm" onclick="event.stopPropagation();toggleChatPanel()" data-tooltip="Collapse panel" id="chat-toggle-btn" style="margin-left:auto">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-        </button>
-      </div>
-      <div class="chat-messages" id="chat-messages"></div>
-      <div class="chat-input-area">
-        <textarea id="chat-input" rows="1" placeholder="Ask about your fleet..." onkeydown="chatKeydown(event)"></textarea>
-        <button class="btn btn-primary btn-sm" onclick="sendChat()" data-tooltip="Send">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
-        </button>
-      </div>
-    </aside>
+  </div>
   </div>
 
   <!-- Mobile Nav -->
@@ -859,19 +822,27 @@ const TABS = [
   { id: 'bookings', label: 'Bookings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>', shortcut: '3' },
   { id: 'vehicles', label: 'Vehicles', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M14 10l-2-6"/><path d="M18 10h2"/></svg>', shortcut: '4' },
   { id: 'settings', label: 'Settings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>', shortcut: '5' },
+	  { id: 'chat', label: 'AI Assistant', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>', shortcut: '6' },
 ];
 
 function setTab(tab) { S.activeTab = tab; S.bookingPage = 1; render(); }
 
 function renderNav() {
   const pendingCount = S.data.bookings.filter(b => b.status === 'pending').length;
-  document.getElementById('sidebar-nav').innerHTML = TABS.map(t => {
+  const navItems = TABS.map(t => {
     const badge = t.id === 'bookings' && pendingCount ? `<span class="badge">${pendingCount}</span>` : '';
-    const shortcut = t.shortcut ? `<span style="margin-left:auto;font-size:11px;color:var(--muted);opacity:.6">[${t.shortcut}]</span>` : '';
+    const shortcut = t.shortcut ? `<span class="nav-shortcut">[${t.shortcut}]</span>` : '';
     return `<button class="sidebar-nav-item${S.activeTab === t.id ? ' active' : ''}" onclick="setTab('${t.id}')">
       ${t.icon}${t.label}${badge}${shortcut}
     </button>`;
   }).join('');
+  // Add New Booking button after nav items
+  const newBookingBtn = `<button class="sidebar-nav-item" onclick="newBooking()" style="margin-top:8px;color:var(--primary)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+    New Booking
+    <span class="nav-shortcut">[N]</span>
+  </button>`;
+  document.getElementById('sidebar-nav').innerHTML = navItems + newBookingBtn;
   document.getElementById('mobile-nav').innerHTML = `<div class="mobile-nav-inner">${TABS.map(t => {
     const badge = t.id === 'bookings' && pendingCount ? `<span class="badge">${pendingCount}</span>` : '';
     return `<button class="mobile-nav-item${S.activeTab === t.id ? ' active' : ''}" onclick="setTab('${t.id}')">
@@ -910,7 +881,9 @@ function render() {
     case 'bookings': mc.innerHTML = renderBookings(); break;
     case 'vehicles': mc.innerHTML = renderVehicles(); break;
     case 'settings': mc.innerHTML = renderSettings(); break;
+    case 'chat': mc.innerHTML = renderChatPage(); break;
   }
+  renderChatMessages();
 }
 
 
@@ -1645,7 +1618,6 @@ function editBooking(id, preselectedVehicleId) {
       <div class="form-group" style="margin-top:8px;margin-bottom:0"><label class="form-label">Share Note</label><textarea class="form-input" id="share-note" rows="2" placeholder="Optional note for co-passengers...">${esc(eb.shareNote || '')}</textarea></div>
     </div>
   `, () => {
-    if (b) setTimeout(checkConflicts, 0);
     const vehicleId = document.getElementById('b-vehicle').value;
     // Handle userName - could be text, select, or multiselect
     const userNameConfig = S.data.settings.userNameConfig || { type: 'text' };
@@ -1694,6 +1666,8 @@ function editBooking(id, preselectedVehicleId) {
     S.editingBooking = null;
     markDirty(); render(); return true;
   });
+  // Check conflicts immediately when opening edit dialog
+  if (b) setTimeout(checkConflicts, 0);
 }
 
 function checkConflicts() {
@@ -2146,7 +2120,11 @@ function openDialog(title, bodyHtml, onConfirm, isDanger = false) {
   `;
   dialogCallback = onConfirm;
   document.getElementById('dialog-overlay').classList.add('active');
-  setTimeout(() => document.getElementById('dialog-confirm')?.focus(), 100);
+  setTimeout(() => {
+    document.querySelector('.dialog').scrollTop = 0;
+    const firstInput = document.querySelector('#dialog-body input, #dialog-body select');
+    if (firstInput) firstInput.focus();
+  }, 0);
 }
 
 function closeDialog() {
@@ -2176,13 +2154,42 @@ document.addEventListener('keydown', e => {
 });
 
 // ===================== CHAT =====================
-function renderChat() {
+function renderChatPage() {
+  return `<div class="fade-in">
+    <div class="tab-header"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg> AI Assistant</h2>
+      <div class="tab-header-actions">
+        <button class="btn btn-sm btn-ghost" onclick="clearChat()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+          Clear chat
+        </button>
+      </div>
+    </div>
+    <div class="card" style="height:calc(100vh - 180px);display:flex;flex-direction:column">
+      <div class="chat-messages" id="chat-messages" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px"></div>
+      <div class="chat-input-area" style="padding:16px;border-top:1px solid var(--hairline);display:flex;gap:8px;align-items:flex-end">
+        <textarea id="chat-input" rows="2" placeholder="Ask about your fleet..." onkeydown="chatKeydown(event)" style="flex:1;padding:10px 12px;border:1px solid var(--hairline);border-radius:var(--radius-sm);resize:none;outline:none;min-height:40px;max-height:120px;font-size:14px"></textarea>
+        <button class="btn btn-primary" onclick="sendChat()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+          Send
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderChatMessages() {
   const el = document.getElementById('chat-messages');
+  if (!el) return;
   el.innerHTML = S.chatMessages.map(m => {
     const avatar = m.role === 'assistant' ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>' : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
     return `<div class="chat-msg ${m.role}"><div class="chat-msg-avatar">${avatar}</div><div class="chat-msg-bubble">${esc(m.content)}</div></div>`;
   }).join('');
   el.scrollTop = el.scrollHeight;
+}
+
+// Legacy renderChat for compatibility (called from sendChat)
+function renderChat() {
+  renderChatMessages();
 }
 
 function chatKeydown(e) {
@@ -2254,17 +2261,6 @@ function generateLocalResponse(query) {
   return `I see you asked about "${query}". For smarter responses, configure an OpenAI-compatible API endpoint in Settings. For now, try asking about available vehicles, pending bookings, or fleet summary.`;
 }
 
-function toggleChatPanel() {
-  const panel = document.getElementById('chat-panel');
-  const btn = document.getElementById('chat-toggle-btn');
-  panel.classList.toggle('collapsed');
-  const isCollapsed = panel.classList.contains('collapsed');
-  btn.innerHTML = isCollapsed
-    ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>'
-    : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>';
-  btn.setAttribute('data-tooltip', isCollapsed ? 'Expand panel' : 'Collapse panel');
-}
-
 function clearChat() {
   S.chatMessages = [{ id: genId(), role: 'assistant', content: 'Chat cleared. How can I help with your fleet?', timestamp: new Date() }];
   renderChat();
@@ -2319,8 +2315,8 @@ document.addEventListener('keydown', (e) => {
 
   const key = e.key.toLowerCase();
 
-  // Tab navigation 1-5
-  if (key >= '1' && key <= '5') {
+  // Tab navigation 1-6
+  if (key >= '1' && key <= '6') {
     const tabIndex = parseInt(key) - 1;
     if (TABS[tabIndex]) {
       setTab(TABS[tabIndex].id);
