@@ -186,10 +186,13 @@ select.form-input{cursor:pointer}
 .share-tag button:hover{color:var(--destructive)}
 
 /* Chat */
-.chat-panel{width:320px;border-left:1px solid var(--hairline);display:flex;flex-direction:column;background:var(--canvas);flex-shrink:0}
+.chat-panel{width:320px;border-left:1px solid var(--hairline);display:flex;flex-direction:column;background:var(--canvas);flex-shrink:0;transition:width .2s ease}
+.chat-panel.collapsed{width:40px;overflow:hidden}
+.chat-panel.collapsed .chat-header span{display:none}
+.chat-panel.collapsed .chat-messages,.chat-panel.collapsed .chat-input-area{display:none}
 @media(max-width:1100px){.chat-panel{display:none}}
-.chat-header{padding:12px 16px;border-bottom:1px solid var(--hairline);font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px}
-.chat-header svg{width:18px;height:18px}
+.chat-header{padding:12px 16px;border-bottom:1px solid var(--hairline);font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;min-height:44px}
+.chat-header svg{width:18px;height:18px;flex-shrink:0}
 .chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
 .chat-msg{max-width:85%;display:flex;gap:8px}
 .chat-msg.user{align-self:flex-end;flex-direction:row-reverse}
@@ -266,7 +269,7 @@ select.form-input{cursor:pointer}
 
 /* Gantt Chart */
 .gantt-container{overflow:auto;max-height:600px;border:1px solid var(--hairline);border-radius:var(--radius-sm)}
-.gantt-header-row{display:grid;grid-template-columns:150px 1fr;position:sticky;top:0;background:var(--surface-strong)}
+.gantt-header-row{display:grid;grid-template-columns:150px 1fr;position:sticky;top:0;background:var(--surface-strong);z-index:10}
 .gantt-corner-cell{padding:8px 12px;font-weight:600;font-size:12px;border-bottom:1px solid var(--hairline);border-right:1px solid var(--hairline)}
 .gantt-date-cells{display:flex}
 .gantt-date-cell{flex:0 0 120px;padding:8px 4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;border-bottom:1px solid var(--hairline);border-right:1px solid var(--hairline);position:relative}
@@ -394,11 +397,11 @@ select.form-input{cursor:pointer}
 
     <!-- AI Chat Panel -->
     <aside class="chat-panel" id="chat-panel">
-      <div class="chat-header">
+      <div class="chat-header" onclick="toggleChatPanel()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
-        AI Assistant
-        <span style="margin-left:auto">
-          <button class="btn-icon btn-sm" onclick="clearChat()" data-tooltip="Clear chat">
+        <span>AI Assistant</span>
+        <span style="margin-left:auto;display:flex;gap:4px">
+          <button class="btn-icon btn-sm" onclick="event.stopPropagation();clearChat()" data-tooltip="Clear chat">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
           </button>
         </span>
@@ -481,7 +484,8 @@ function getDefaultData() {
 }
 
 function genId() { return Date.now().toString(36) + Math.random().toString(36).substr(2, 9); }
-function esc(s) { if (s == null || s === '') return ''; const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
+const _escDiv = document.createElement('div');
+function esc(s) { if (s == null || s === '') return ''; _escDiv.textContent = String(s); return _escDiv.innerHTML; }
 function escAttr(s) { if (s == null || s === '') return ''; return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
 function fmtDate(d) { if (!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
 function fmtDateTime(d) { if (!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
@@ -1635,6 +1639,7 @@ function editBooking(id, preselectedVehicleId) {
       <div class="form-group" style="margin-top:8px;margin-bottom:0"><label class="form-label">Share Note</label><textarea class="form-input" id="share-note" rows="2" placeholder="Optional note for co-passengers...">${esc(eb.shareNote || '')}</textarea></div>
     </div>
   `, () => {
+    if (b) setTimeout(checkConflicts, 0);
     const vehicleId = document.getElementById('b-vehicle').value;
     // Handle userName - could be text, select, or multiselect
     const userNameConfig = S.data.settings.userNameConfig || { type: 'text' };
@@ -2241,6 +2246,10 @@ function generateLocalResponse(query) {
     return 'I can help you with:\n• "Show available vehicles" — list free vehicles\n• "Show pending bookings" — list bookings awaiting approval\n• "Fleet summary" — overview of your fleet\n• "How many vehicles?" — vehicle count\n• Configure an AI API in Settings for intelligent responses.';
   }
   return `I see you asked about "${query}". For smarter responses, configure an OpenAI-compatible API endpoint in Settings. For now, try asking about available vehicles, pending bookings, or fleet summary.`;
+}
+
+function toggleChatPanel() {
+  document.getElementById('chat-panel').classList.toggle('collapsed');
 }
 
 function clearChat() {
