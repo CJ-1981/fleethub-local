@@ -1481,7 +1481,7 @@ function renderBookings() {
     const cfHtml = customCols.map(col => {
       const val = (b.customFields || {})[col.key];
       if (Array.isArray(val)) return `<td style="font-size:13px">${val.length ? esc(val.join(', ')) : '—'}</td>`;
-      return `<td style="font-size:13px">${esc(val || '—')}</td>`;
+      return `<td style="font-size:13px">${esc(val ?? '—')}</td>`;
     }).join('');
     return `<tr style="cursor:pointer" onclick="editBooking('${b.id}')">
       <td style="font-weight:500;color:var(--ink)">${esc(v ? v.name : 'Unknown')}</td>
@@ -1595,15 +1595,15 @@ function editBooking(id, preselectedVehicleId) {
   const statusOptions = statuses.map(s => `<option value="${s}"${eb.status === s ? ' selected' : ''}>${s}</option>`).join('');
   const shareTags = (eb.shareWith || []).map(name => `<span class="share-tag">${esc(name)}<button onclick="removeShareName(this,'${esc(name)}')">×</button></span>`).join('');
   const customFieldsHtml = customCols.map(col => {
-    const val = (eb.customFields || {})[col.key] || '';
-    if (col.type === 'select') return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><select class="form-input cf-field" data-key="${esc(col.key)}">${(col.options || []).map(o => `<option value="${esc(o)}"${val === o ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
+    const val = (eb.customFields || {})[col.key] ?? '';
+    if (col.type === 'select') return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><select class="form-input cf-field" data-key="${escAttr(col.key)}">${(col.options || []).map(o => `<option value="${escAttr(o)}"${val === o ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
     if (col.type === 'multiselect') {
       const selectedValues = Array.isArray(val) ? val : (val ? val.split(',').map(v => v.trim()).filter(Boolean) : []);
-      return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><div style="display:flex;flex-wrap:wrap;gap:8px">${(col.options || []).map(o => `<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" class="cf-field" data-key="${esc(col.key)}" value="${esc(o)}"${selectedValues.includes(o) ? ' checked' : ''}> ${esc(o)}</label>`).join('')}</div></div>`;
+      return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><div style="display:flex;flex-wrap:wrap;gap:8px">${(col.options || []).map(o => `<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" class="cf-field" data-key="${escAttr(col.key)}" value="${escAttr(o)}"${selectedValues.includes(o) ? ' checked' : ''}> ${esc(o)}</label>`).join('')}</div></div>`;
     }
-    if (col.type === 'number') return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><input class="form-input cf-field" type="number" data-key="${esc(col.key)}" value="${esc(val)}"></div>`;
-    if (col.type === 'date') return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><input class="form-input cf-field" type="date" data-key="${esc(col.key)}" value="${esc(val)}"></div>`;
-    return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><input class="form-input cf-field" data-key="${esc(col.key)}" value="${esc(val)}"></div>`;
+    if (col.type === 'number') return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><input class="form-input cf-field" type="number" data-key="${escAttr(col.key)}" value="${escAttr(val ?? '')}"></div>`;
+    if (col.type === 'date') return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><input class="form-input cf-field" type="date" data-key="${escAttr(col.key)}" value="${escAttr(val ?? '')}"></div>`;
+    return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><input class="form-input cf-field" data-key="${escAttr(col.key)}" value="${escAttr(val ?? '')}"></div>`;
   }).join('');
 
   openDialog(b ? 'Edit Booking' : 'New Booking', `
@@ -1918,7 +1918,7 @@ function editUserNameConfig() {
     </select></div>
     <div class="form-group" id="un-options-group" style="margin-top:12px;display:${config.type === 'text' ? 'none' : 'block'}">
       <label class="form-label">Known User Names (comma-separated)</label>
-      <input class="form-input" id="un-options" placeholder="John Doe, Jane Smith, Bob Wilson" value="${esc((config.options || []).join(', '))}">
+      <input class="form-input" id="un-options" placeholder="John Doe, Jane Smith, Bob Wilson" value="${escAttr((config.options || []).join(', '))}">
       <div class="form-hint">These options will be available when creating bookings</div>
     </div>
   `;
@@ -1956,6 +1956,11 @@ function addCustomField() {
   if ((type === 'select' || type === 'multiselect') && !options.length) { showToast('At least one option is required for select/multiselect types', 'error'); return; }
   const optionsField = (type === 'select' || type === 'multiselect') ? options : undefined;
   S.data.settings.customColumns.push({ id: genId(), key, label, type, options: optionsField });
+  document.getElementById('cf-label').value = '';
+  document.getElementById('cf-key').value = '';
+  document.getElementById('cf-type').value = 'text';
+  document.getElementById('cf-options').value = '';
+  toggleCfOptions();
   markDirty(); render(); showToast('Custom field added', 'success');
 }
 
@@ -2264,9 +2269,8 @@ document.addEventListener('mousemove', (e) => {
   if (target) {
     tooltip.textContent = target.getAttribute('data-tooltip');
     tooltip.style.display = 'block';
-    const rect = target.getBoundingClientRect();
-    tooltip.style.left = (rect.left + rect.width / 2) + 'px';
-    tooltip.style.top = (rect.top - 40) + 'px';
+    tooltip.style.left = e.clientX + 'px';
+    tooltip.style.top = (e.clientY - 40) + 'px';
     tooltip.style.transform = 'translateX(-50%)';
   } else {
     tooltip.style.display = 'none';
