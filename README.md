@@ -47,7 +47,7 @@
 
 ## JSON Schema
 
-```json
+```jsonc
 {
   "meta": {
     "version": "1.0",

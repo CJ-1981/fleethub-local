@@ -466,7 +466,7 @@ const DEFAULT_SETTINGS = {
 };
 
 // ===================== OS DETECTION =====================
-const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0 || navigator.userAgent.toUpperCase().indexOf('MAC') >= 0;
+const isMac = (navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || '').toUpperCase().indexOf('MAC') >= 0;
 const saveShortcut = isMac ? '⌘+Enter' : 'Ctrl+Enter';
 
 function getDefaultData() {
@@ -1207,14 +1207,23 @@ function renderCalendar() {
       const leftOffset = dayIndex * dayWidth + (visibleStart - workStartHour) * hourWidth;
       const barWidth = (visibleEnd - visibleStart) * hourWidth;
 
-      // Handle overlapping bookings
-      const overlaps = vehicleBookings.filter(ob =>
-        ob.id !== b.id &&
-        new Date(ob.periodStart) < bEnd &&
-        new Date(ob.periodEnd) > bStart
-      );
-      const overlapIndex = overlaps.sort((a, b) => new Date(a.periodStart) - new Date(b.periodStart))
-        .findIndex(ob => new Date(ob.periodStart) >= bStart) + 1;
+      // Handle overlapping bookings - greedy slot assignment
+      const sortedBookings = [...vehicleBookings].sort((a, b) => new Date(a.periodStart) - new Date(b.periodStart));
+      const slotEnds = []; // track when each vertical slot becomes free
+      let overlapIndex = 0;
+      for (let si = 0; si < slotEnds.length; si++) {
+        if (slotEnds[si] <= bStart) {
+          overlapIndex = si;
+          slotEnds[si] = bEnd;
+          break;
+        }
+      }
+      if (overlapIndex === 0 && slotEnds.length > 0 && slotEnds[0] > bStart) {
+        overlapIndex = slotEnds.length;
+        slotEnds.push(bEnd);
+      } else if (slotEnds.length === 0) {
+        slotEnds.push(bEnd);
+      }
       const topOffset = overlapIndex * 52; // 48px bar height + 4px spacing
 
       // Status color mapping for inline styles (ensures colors always render)
@@ -1298,8 +1307,8 @@ function renderVehicles() {
       <td>${esc(v.licensePlate || '—')}</td>
       <td style="color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.notes || '')}</td>
       <td style="white-space:nowrap">
-        <button class="btn-icon btn-sm" onclick="event.stopPropagation();moveVehicleUp('${v.id}', ${idx})" data-tooltip="Move up" ${isFirst ? 'disabled' : ''}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg></button>
-        <button class="btn-icon btn-sm" onclick="event.stopPropagation();moveVehicleDown('${v.id}', ${idx})" data-tooltip="Move down" ${isLast ? 'disabled' : ''}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();moveVehicleUp(${idx})" data-tooltip="Move up" ${isFirst ? 'disabled' : ''}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg></button>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();moveVehicleDown(${idx})" data-tooltip="Move down" ${isLast ? 'disabled' : ''}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
         <button class="btn-icon btn-sm" onclick="event.stopPropagation();confirmDeleteVehicle('${v.id}')" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
       </td>
     </tr>`;
@@ -1357,7 +1366,7 @@ function editVehicle(id) {
   });
 }
 
-function moveVehicleUp(id, idx) {
+function moveVehicleUp(idx) {
   if (idx <= 0) return;
   const vehicles = S.data.vehicles.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   vehicles.forEach((v, i) => { v.sortOrder = i; });
@@ -1369,7 +1378,7 @@ function moveVehicleUp(id, idx) {
   markDirty(); render();
 }
 
-function moveVehicleDown(id, idx) {
+function moveVehicleDown(idx) {
   const vehicles = S.data.vehicles.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   if (idx >= vehicles.length - 1) return;
   vehicles.forEach((v, i) => { v.sortOrder = i; });
@@ -2082,10 +2091,10 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeDialog();
   // Ctrl/Cmd+Enter to save in dialogs
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-    const dialogConfirm = document.getElementById('dialog-confirm');
-    if (dialogConfirm && document.getElementById('dialog-overlay').classList.contains('active')) {
+    const dialogConfirmBtn = document.getElementById('dialog-confirm');
+    if (dialogConfirmBtn && document.getElementById('dialog-overlay').classList.contains('active')) {
       e.preventDefault();
-      dialogConfirm.click();
+      dialogConfirmBtn.click();
     }
   }
 });
@@ -2184,13 +2193,18 @@ function showToast(msg, type = 'info') {
   setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity .3s'; setTimeout(() => toast.remove(), 300); }, 3000);
 }
 
-// ===================== KEYBOARD SHORTCUTS =====================
+// ===================== KEYBOARD SHORTCUTS (consolidated) =====================
 document.addEventListener('keydown', e => {
-  if (e.ctrlKey || e.metaKey) {
-    if (e.key === 's') { e.preventDefault(); saveFile(); }
-    if (e.key === 'n') { e.preventDefault(); newBooking(); }
-  }
+  // Ctrl/Cmd+S to save (always active, even in inputs)
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveFile(); }
+  // Ctrl/Cmd+N for new booking (not in inputs)
+  if ((e.ctrlKey || e.metaKey) && e.key === 'n' && !isFormElement(e.target)) { e.preventDefault(); newBooking(); }
 });
+
+function isFormElement(el) {
+  const tag = el.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+}
 
 // ===================== GANTT TOOLTIP =====================
 document.addEventListener('mousemove', (e) => {
@@ -2220,11 +2234,12 @@ document.addEventListener('mousemove', (e) => {
   }
 });
 
-// ===================== KEYBOARD SHORTCUTS =====================
+// ===================== KEYBOARD SHORTCUTS (non-modifier keys) =====================
 document.addEventListener('keydown', (e) => {
-  // Only handle shortcuts when not typing in an input or when a dialog is open
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  // Only handle non-modifier shortcuts when not typing in a form element or dialog
+  if (isFormElement(e.target)) return;
   if (document.getElementById('dialog-overlay')?.classList.contains('active')) return;
+  if (e.ctrlKey || e.metaKey) return; // Let the Ctrl/Cmd handler above deal with those
 
   const key = e.key.toLowerCase();
 
@@ -2238,7 +2253,7 @@ document.addEventListener('keydown', (e) => {
 
   // N for new booking
   if (key === 'n') {
-    editBooking(null);
+    newBooking();
   }
 });
 
