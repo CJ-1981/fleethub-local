@@ -280,7 +280,7 @@ select.form-input{cursor:pointer}
 .gantt-row-label{padding:8px 12px;font-size:13px;font-weight:500;border-right:1px solid var(--hairline);display:flex;align-items:center}
 .gantt-timeline{position:relative;min-height:60px;background:var(--surface-soft)}
 .gantt-time-cell{position:absolute;flex:0 0 120px;height:100%;border-right:1px solid var(--hairline);background:var(--canvas);top:0}
-.gantt-booking-bar{position:absolute;height:60px;top:0;border-radius:4px;font-size:12px;font-weight:500;cursor:pointer;transition:opacity .15s;overflow:hidden;text-overflow:ellipsis;padding:0 8px;line-height:60px;z-index:5;will-change:opacity,left}
+.gantt-booking-bar{position:absolute;height:60px;top:0;border-radius:4px;font-size:12px;font-weight:500;cursor:pointer;transition:opacity .15s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px;line-height:60px;z-index:5;will-change:opacity,left}
 .gantt-booking-bar:hover{opacity:.8}
 .gantt-booking-bar.pending{background-color:#d9a441;background:#d9a441;color:#fff!important}
 .gantt-booking-bar.confirmed{background-color:#254fad;background:#254fad;color:#fff!important}
@@ -988,13 +988,14 @@ function renderDashboard() {
     widgetDateCells.push(`<div class="gantt-date-cell${isToday ? ' today' : ''}${holidayClass}" style="${bgStyle}" ${holidayTitle}>${date.toLocaleDateString('en-US', {weekday:'short',month:'numeric',day:'numeric'})}${holidayIcon}</div>`);
   }
 
+  const widgetViewEnd = new Date(widgetStartDate);
+  widgetViewEnd.setDate(widgetViewEnd.getDate() + widgetDays);
+
   const widgetRows = vehicles.length ? [...vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)).slice(0, 5).map(v => {
     const vehicleBookings = bookings.filter(b => {
       const bStart = new Date(b.periodStart);
       const bEnd = new Date(b.periodEnd);
-      const viewEnd = new Date(widgetStartDate);
-      viewEnd.setDate(viewEnd.getDate() + widgetDays);
-      return b.vehicleId === v.id && b.status !== 'cancelled' && bEnd >= widgetStartDate && bStart <= viewEnd;
+      return b.vehicleId === v.id && b.status !== 'cancelled' && bEnd >= widgetStartDate && bStart <= widgetViewEnd;
     });
 
     // Pre-compute overlap slot assignments for visible bookings
@@ -1019,10 +1020,8 @@ function renderDashboard() {
     const bookingBars = vehicleBookings.map(b => {
       const bStart = new Date(b.periodStart);
       const bEnd = new Date(b.periodEnd);
-      const viewEnd = new Date(widgetStartDate);
-      viewEnd.setDate(viewEnd.getDate() + widgetDays);
       const clampedStart = new Date(Math.max(bStart, widgetStartDate));
-      const clampedEnd = new Date(Math.min(bEnd, viewEnd));
+      const clampedEnd = new Date(Math.min(bEnd, widgetViewEnd));
       const startOffset = (clampedStart - widgetStartDate) / (1000 * 60 * 60);
       const duration = (clampedEnd - clampedStart) / (1000 * 60 * 60);
       const leftPos = startOffset * (dayWidth / 24);
@@ -1221,13 +1220,14 @@ function renderCalendar() {
     return dayOffset * dayWidth + Math.max(0, Math.min(workEndHour - workStartHour, hour - workStartHour)) * hourWidth;
   }
 
+  const lastVisibleEnd = new Date(dateCells[dateCells.length - 1].date);
+  lastVisibleEnd.setDate(lastVisibleEnd.getDate() + 1);
+
   // Generate vehicle rows with booking bars
   const vehicleRows = vehicles.length ? vehicles.map(v => {
     const vehicleBookings = bookings.filter(b => b.vehicleId === v.id && b.status !== 'cancelled');
 
     // Clamp to visible range for slot assignment and rendering
-    const lastVisibleEnd = new Date(dateCells[dateCells.length - 1].date);
-    lastVisibleEnd.setDate(lastVisibleEnd.getDate() + 1);
     const visibleBookings = vehicleBookings.filter(b => {
       const bs = new Date(b.periodStart);
       const be = new Date(b.periodEnd);
@@ -2280,7 +2280,7 @@ document.addEventListener('keydown', (e) => {
   // Only handle non-modifier shortcuts when not typing in a form element or dialog
   if (isFormElement(e.target)) return;
   if (document.getElementById('dialog-overlay')?.classList.contains('active')) return;
-  if (e.ctrlKey || e.metaKey) return; // Let the Ctrl/Cmd handler above deal with those
+  if (e.ctrlKey || e.metaKey || e.altKey) return; // Let the Ctrl/Cmd handler above deal with those
 
   const key = e.key.toLowerCase();
 
