@@ -949,9 +949,7 @@ function renderDashboard() {
   widgetEndDate.setDate(widgetEndDate.getDate() + widgetDays - 1);
   const widgetEndYear = widgetEndDate.getFullYear();
   const widgetYears = new Set([widgetYear, widgetEndYear]);
-  const widgetHolidays = S.data.settings.germanState
-    ? [...widgetYears].flatMap(y => getGermanHolidays(y, S.data.settings.germanState))
-    : [];
+  const widgetHolidays = [...widgetYears].flatMap(y => getGermanHolidays(y, S.data.settings.germanState));
   const widgetHolidayMap = {};
   widgetHolidays.forEach(h => {
     widgetHolidayMap[h.date] = h;
@@ -1117,7 +1115,7 @@ function renderDashboard() {
 
 // ===================== CALENDAR =====================
 function renderCalendar() {
-  const vehicles = S.data.vehicles.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const vehicles = [...S.data.vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   const bookings = S.data.bookings;
   const viewMode = S.calendarView || 'week';
   const daysToShow = viewMode === 'week' ? 7 : 30; // Mon-Sun for week view
@@ -1142,9 +1140,7 @@ function renderCalendar() {
   viewEndDate.setDate(viewEndDate.getDate() + daysToShow - 1);
   const endYear = viewEndDate.getFullYear();
   const yearsToFetch = new Set([currentYear, endYear]);
-  const holidays = S.data.settings.germanState
-    ? [...yearsToFetch].flatMap(y => getGermanHolidays(y, S.data.settings.germanState))
-    : [];
+  const holidays = [...yearsToFetch].flatMap(y => getGermanHolidays(y, S.data.settings.germanState));
   const holidayMap = {};
   holidays.forEach(h => {
     holidayMap[h.date] = h;
@@ -1188,10 +1184,11 @@ function renderCalendar() {
   const hourWidth = dayWidth / (workEndHour - workStartHour);
 
   // Helper: map a date to x-position on the Gantt timeline
-  const firstVisibleDate = dateCells[0].date;
+  const firstVisibleDate = new Date(dateCells[0].date);
+  firstVisibleDate.setHours(0, 0, 0, 0); // Normalize to midnight
   const msPerDay = 86400000;
   function ganttX(date) {
-    const dayOffset = (date - firstVisibleDate) / msPerDay;
+    const dayOffset = (date.getTime() - firstVisibleDate.getTime()) / msPerDay;
     const hour = date.getHours() + date.getMinutes() / 60;
     return dayOffset * dayWidth + Math.max(0, Math.min(workEndHour - workStartHour, hour - workStartHour)) * hourWidth;
   }
@@ -1232,7 +1229,7 @@ function renderCalendar() {
       const barWidth = Math.max(rightOffset - leftOffset, 4);
 
       const overlapIndex = slotAssignments.get(b.id) || 0;
-      const topOffset = overlapIndex * 52; // 48px bar height + 4px spacing
+      const topOffset = overlapIndex * 64; // 60px bar height + 4px spacing
 
       // Status color mapping for inline styles (ensures colors always render)
       const statusColors = {
@@ -1252,9 +1249,13 @@ function renderCalendar() {
       >${esc(b.userName)}</div>`;
     }).join('');
 
+    // Calculate max overlap slots for this vehicle to set row height
+    const maxSlots = slotAssignments.size > 0 ? Math.max(...slotAssignments.values()) + 1 : 1;
+    const rowHeight = maxSlots * 64;
+
     return `<div class="gantt-row">
       <div class="gantt-row-label">${esc(v.name)}</div>
-      <div class="gantt-timeline" style="min-width:${dateCells.length * dayWidth}px">
+      <div class="gantt-timeline" style="min-width:${dateCells.length * dayWidth}px;min-height:${rowHeight}px">
         <!-- Grid lines for each work day -->
         ${dateCells.map((cell, i) => {
           const isToday = cell.date.toDateString() === now.toDateString();
@@ -1305,7 +1306,7 @@ function renderCalendar() {
 
 // ===================== VEHICLES =====================
 function renderVehicles() {
-  const vehicles = S.data.vehicles.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const vehicles = [...S.data.vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   const rows = vehicles.length ? vehicles.map((v, idx) => {
     const isFirst = idx === 0;
     const isLast = idx === vehicles.length - 1;
@@ -1376,7 +1377,7 @@ function editVehicle(id) {
 
 function moveVehicleUp(idx) {
   if (idx <= 0) return;
-  const vehicles = S.data.vehicles.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const vehicles = [...S.data.vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   vehicles.forEach((v, i) => { v.sortOrder = i; });
   const currentVehicle = vehicles[idx];
   const prevVehicle = vehicles[idx - 1];
@@ -1387,7 +1388,7 @@ function moveVehicleUp(idx) {
 }
 
 function moveVehicleDown(idx) {
-  const vehicles = S.data.vehicles.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const vehicles = [...S.data.vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   if (idx >= vehicles.length - 1) return;
   vehicles.forEach((v, i) => { v.sortOrder = i; });
   const currentVehicle = vehicles[idx];
