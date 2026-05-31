@@ -532,7 +532,7 @@ function getDemoData() {
   };
 }
 
-function saveFile() {
+async function saveFile() {
   if (S.demoMode) { showToast('Demo mode — use Export to save a copy', 'info'); return; }
   if (!S.fileHandle) return;
   S.saving = true;
