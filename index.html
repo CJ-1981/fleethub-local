@@ -1042,7 +1042,8 @@ function renderDashboard() {
       return `<div class="gantt-booking-bar ${esc(b.status)}"
         style="left:${leftPos}px;width:${width}px;height:${barHeight}px;top:${topOffset}px;background-color:${barColor}!important;color:#fff!important;font-size:11px;line-height:${barHeight}px;"
         data-tooltip="${escAttr(b.userName)} - ${escAttr(b.purpose)}"
-        onclick="editBooking('${b.id}')"
+        onclick="editBooking(this.dataset.id)"
+        data-id="${escAttr(b.id)}"
       >${esc(b.userName)}</div>`;
     }).join('');
 
@@ -1096,7 +1097,9 @@ function renderDashboard() {
   const fleetStatusHtml = vehicles.length ? vehicles.slice(0, 20).map(v => {
     const ab = activeBookings.find(b => b.vehicleId === v.id && (b.status === 'confirmed' || b.status === 'in-use'));
     const statusBadge = ab ? `<span class="badge badge-in-use">${esc(ab.userName)}</span>` : `<span class="badge badge-available">Available</span>`;
-    const clickAttr = ` onclick="${ab ? `editBooking('${ab.id}')` : `newBooking('${v.id}')`}" style="cursor:pointer"`;
+    const clickAttr = ab
+      ? ` data-booking-id="${escAttr(ab.id)}" onclick="editBooking(this.dataset.bookingId)" style="cursor:pointer"`
+      : ` data-vehicle-id="${escAttr(v.id)}" onclick="newBooking(this.dataset.vehicleId)" style="cursor:pointer"`;
     return `<div class="vehicle-status-row"${clickAttr}>
       <span class="v-name">${esc(v.name)}</span>
       ${v.licensePlate ? `<span class="v-plate">${esc(v.licensePlate)}</span>` : ''}
@@ -1107,7 +1110,7 @@ function renderDashboard() {
   const upcoming = bookings.filter(b => new Date(b.periodStart) >= new Date()).sort((a, b) => new Date(a.periodStart) - new Date(b.periodStart)).slice(0, 5);
   const upcomingHtml = upcoming.length ? upcoming.map(b => {
     const v = vehicles.find(v => v.id === b.vehicleId);
-    return `<div class="vehicle-status-row" style="cursor:pointer" onclick="editBooking('${b.id}')">
+    return `<div class="vehicle-status-row" style="cursor:pointer" onclick="editBooking(this.dataset.id)" data-id="${escAttr(b.id)}">
       <div style="min-width:120px">
         <div style="font-weight:500;color:var(--ink)">${esc(v ? v.name : 'Unknown')}</div>
         <div style="font-size:12px;color:var(--muted)">${esc(b.userName)}</div>
@@ -1278,7 +1281,8 @@ function renderCalendar() {
       return `<div class="gantt-booking-bar ${esc(b.status)}"
         style="left:${leftOffset}px;width:${Math.max(barWidth, 4)}px;top:${topOffset}px;background-color:${barColor}!important;color:#fff!important;"
         data-tooltip="${escAttr(b.userName)} - ${escAttr(b.purpose)} (${fmtDateTime(b.periodStart)} to ${fmtDateTime(b.periodEnd)})"
-        onclick="editBooking('${b.id}')"
+        onclick="editBooking(this.dataset.id)"
+        data-id="${escAttr(b.id)}"
       >${esc(b.userName)}</div>`;
     }).join('');
 
@@ -1483,7 +1487,7 @@ function renderBookings() {
       if (Array.isArray(val)) return `<td style="font-size:13px">${val.length ? esc(val.join(', ')) : '—'}</td>`;
       return `<td style="font-size:13px">${esc(val ?? '—')}</td>`;
     }).join('');
-    return `<tr style="cursor:pointer" onclick="editBooking('${b.id}')">
+    return `<tr style="cursor:pointer" onclick="editBooking(this.dataset.id)" data-id="${escAttr(b.id)}">
       <td style="font-weight:500;color:var(--ink)">${esc(v ? v.name : 'Unknown')}</td>
       <td>${esc(b.userName)}</td>
       <td>${esc(b.purpose)}</td>
@@ -1607,6 +1611,7 @@ function editBooking(id, preselectedVehicleId) {
   }).join('');
 
   openDialog(b ? 'Edit Booking' : 'New Booking', `
+    <div id="conflict-warning"></div>
     <div class="form-group"><label class="form-label">Vehicle *</label><select class="form-input" id="b-vehicle"><option value="">Select vehicle...</option>${vehicleOptions}</select></div>
     ${renderUserNameField(eb.userName)}
     <div class="form-group"><label class="form-label">Purpose *</label><input class="form-input" id="b-purpose" value="${esc(eb.purpose)}" placeholder="e.g. Client meeting"></div>
@@ -1682,6 +1687,8 @@ function checkConflicts() {
   S.editingBooking.vehicleId = document.getElementById('b-vehicle')?.value || '';
   S.editingBooking.periodStart = document.getElementById('b-start')?.value || '';
   S.editingBooking.periodEnd = document.getElementById('b-end')?.value || '';
+  const warningEl = document.getElementById('conflict-warning');
+  if (warningEl) warningEl.innerHTML = renderConflictWarning(S.editingBooking);
 }
 
 function addShareName() {
