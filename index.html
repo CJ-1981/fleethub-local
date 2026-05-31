@@ -1036,12 +1036,11 @@ function renderDashboard() {
         'cancelled': '#b91c1c'
       };
       const barColor = statusColors[b.status] || '#d9a441';
-      const isCancelled = b.status === 'cancelled';
       const overlapIndex = slotAssignments.get(b.id) || 0;
       const topOffset = 4 + overlapIndex * (barHeight + barSpacing);
 
       return `<div class="gantt-booking-bar ${esc(b.status)}"
-        style="left:${leftPos}px;width:${width}px;height:${barHeight}px;top:${topOffset}px;background-color:${barColor}!important;color:#fff!important;font-size:11px;line-height:${barHeight}px;${isCancelled ? 'opacity:0.6;text-decoration:line-through;' : ''}"
+        style="left:${leftPos}px;width:${width}px;height:${barHeight}px;top:${topOffset}px;background-color:${barColor}!important;color:#fff!important;font-size:11px;line-height:${barHeight}px;"
         data-tooltip="${escAttr(b.userName)} - ${escAttr(b.purpose)}"
         onclick="editBooking('${b.id}')"
       >${esc(b.userName)}</div>`;
@@ -1275,10 +1274,9 @@ function renderCalendar() {
         'cancelled': '#b91c1c'
       };
       const barColor = statusColors[b.status] || '#d9a441';
-      const isCancelled = b.status === 'cancelled';
 
       return `<div class="gantt-booking-bar ${esc(b.status)}"
-        style="left:${leftOffset}px;width:${Math.max(barWidth, 4)}px;top:${topOffset}px;background-color:${barColor}!important;color:#fff!important;${isCancelled ? 'opacity:0.6;text-decoration:line-through;' : ''}"
+        style="left:${leftOffset}px;width:${Math.max(barWidth, 4)}px;top:${topOffset}px;background-color:${barColor}!important;color:#fff!important;"
         data-tooltip="${escAttr(b.userName)} - ${escAttr(b.purpose)} (${fmtDateTime(b.periodStart)} to ${fmtDateTime(b.periodEnd)})"
         onclick="editBooking('${b.id}')"
       >${esc(b.userName)}</div>`;
@@ -1562,7 +1560,7 @@ function shareWithConflicts() {
   showToast('Added conflicting users to share list', 'info');
 }
 
-function newBooking(preselectedVehicleId) { S.activeTab = 'bookings'; editBooking(null, preselectedVehicleId); renderNav(); }
+function newBooking(preselectedVehicleId) { editBooking(null, preselectedVehicleId); }
 
 function renderUserNameField(value) {
   const userNameConfig = S.data.settings.userNameConfig || { type: 'text', options: [] };
