@@ -1051,7 +1051,7 @@ function renderDashboard() {
 
     return `<div class="gantt-row">
       <div class="gantt-row-label">${esc(v.name)}</div>
-      <div class="gantt-timeline" style="min-height:${rowHeight}px">
+      <div class="gantt-timeline" style="min-height:${rowHeight}px;min-width:${widgetDays * 120}px">
         ${Array(widgetDays).fill(0).map((_, i) => {
           const date = new Date(widgetStartDate);
           date.setDate(date.getDate() + i);
@@ -1095,7 +1095,7 @@ function renderDashboard() {
 
   const fleetStatusHtml = vehicles.length ? vehicles.slice(0, 20).map(v => {
     const ab = activeBookings.find(b => b.vehicleId === v.id && (b.status === 'confirmed' || b.status === 'in-use'));
-    const statusBadge = ab ? `<span class="badge badge-in-use">${ab.userName}</span>` : `<span class="badge badge-available">Available</span>`;
+    const statusBadge = ab ? `<span class="badge badge-in-use">${esc(ab.userName)}</span>` : `<span class="badge badge-available">Available</span>`;
     const clickAttr = ` onclick="${ab ? `editBooking('${ab.id}')` : `newBooking('${v.id}')`}" style="cursor:pointer"`;
     return `<div class="vehicle-status-row"${clickAttr}>
       <span class="v-name">${esc(v.name)}</span>
@@ -1566,20 +1566,20 @@ function renderUserNameField(value) {
   const userNameConfig = S.data.settings.userNameConfig || { type: 'text', options: [] };
 
   if (userNameConfig.type === 'select') {
-    const options = (userNameConfig.options || []).map(o => `<option value="${esc(o)}"${value === o ? ' selected' : ''}>${esc(o)}</option>`).join('');
+    const options = (userNameConfig.options || []).map(o => `<option value="${escAttr(o)}"${value === o ? ' selected' : ''}>${esc(o)}</option>`).join('');
     return `<div class="form-group"><label class="form-label">User Name *</label><select class="form-input" id="b-user"><option value="">Select user...</option>${options}</select></div>`;
   } else if (userNameConfig.type === 'multiselect') {
     const selectedValues = Array.isArray(value) ? value : (value ? value.split(',').map(v => v.trim()) : []);
     const options = (userNameConfig.options || []).map(o => {
       const checked = selectedValues.includes(o) ? ' checked' : '';
-      return '<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" class="un-select-field" value="' + esc(o) + '"' + checked + '> ' + esc(o) + '</label>';
+      return '<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" class="un-select-field" value="' + escAttr(o) + '"' + checked + '> ' + esc(o) + '</label>';
     }).join('');
     return `<div class="form-group"><label class="form-label">User Name *</label>
-      <input type="hidden" id="b-user" value="${esc(value || '')}">
+      <input type="hidden" id="b-user" value="${escAttr(value || '')}">
       <div style="display:flex;flex-wrap:wrap;gap:8px">${options}</div>
     </div>`;
   } else {
-    return `<div class="form-group"><label class="form-label">User Name *</label><input class="form-input" id="b-user" value="${esc(value)}" placeholder="Who is booking?"></div>`;
+    return `<div class="form-group"><label class="form-label">User Name *</label><input class="form-input" id="b-user" value="${escAttr(value)}" placeholder="Who is booking?"></div>`;
   }
 }
 
