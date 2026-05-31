@@ -18,7 +18,7 @@
   --destructive:#b91c1c;--destructive-bg:#fee2e2;--destructive-border:#dc2626;
   --info:#254fad;--info-bg:#dbeafe;--info-border:#458fff;
   --coral:#aa2d00;--forest:#0a2e0e;--cream:#f5e9d4;--mustard:#d9a441;
-	  --highlight-bg:#fef9c3;
+          --highlight-bg:#fef9c3;
   --radius-sm:6px;--radius-md:10px;--radius-lg:12px;
   --font:'Inter',system-ui,-apple-system,sans-serif;
   --header-h:56px;--sidebar-w:240px;
@@ -278,7 +278,7 @@ select.form-input{cursor:pointer}
 .gantt-row-label{padding:8px 12px;font-size:13px;font-weight:500;border-right:1px solid var(--hairline);display:flex;align-items:center}
 .gantt-timeline{position:relative;min-height:60px;background:var(--surface-soft)}
 .gantt-time-cell{position:absolute;flex:0 0 120px;height:100%;border-right:1px solid var(--hairline);background:var(--canvas);top:0}
-.gantt-booking-bar{position:absolute;height:60px;top:0;border-radius:4px;font-size:12px;font-weight:500;cursor:pointer;transition:opacity .15s;overflow:hidden;text-overflow:ellipsis;padding:0 8px;line-height:60px;z-index:5;will-change:opacity,left;top}
+.gantt-booking-bar{position:absolute;height:60px;top:0;border-radius:4px;font-size:12px;font-weight:500;cursor:pointer;transition:opacity .15s;overflow:hidden;text-overflow:ellipsis;padding:0 8px;line-height:60px;z-index:5;will-change:opacity,left}
 .gantt-booking-bar:hover{opacity:.8}
 .gantt-booking-bar.pending{background-color:#d9a441;background:#d9a441;color:#fff!important}
 .gantt-booking-bar.confirmed{background-color:#254fad;background:#254fad;color:#fff!important}
@@ -581,8 +581,8 @@ function getGermanHolidays(year, state = null) {
   }
 
   // Reformation Day (Oct 31)
-  if (isState(BB) || isState(BY) || isState(HH) || isState(MV) || isState(NI) || isState(SN) || isState(ST) || isState(TH)) {
-    holidays.push({ date: new Date(year, 9, 31), name: 'Reformationstag', states: [BB[0], BY[0], HH[0], MV[0], NI[0], SN[0], ST[0], TH[0]] });
+  if (isState(BB) || isState(HB) || isState(HH) || isState(MV) || isState(NI) || isState(SN) || isState(ST) || isState(SH) || isState(TH)) {
+    holidays.push({ date: new Date(year, 9, 31), name: 'Reformationstag', states: [BB[0], HB[0], HH[0], MV[0], NI[0], SN[0], ST[0], SH[0], TH[0]] });
   }
 
   // All Saints' Day (Nov 1)
@@ -593,6 +593,7 @@ function getGermanHolidays(year, state = null) {
   // Day of Prayer and Repentance (Wednesday before Nov 23) - Saxony only
   const nov23 = new Date(year, 10, 23);
   let dayOfRepentance = new Date(nov23);
+  dayOfRepentance.setDate(dayOfRepentance.getDate() - 1);
   while (dayOfRepentance.getDay() !== 3) {
     dayOfRepentance.setDate(dayOfRepentance.getDate() - 1);
   }
@@ -992,10 +993,14 @@ function renderDashboard() {
     const bookingBars = vehicleBookings.map(b => {
       const bStart = new Date(b.periodStart);
       const bEnd = new Date(b.periodEnd);
-      const startOffset = (bStart - widgetStartDate) / (1000 * 60 * 60);
-      const duration = (bEnd - bStart) / (1000 * 60 * 60);
+      const viewEnd = new Date(widgetStartDate);
+      viewEnd.setDate(viewEnd.getDate() + widgetDays);
+      const clampedStart = new Date(Math.max(bStart, widgetStartDate));
+      const clampedEnd = new Date(Math.min(bEnd, viewEnd));
+      const startOffset = (clampedStart - widgetStartDate) / (1000 * 60 * 60);
+      const duration = (clampedEnd - clampedStart) / (1000 * 60 * 60);
       const dayWidth = 120;
-      const leftPos = Math.max(0, startOffset * (dayWidth / 24));
+      const leftPos = startOffset * (dayWidth / 24);
       const width = Math.max(duration * (dayWidth / 24), 4);
 
       // Status color mapping for inline styles (ensures colors always render)
@@ -1011,7 +1016,7 @@ function renderDashboard() {
 
       return `<div class="gantt-booking-bar ${esc(b.status)}"
         style="left:${leftPos}px;width:${width}px;background-color:${barColor}!important;color:#fff!important;${isCancelled ? 'opacity:0.6;text-decoration:line-through;' : ''}"
-        title="${esc(b.userName)} - ${esc(b.purpose)}"
+        title="${escAttr(b.userName)} - ${escAttr(b.purpose)}"
         onclick="editBooking('${b.id}')"
       >${esc(b.userName)}</div>`;
     }).join('');
@@ -1225,7 +1230,7 @@ function renderCalendar() {
 
       return `<div class="gantt-booking-bar ${esc(b.status)}"
         style="left:${leftOffset}px;width:${Math.max(barWidth, 4)}px;top:${topOffset}px;background-color:${barColor}!important;color:#fff!important;${isCancelled ? 'opacity:0.6;text-decoration:line-through;' : ''}"
-        title="${esc(b.userName)} - ${esc(b.purpose)} (${fmtDateTime(b.periodStart)} to ${fmtDateTime(b.periodEnd)})"
+        title="${escAttr(b.userName)} - ${escAttr(b.purpose)} (${fmtDateTime(b.periodStart)} to ${fmtDateTime(b.periodEnd)})"
         onclick="editBooking('${b.id}')"
       >${esc(b.userName)}</div>`;
     }).join('');
@@ -1355,6 +1360,7 @@ function editVehicle(id) {
 function moveVehicleUp(id, idx) {
   if (idx <= 0) return;
   const vehicles = S.data.vehicles.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  vehicles.forEach((v, i) => { v.sortOrder = i; });
   const currentVehicle = vehicles[idx];
   const prevVehicle = vehicles[idx - 1];
   const tempOrder = currentVehicle.sortOrder;
@@ -1366,6 +1372,7 @@ function moveVehicleUp(id, idx) {
 function moveVehicleDown(id, idx) {
   const vehicles = S.data.vehicles.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   if (idx >= vehicles.length - 1) return;
+  vehicles.forEach((v, i) => { v.sortOrder = i; });
   const currentVehicle = vehicles[idx];
   const nextVehicle = vehicles[idx + 1];
   const tempOrder = currentVehicle.sortOrder;
@@ -1511,7 +1518,7 @@ function renderUserNameField(value) {
     const options = (userNameConfig.options || []).map(o => `<option value="${esc(o)}"${value === o ? ' selected' : ''}>${esc(o)}</option>`).join('');
     return `<div class="form-group"><label class="form-label">User Name *</label><select class="form-input" id="b-user"><option value="">Select user...</option>${options}</select></div>`;
   } else if (userNameConfig.type === 'multiselect') {
-    const selectedValues = Array.isArray(value) ? value : (value ? [value] : []);
+    const selectedValues = Array.isArray(value) ? value : (value ? value.split(',').map(v => v.trim()) : []);
     const options = (userNameConfig.options || []).map(o => {
       const checked = selectedValues.includes(o) ? ' checked' : '';
       return '<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" class="un-select-field" value="' + esc(o) + '"' + checked + '> ' + esc(o) + '</label>';
@@ -1911,6 +1918,7 @@ function editCustomField(key) {
   editingCustomFieldKey = key;
   document.getElementById('cf-label').value = col.label;
   document.getElementById('cf-key').value = col.key;
+  document.getElementById('cf-key').disabled = true;
   document.getElementById('cf-type').value = col.type;
   document.getElementById('cf-options').value = (col.options || []).join(', ');
   document.getElementById('cf-submit-btn').textContent = 'Update Field';
@@ -1939,6 +1947,7 @@ function cancelEditCustomField() {
   editingCustomFieldKey = null;
   document.getElementById('cf-label').value = '';
   document.getElementById('cf-key').value = '';
+  document.getElementById('cf-key').disabled = false;
   document.getElementById('cf-type').value = 'text';
   document.getElementById('cf-options').value = '';
   document.getElementById('cf-submit-btn').textContent = 'Add Field';
@@ -2213,8 +2222,9 @@ document.addEventListener('mousemove', (e) => {
 
 // ===================== KEYBOARD SHORTCUTS =====================
 document.addEventListener('keydown', (e) => {
-  // Only handle shortcuts when not typing in an input
+  // Only handle shortcuts when not typing in an input or when a dialog is open
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  if (document.getElementById('dialog-overlay')?.classList.contains('active')) return;
 
   const key = e.key.toLowerCase();
 

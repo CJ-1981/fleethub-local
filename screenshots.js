@@ -7,6 +7,7 @@
 const puppeteer = require('puppeteer');
 const path = require('path');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
 
 const screenshots = [
   { name: 'dashboard', title: 'Dashboard' },
@@ -26,7 +27,7 @@ async function captureScreenshots() {
   await page.setViewport({ width: 1400, height: 900 });
 
   const indexPath = path.join(__dirname, 'index.html');
-  const fileUrl = `file://${indexPath}`;
+  const fileUrl = pathToFileURL(indexPath).href;
 
   console.log('Opening FleetHub in demo mode...');
 
@@ -53,11 +54,18 @@ async function captureScreenshots() {
     console.log(`Capturing ${shot.name}...`);
 
     // Click on the tab
-    await page.evaluate((tabName) => {
+    const clicked = await page.evaluate((tabName) => {
       const tab = [...document.querySelectorAll('.sidebar-nav-item, .mobile-nav-item')]
         .find(el => el.textContent.toLowerCase().includes(tabName.toLowerCase()));
-      if (tab) tab.click();
+      if (!tab) return false;
+      tab.click();
+      return true;
     }, shot.name);
+
+    if (!clicked) {
+      console.warn(`Tab not found: ${shot.name}, skipping screenshot`);
+      continue;
+    }
 
     // Wait for content to load
     await new Promise(r => setTimeout(r, 800));

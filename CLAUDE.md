@@ -12,7 +12,7 @@ FleetHub is a **zero-backend fleet management system** consisting of a single `i
 
 ### File Structure
 
-```
+```text
 index.html                # Single-file app (~2500 lines)
   ├─ <style>             # All CSS (inline)
   ├─ <div id="app">       # DOM structure for landing page and main app
@@ -61,7 +61,7 @@ const S = {
 
 ### Data Model
 
-The JSON file contains three top-level keys:
+The JSON file contains four top-level keys:
 
 - `meta` — Version, timestamps, lock metadata
 - `vehicles` — Array of vehicle objects
@@ -86,7 +86,7 @@ function render() {
     case 'vehicles': renderVehicles(); break;
     case 'bookings': renderBookings(); break;
     case 'settings': renderSettings(); break;
-    case 'chat': renderChat(); break;
+    case 'calendar': renderCalendar(); break;
   }
   
   // Always re-render nav to update badges
@@ -237,6 +237,7 @@ Modify CSS custom properties in `:root` within the `<style>` section.
 **트리거:** UI 문제 해결, 캘린더 수정, 색상 표시 문제, 레이아웃 버그 등 프론트엔드 관련 작업 요청 시 `fleethub-orchestrator` 스킬을 사용하라. 단순 질문은 직접 응답 가능.
 
 **변경 이력:**
+
 | 날짜 | 변경 내용 | 대상 | 사유 |
 |------|----------|------|------|
 | 2026-05-31 | 초기 구성 | 전체 | 캘린더 뷰 컬러 셀 문제 해결을 위해 프론트엔드 전문가 팀 구성 |
