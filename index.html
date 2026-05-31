@@ -1033,6 +1033,7 @@ function renderSettings() {
     { id: 'statuses', label: 'Booking Statuses', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--mustard)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>' },
     { id: 'vehicleTypes', label: 'Vehicle Types', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--forest)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>' },
     { id: 'customFields', label: 'Custom Fields', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>' },
+    { id: 'apiConfig', label: 'AI API Config', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--coral)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>' },
     { id: 'fileInfo', label: 'File Info', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>' },
   ];
 
@@ -1059,6 +1060,33 @@ function renderSettings() {
         </div>
         <button class="btn btn-sm btn-primary" onclick="addCustomField()" style="margin-top:10px">Add Field</button>
       </div>`;
+  } else if (S.settingsTab === 'apiConfig') {
+    const curEndpoint = localStorage.getItem('fleethub_ai_endpoint') || '';
+    const curKey = localStorage.getItem('fleethub_ai_key') || '';
+    const curModel = localStorage.getItem('fleethub_ai_model') || '';
+    const maskedKey = curKey ? curKey.slice(0, 6) + '...' + curKey.slice(-4) : '';
+    content = `<div style="margin-bottom:14px">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Configure an OpenAI-compatible API to enable intelligent AI assistant responses. Works with OpenAI, Azure OpenAI, Groq, Together AI, Ollama, and any compatible endpoint.</p>
+      <div class="form-group"><label class="form-label">API Endpoint URL</label><input class="form-input" id="api-endpoint" placeholder="https://api.openai.com/v1/chat/completions" value="${esc(curEndpoint)}"><div class="form-hint">Full URL to the chat completions endpoint</div></div>
+      <div class="form-group"><label class="form-label">API Key</label><div style="position:relative"><input class="form-input" id="api-key" type="password" placeholder="sk-... or your API key" value="${esc(curKey)}" style="padding-right:40px"><button class="btn-icon" onclick="toggleApiKeyVisibility()" style="position:absolute;right:4px;top:50%;transform:translateY(-50%)"><svg id="api-key-eye" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>${maskedKey ? '<div class="form-hint">Current key: ' + esc(maskedKey) + '</div>' : ''}</div>
+      <div class="form-group"><label class="form-label">Model Name</label><input class="form-input" id="api-model" placeholder="gpt-4o-mini" value="${esc(curModel)}"><div class="form-hint">e.g. gpt-4o-mini, gpt-4o, claude-3-haiku, llama3, deepseek-chat</div></div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-primary btn-sm" onclick="saveApiConfig()">Save Configuration</button>
+        <button class="btn btn-sm" onclick="testApiConfig()">Test Connection</button>
+        <button class="btn btn-sm btn-danger" onclick="clearApiConfig()">Clear</button>
+      </div>
+    </div>
+    <div style="margin-top:16px;padding:12px;border:1px solid var(--hairline);border-radius:var(--radius-sm)">
+      <h4 style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px">Quick Presets</h4>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        <button class="btn btn-sm" onclick="applyApiPreset('openai')">OpenAI</button>
+        <button class="btn btn-sm" onclick="applyApiPreset('groq')">Groq</button>
+        <button class="btn btn-sm" onclick="applyApiPreset('together')">Together AI</button>
+        <button class="btn btn-sm" onclick="applyApiPreset('ollama')">Ollama (local)</button>
+        <button class="btn btn-sm" onclick="applyApiPreset('deepseek')">DeepSeek</button>
+      </div>
+    </div>
+    <div id="api-test-result" style="margin-top:12px"></div>`;
   } else if (S.settingsTab === 'fileInfo') {
     content = `<div class="file-info-card">
       <div class="file-info-row"><span class="label">File Name</span><span class="value">${esc(S.fileName)}</span></div>
@@ -1153,6 +1181,78 @@ async function importJSON() {
     if (imported.settings) Object.assign(S.data.settings, imported.settings);
     markDirty(); render(); showToast('Data imported successfully', 'success');
   } catch (e) { if (e.name !== 'AbortError') showToast('Import failed: ' + e.message, 'error'); }
+}
+
+function toggleApiKeyVisibility() {
+  const input = document.getElementById('api-key');
+  if (!input) return;
+  if (input.type === 'password') { input.type = 'text'; }
+  else { input.type = 'password'; }
+}
+
+function saveApiConfig() {
+  const endpoint = document.getElementById('api-endpoint').value.trim();
+  const key = document.getElementById('api-key').value.trim();
+  const model = document.getElementById('api-model').value.trim();
+  if (endpoint) localStorage.setItem('fleethub_ai_endpoint', endpoint);
+  else localStorage.removeItem('fleethub_ai_endpoint');
+  if (key) localStorage.setItem('fleethub_ai_key', key);
+  else localStorage.removeItem('fleethub_ai_key');
+  if (model) localStorage.setItem('fleethub_ai_model', model);
+  else localStorage.removeItem('fleethub_ai_model');
+  showToast('API configuration saved', 'success');
+  render();
+}
+
+function clearApiConfig() {
+  localStorage.removeItem('fleethub_ai_endpoint');
+  localStorage.removeItem('fleethub_ai_key');
+  localStorage.removeItem('fleethub_ai_model');
+  showToast('API configuration cleared', 'success');
+  render();
+}
+
+function applyApiPreset(preset) {
+  const presets = {
+    openai: { endpoint: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o-mini' },
+    groq: { endpoint: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.1-8b-instant' },
+    together: { endpoint: 'https://api.together.xyz/v1/chat/completions', model: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo' },
+    ollama: { endpoint: 'http://localhost:11434/v1/chat/completions', model: 'llama3' },
+    deepseek: { endpoint: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-chat' }
+  };
+  const p = presets[preset];
+  if (!p) return;
+  document.getElementById('api-endpoint').value = p.endpoint;
+  document.getElementById('api-model').value = p.model;
+  showToast(`Preset applied: ${preset} — fill in your API key and save`, 'info');
+}
+
+async function testApiConfig() {
+  const endpoint = document.getElementById('api-endpoint').value.trim();
+  const key = document.getElementById('api-key').value.trim();
+  const model = document.getElementById('api-model').value.trim();
+  const resultEl = document.getElementById('api-test-result');
+  if (!endpoint || !key) { showToast('Endpoint and API key are required', 'error'); return; }
+  resultEl.innerHTML = '<div style="padding:10px;background:var(--surface-soft);border-radius:var(--radius-sm);font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px"><span class="pulse">Testing connection...</span></div>';
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+      body: JSON.stringify({ model: model || 'gpt-4o-mini', messages: [{ role: 'user', content: 'Say hello in one word.' }], max_tokens: 10 })
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => res.statusText);
+      resultEl.innerHTML = `<div style="padding:10px;background:var(--destructive-bg);border:1px solid var(--destructive-border);border-radius:var(--radius-sm);font-size:13px;color:var(--destructive)">Error ${res.status}: ${esc(errText.slice(0, 200))}</div>`;
+      return;
+    }
+    const data = await res.json();
+    const reply = data.choices?.[0]?.message?.content || 'No response';
+    const modelUsed = data.model || model;
+    const tokens = data.usage?.total_tokens || '?';
+    resultEl.innerHTML = `<div style="padding:10px;background:var(--success-bg);border:1px solid var(--success-border);border-radius:var(--radius-sm);font-size:13px;color:var(--success)"><strong>Connected!</strong> Model: ${esc(modelUsed)} · Response: "${esc(reply)}" · Tokens: ${tokens}</div>`;
+  } catch (e) {
+    resultEl.innerHTML = `<div style="padding:10px;background:var(--destructive-bg);border:1px solid var(--destructive-border);border-radius:var(--radius-sm);font-size:13px;color:var(--destructive)">Connection failed: ${esc(e.message)}</div>`;
+  }
 }
 
 function confirmClearAll() {
