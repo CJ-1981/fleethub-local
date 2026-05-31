@@ -1125,6 +1125,7 @@ function renderCalendar() {
   const workEndHour = 20;
 
   const startDate = new Date(S.calendarStart);
+  startDate.setHours(0, 0, 0, 0); // Normalize to midnight
   const now = new Date();
 
   // Adjust start date to Monday if in week mode
@@ -1190,7 +1191,7 @@ function renderCalendar() {
   function ganttX(date) {
     const dateMidnight = new Date(date);
     dateMidnight.setHours(0, 0, 0, 0);
-    const dayOffset = (dateMidnight.getTime() - firstVisibleDate.getTime()) / msPerDay;
+    const dayOffset = Math.round((dateMidnight.getTime() - firstVisibleDate.getTime()) / msPerDay);
     const hour = date.getHours() + date.getMinutes() / 60;
     return dayOffset * dayWidth + Math.max(0, Math.min(workEndHour - workStartHour, hour - workStartHour)) * hourWidth;
   }
