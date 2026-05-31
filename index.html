@@ -279,6 +279,13 @@ select.form-input{cursor:pointer}
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
         Create New File
       </button>
+      <div style="margin-top:16px">
+        <label class="btn" style="width:240px;justify-content:center;padding:10px 16px;cursor:pointer">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 15 7 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Import JSON File
+          <input type="file" id="landing-file-input" accept=".json" style="display:none" onchange="loadFromInput(this)">
+        </label>
+      </div>
     </div>
     <div id="recent-files" style="margin-top:24px;text-align:left"></div>
   </div>
@@ -1295,36 +1302,37 @@ document.addEventListener('keydown', e => {
 renderRecentFiles();
 
 // Check File System Access API support
-if (!('showOpenFilePicker' in window)) {
+const hasFileAPI = ('showOpenFilePicker' in window);
+if (!hasFileAPI) {
   document.querySelector('.landing-card').insertAdjacentHTML('beforeend',
-    `<div style="margin-top:20px;padding:12px;background:var(--warning-bg);border:1px solid var(--warning-border);border-radius:var(--radius-sm);font-size:13px;color:var(--warning)">
-      <strong>Note:</strong> Your browser doesn't support the File System Access API. Please use Chrome, Edge, or Opera for full functionality. You can still use the import/export features.
-      <div style="margin-top:10px"><button class="btn btn-sm" onclick="loadFallback()">Load from file input</button></div>
+    `<div style="margin-top:16px;padding:10px 14px;background:var(--info-bg);border:1px solid var(--info-border);border-radius:var(--radius-sm);font-size:13px;color:var(--info)">
+      <strong>Tip:</strong> Use Chrome or Edge for full read/write support. In this browser, use <strong>Import</strong> to load and <strong>Export</strong> to save.
     </div>`
   );
 }
 
-async function loadFallback() {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.json';
-  input.onchange = async () => {
-    const file = input.files[0];
-    if (!file) return;
-    const text = await file.text();
-    S.data = JSON.parse(text);
-    if (!S.data.meta) S.data.meta = { version: '1.0', lastModified: new Date().toISOString(), lockedBy: null, lockedAt: null, lockId: null };
-    if (!S.data.settings) S.data.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-    if (!S.data.vehicles) S.data.vehicles = [];
-    if (!S.data.bookings) S.data.bookings = [];
-    for (const k of Object.keys(DEFAULT_SETTINGS)) { if (!S.data.settings[k]) S.data.settings[k] = JSON.parse(JSON.stringify(DEFAULT_SETTINGS[k])); }
-    S.fileName = file.name;
-    S.fileHandle = null; // No handle in fallback mode
-    saveRecentFile(file.name);
-    enterApp();
-    showToast('File loaded (read-only mode — use Export to save)', 'info');
+function loadFromInput(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      S.data = JSON.parse(reader.result);
+      if (!S.data.meta) S.data.meta = { version: '1.0', lastModified: new Date().toISOString(), lockedBy: null, lockedAt: null, lockId: null };
+      if (!S.data.settings) S.data.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+      if (!S.data.vehicles) S.data.vehicles = [];
+      if (!S.data.bookings) S.data.bookings = [];
+      for (const k of Object.keys(DEFAULT_SETTINGS)) { if (!S.data.settings[k]) S.data.settings[k] = JSON.parse(JSON.stringify(DEFAULT_SETTINGS[k])); }
+      S.fileName = file.name;
+      S.fileHandle = null;
+      saveRecentFile(file.name);
+      enterApp();
+      if (!hasFileAPI) showToast('Import mode — use Export to save changes', 'info');
+      else showToast('File loaded', 'success');
+    } catch(e) { showToast('Invalid JSON file: ' + e.message, 'error'); }
   };
-  input.click();
+  reader.readAsText(file);
+  input.value = '';
 }
 </script>
 </body>
