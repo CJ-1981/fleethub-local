@@ -231,6 +231,8 @@ select.form-input{cursor:pointer}
 /* Tooltip */
 [data-tooltip]{position:relative}
 [data-tooltip]:hover::after{content:attr(data-tooltip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:4px 8px;background:var(--ink);color:#fff;font-size:11px;border-radius:var(--radius-sm);white-space:nowrap;pointer-events:none;z-index:99999}
+/* Suppress CSS tooltip on Gantt elements (JS tooltip handles these) */
+.gantt-booking-bar[data-tooltip]:hover::after,.gantt-date-cell[data-tooltip]:hover::after,.gantt-time-cell[data-tooltip]:hover::after,.gantt-row-label[data-tooltip]:hover::after{display:none!important}
 
 /* Custom fields table */
 .cf-table{width:100%;border-collapse:collapse}
@@ -928,7 +930,7 @@ function getFleetIconSvg(vehicles) {
 }
 
 function renderDashboard() {
-  const vehicles = S.data.vehicles;
+  const vehicles = [...S.data.vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   const bookings = S.data.bookings;
   const now = new Date();
   const activeBookings = bookings.filter(isActive);
@@ -1586,7 +1588,7 @@ function renderUserNameField(value) {
 function editBooking(id, preselectedVehicleId) {
   const b = id ? S.data.bookings.find(b => b.id === id) : null;
   S.editingBooking = b ? JSON.parse(JSON.stringify(b)) : { id: null, vehicleId: preselectedVehicleId || '', userName: '', purpose: '', periodStart: '', periodEnd: '', status: S.data.settings.statuses[0] || 'pending', remarks: '', customFields: {}, shareWith: [], shareNote: '' };
-  const vehicles = S.data.vehicles;
+  const vehicles = [...S.data.vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   const statuses = S.data.settings.statuses || DEFAULT_SETTINGS.statuses;
   const customCols = S.data.settings.customColumns || [];
   const eb = S.editingBooking;
@@ -1928,6 +1930,7 @@ function editUserNameConfig() {
     const optionsStr = document.getElementById('un-options').value;
     const options = optionsStr.split(',').map(o => o.trim()).filter(Boolean);
 
+    if ((type === 'select' || type === 'multiselect') && !options.length) { showToast('At least one option is required for select/multiselect types', 'error'); return false; }
     S.data.settings.userNameConfig = { type, options: options.length ? options : undefined };
     markDirty(); render(); showToast('User Name field configured', 'success');
     return true;
@@ -1951,6 +1954,8 @@ function addCustomField() {
   const options = document.getElementById('cf-options').value.split(',').map(o => o.trim()).filter(Boolean);
   if (!label || !key) { showToast('Label and Key are required', 'error'); return; }
   if (!S.data.settings.customColumns) S.data.settings.customColumns = [];
+  if (S.data.settings.customColumns.some(c => c.key === key)) { showToast(`A custom field with key "${key}" already exists`, 'error'); return; }
+  if ((type === 'select' || type === 'multiselect') && !options.length) { showToast('At least one option is required for select/multiselect types', 'error'); return; }
   const optionsField = (type === 'select' || type === 'multiselect') ? options : undefined;
   S.data.settings.customColumns.push({ id: genId(), key, label, type, options: optionsField });
   markDirty(); render(); showToast('Custom field added', 'success');
@@ -1985,6 +1990,7 @@ function updateCustomField() {
   const type = document.getElementById('cf-type').value;
   const options = document.getElementById('cf-options').value.split(',').map(o => o.trim()).filter(Boolean);
   if (!label || !newKey) { showToast('Label and Key are required', 'error'); return; }
+  if ((type === 'select' || type === 'multiselect') && !options.length) { showToast('At least one option is required for select/multiselect types', 'error'); return; }
   const optionsField = (type === 'select' || type === 'multiselect') ? options : undefined;
   const idx = S.data.settings.customColumns.findIndex(c => c.key === editingCustomFieldKey);
   if (idx !== -1) {
