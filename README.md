@@ -166,13 +166,30 @@ Custom fields extend booking data with your organization's specific needs:
 
 ## Screenshots
 
-*Dashboard with fleet statistics and status overview*
+### Dashboard
+![Dashboard](screenshots/dashboard.png)
 
-*Booking management with search, filters, and conflict detection*
+Dashboard with fleet statistics and status overview
 
-*Vehicle management with CRUD operations*
+### Bookings
+![Bookings](screenshots/bookings.png)
 
-*Settings panel for customizing statuses, types, and fields*
+Booking management with search, filters, and conflict detection
+
+### Vehicles
+![Vehicles](screenshots/vehicles.png)
+
+Vehicle management with CRUD operations
+
+### Calendar
+![Calendar](screenshots/calendar.png)
+
+Gantt chart-style calendar showing vehicle schedules across time
+
+### Settings
+![Settings](screenshots/settings.png)
+
+Settings panel for customizing statuses, types, and custom fields
 
 ## License
 

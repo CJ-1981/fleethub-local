@@ -50,7 +50,8 @@ button,input,select,textarea{font-family:inherit;font-size:inherit}
 .btn-ghost{border-color:transparent;background:transparent}
 .btn-ghost:hover{background:var(--surface-soft)}
 .btn-icon{padding:6px;border-radius:var(--radius-sm);background:transparent;border:1px solid transparent}
-.btn-icon:hover{background:var(--surface-soft);border-color:var(--hairline)}
+.btn-icon:hover:not(:disabled){background:var(--surface-soft);border-color:var(--hairline)}
+.btn-icon:disabled{opacity:0.3;cursor:not-allowed}
 .shortcut-hint{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0 4px;margin-left:auto;background:rgba(255,255,255,.2);border-radius:3px;font-size:11px;font-weight:600;line-height:1}
 
 /* Layout */
@@ -229,7 +230,7 @@ select.form-input{cursor:pointer}
 
 /* Tooltip */
 [data-tooltip]{position:relative}
-[data-tooltip]:hover::after{content:attr(data-tooltip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:4px 8px;background:var(--ink);color:#fff;font-size:11px;border-radius:var(--radius-sm);white-space:nowrap;pointer-events:none;z-index:999}
+[data-tooltip]:hover::after{content:attr(data-tooltip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:4px 8px;background:var(--ink);color:#fff;font-size:11px;border-radius:var(--radius-sm);white-space:nowrap;pointer-events:none;z-index:99999}
 
 /* Custom fields table */
 .cf-table{width:100%;border-collapse:collapse}
@@ -263,10 +264,10 @@ select.form-input{cursor:pointer}
 
 /* Gantt Chart */
 .gantt-container{overflow:auto;max-height:600px;border:1px solid var(--hairline);border-radius:var(--radius-sm)}
-.gantt-header-row{display:grid;grid-template-columns:150px 1fr;position:sticky;top:0;z-index:10;background:var(--surface-strong)}
+.gantt-header-row{display:grid;grid-template-columns:150px 1fr;position:sticky;top:0;background:var(--surface-strong)}
 .gantt-corner-cell{padding:8px 12px;font-weight:600;font-size:12px;border-bottom:1px solid var(--hairline);border-right:1px solid var(--hairline)}
 .gantt-date-cells{display:flex}
-.gantt-date-cell{flex:0 0 120px;padding:8px 4px;text-align:center;font-size:11px;font-weight:500;border-bottom:1px solid var(--hairline);border-right:1px solid var(--hairline)}
+.gantt-date-cell{flex:0 0 120px;padding:8px 4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;border-bottom:1px solid var(--hairline);border-right:1px solid var(--hairline);position:relative}
 .gantt-date-cell.today{background:var(--highlight-bg)}
 .gantt-date-cell.holiday-nationwide{background:var(--warning-bg)!important;border-color:var(--warning-border)!important}
 .gantt-date-cell.holiday-state{background:#ffe4e6!important;border-color:#e8744f!important}
@@ -275,24 +276,24 @@ select.form-input{cursor:pointer}
 .gantt-time-cell.holiday-state{background:#ffe4e6!important}
 .gantt-row{display:grid;grid-template-columns:150px 1fr;min-height:60px;border-bottom:1px solid var(--hairline)}
 .gantt-row-label{padding:8px 12px;font-size:13px;font-weight:500;border-right:1px solid var(--hairline);display:flex;align-items:center}
-.gantt-timeline{position:relative;min-height:60px;background:var(--surface-soft}
+.gantt-timeline{position:relative;min-height:60px;background:var(--surface-soft)}
 .gantt-time-cell{position:absolute;flex:0 0 120px;height:100%;border-right:1px solid var(--hairline);background:var(--canvas);top:0}
-.gantt-booking-bar{position:absolute;height:36px;top:6px;border-radius:4px;font-size:12px;font-weight:500;cursor:pointer;transition:opacity .15s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px;line-height:36px;z-index:5}
+.gantt-booking-bar{position:absolute;height:60px;top:0;border-radius:4px;font-size:12px;font-weight:500;cursor:pointer;transition:opacity .15s;overflow:hidden;text-overflow:ellipsis;padding:0 8px;line-height:60px;z-index:5;will-change:opacity,left;top}
 .gantt-booking-bar:hover{opacity:.8}
-.gantt-booking-bar.pending{background:var(--mustard);color:#fff}
-.gantt-booking-bar.confirmed{background:var(--info);color:#fff}
-.gantt-booking-bar.in-use{background:var(--success);color:#fff}
-.gantt-booking-bar.returned{background:var(--muted);color:#fff}
-.gantt-booking-bar.cancelled{background:var(--destructive);color:#fff;opacity:.6;text-decoration:line-through}
+.gantt-booking-bar.pending{background-color:#d9a441;background:#d9a441;color:#fff!important}
+.gantt-booking-bar.confirmed{background-color:#254fad;background:#254fad;color:#fff!important}
+.gantt-booking-bar.in-use{background-color:#006400;background:#006400;color:#fff!important}
+.gantt-booking-bar.returned{background-color:#41454d;background:#41454d;color:#fff!important}
+.gantt-booking-bar.cancelled{background-color:#b91c1c;background:#b91c1c;color:#fff!important;opacity:.6;text-decoration:line-through}
 .gantt-nav-controls{display:flex;gap:4px;margin-left:auto}
 .gantt-view-toggle{display:flex;gap:4px;margin-left:8px}
-.dashboard-gantt{max-height:280px;overflow:auto;border:1px solid var(--hairline);border-radius:var(--radius-sm);margin-bottom:16px}
+.dashboard-gantt{max-height:340px;overflow:auto;border:1px solid var(--hairline);border-radius:var(--radius-sm);margin-bottom:16px}
 .dashboard-gantt .gantt-row{min-height:40px}
 .dashboard-gantt .gantt-booking-bar{height:28px;top:4px;font-size:11px;line-height:28px}
 @media(max-width:768px){
   .gantt-row{grid-template-columns:100px 1fr}
   .gantt-corner-cell,.gantt-row-label{padding:6px 8px;font-size:12px}
-  .gantt-date-cell{flex:0 0 80px;padding:6px 2px;font-size:10px}
+  .gantt-date-cell{flex:0 0 80px;padding:6px 2px;display:flex;align-items:center;justify-content:center;font-size:10px;position:relative}
 }
 </style>
 </head>
@@ -479,6 +480,7 @@ function getDefaultData() {
 
 function genId() { return Date.now().toString(36) + Math.random().toString(36).substr(2, 9); }
 function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function escAttr(s) { if (!s) return ''; return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
 function fmtDate(d) { if (!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
 function fmtDateTime(d) { if (!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
 function isToday(d) { if (!d) return false; const dt = new Date(d), now = new Date(); return dt.toDateString() === now.toDateString(); }
@@ -964,11 +966,11 @@ function renderDashboard() {
       if (holiday.isNationwide) {
         bgStyle = 'background:var(--warning-bg)!important;border-color:var(--warning-border)!important;';
         holidayClass = ' holiday-nationwide';
-        holidayTitle = `title="${esc(holiday.name)} (Nationwide holiday)"`;
+        holidayTitle = `data-tooltip="${escAttr(holiday.name)} (Nationwide holiday)"`;
       } else {
         bgStyle = 'background:#ffe4e6!important;border-color:#e8744f!important;';
         holidayClass = ' holiday-state';
-        holidayTitle = `title="${esc(holiday.name)} (State-specific holiday)"`;
+        holidayTitle = `data-tooltip="${escAttr(holiday.name)} (State-specific holiday)"`;
       }
       holidayIcon = '<span style="margin-left:4px;font-size:9px;color:var(--muted)">🎉</span>';
     } else if (isToday) {
@@ -996,8 +998,19 @@ function renderDashboard() {
       const leftPos = Math.max(0, startOffset * (dayWidth / 24));
       const width = Math.max(duration * (dayWidth / 24), 4);
 
+      // Status color mapping for inline styles (ensures colors always render)
+      const statusColors = {
+        'pending': '#d9a441',
+        'confirmed': '#254fad',
+        'in-use': '#006400',
+        'returned': '#41454d',
+        'cancelled': '#b91c1c'
+      };
+      const barColor = statusColors[b.status] || '#d9a441';
+      const isCancelled = b.status === 'cancelled';
+
       return `<div class="gantt-booking-bar ${esc(b.status)}"
-        style="left:${leftPos}px;width:${width}px"
+        style="left:${leftPos}px;width:${width}px;background-color:${barColor}!important;color:#fff!important;${isCancelled ? 'opacity:0.6;text-decoration:line-through;' : ''}"
         title="${esc(b.userName)} - ${esc(b.purpose)}"
         onclick="editBooking('${b.id}')"
       >${esc(b.userName)}</div>`;
@@ -1017,7 +1030,7 @@ function renderDashboard() {
           let holidayClass = '';
           let titleAttr = '';
           if (holiday) {
-            titleAttr = `title="${esc(holiday.name)} (${holiday.isNationwide ? 'Nationwide' : 'State-specific'} holiday)"`;
+            titleAttr = `title="${escAttr(holiday.name)} (${holiday.isNationwide ? 'Nationwide' : 'State-specific'} holiday)"`;
             holidayClass = holiday.isNationwide ? ' holiday-nationwide' : ' holiday-state';
           } else if (isToday) {
             bgStyle = 'background:var(--highlight-bg)!important;';
@@ -1050,7 +1063,8 @@ function renderDashboard() {
   const fleetStatusHtml = vehicles.length ? vehicles.slice(0, 20).map(v => {
     const ab = activeBookings.find(b => b.vehicleId === v.id && (b.status === 'confirmed' || b.status === 'in-use'));
     const statusBadge = ab ? `<span class="badge badge-in-use">${ab.userName}</span>` : `<span class="badge badge-available">Available</span>`;
-    return `<div class="vehicle-status-row">
+    const clickAttr = ` onclick="${ab ? `editBooking('${ab.id}')` : `newBooking('${v.id}')`}" style="cursor:pointer"`;
+    return `<div class="vehicle-status-row"${clickAttr}>
       <span class="v-name">${esc(v.name)}</span>
       ${v.licensePlate ? `<span class="v-plate">${esc(v.licensePlate)}</span>` : ''}
       <span style="margin-left:auto">${statusBadge}</span>
@@ -1060,7 +1074,7 @@ function renderDashboard() {
   const upcoming = bookings.filter(b => new Date(b.periodStart) >= new Date()).sort((a, b) => new Date(a.periodStart) - new Date(b.periodStart)).slice(0, 5);
   const upcomingHtml = upcoming.length ? upcoming.map(b => {
     const v = vehicles.find(v => v.id === b.vehicleId);
-    return `<div class="vehicle-status-row">
+    return `<div class="vehicle-status-row" style="cursor:pointer" onclick="editBooking('${b.id}')">
       <div style="min-width:120px">
         <div style="font-weight:500;color:var(--ink)">${esc(v ? v.name : 'Unknown')}</div>
         <div style="font-size:12px;color:var(--muted)">${esc(b.userName)}</div>
@@ -1135,11 +1149,11 @@ function renderCalendar() {
       if (holiday.isNationwide) {
         bgStyle = 'background:var(--warning-bg)!important;border-color:var(--warning-border)!important;';
         holidayClass = ' holiday-nationwide';
-        holidayTitle = `title="${esc(holiday.name)} (Nationwide holiday)"`;
+        holidayTitle = `data-tooltip="${escAttr(holiday.name)} (Nationwide holiday)"`;
       } else {
         bgStyle = 'background:#ffe4e6!important;border-color:#e8744f!important;';
         holidayClass = ' holiday-state';
-        holidayTitle = `title="${esc(holiday.name)} (State-specific holiday)"`;
+        holidayTitle = `data-tooltip="${escAttr(holiday.name)} (State-specific holiday)"`;
       }
     } else if (isToday) {
       bgStyle = 'background:var(--highlight-bg)!important;';
@@ -1152,7 +1166,7 @@ function renderCalendar() {
     });
   }
 
-  const dayWidth = 160; // pixels per work day
+  const dayWidth = 120; // pixels per work day
   const hourWidth = dayWidth / (workEndHour - workStartHour);
 
   // Generate vehicle rows with booking bars
@@ -1196,10 +1210,21 @@ function renderCalendar() {
       );
       const overlapIndex = overlaps.sort((a, b) => new Date(a.periodStart) - new Date(b.periodStart))
         .findIndex(ob => new Date(ob.periodStart) >= bStart) + 1;
-      const topOffset = overlapIndex * 40;
+      const topOffset = overlapIndex * 52; // 48px bar height + 4px spacing
+
+      // Status color mapping for inline styles (ensures colors always render)
+      const statusColors = {
+        'pending': '#d9a441',
+        'confirmed': '#254fad',
+        'in-use': '#006400',
+        'returned': '#41454d',
+        'cancelled': '#b91c1c'
+      };
+      const barColor = statusColors[b.status] || '#d9a441';
+      const isCancelled = b.status === 'cancelled';
 
       return `<div class="gantt-booking-bar ${esc(b.status)}"
-        style="left:${leftOffset}px;width:${Math.max(barWidth, 4)}px;top:${topOffset}px"
+        style="left:${leftOffset}px;width:${Math.max(barWidth, 4)}px;top:${topOffset}px;background-color:${barColor}!important;color:#fff!important;${isCancelled ? 'opacity:0.6;text-decoration:line-through;' : ''}"
         title="${esc(b.userName)} - ${esc(b.purpose)} (${fmtDateTime(b.periodStart)} to ${fmtDateTime(b.periodEnd)})"
         onclick="editBooking('${b.id}')"
       >${esc(b.userName)}</div>`;
@@ -1215,7 +1240,7 @@ function renderCalendar() {
           let holidayClass = '';
           let titleAttr = '';
           if (cell.holiday) {
-            titleAttr = `title="${esc(cell.holiday.name)} (${cell.holiday.isNationwide ? 'Nationwide' : 'State-specific'} holiday)"`;
+            titleAttr = `title="${escAttr(cell.holiday.name)} (${cell.holiday.isNationwide ? 'Nationwide' : 'State-specific'} holiday)"`;
             holidayClass = cell.holiday.isNationwide ? ' holiday-nationwide' : ' holiday-state';
           } else if (isToday) {
             bgStyle = 'background:var(--highlight-bg)!important;';
@@ -1259,13 +1284,17 @@ function renderCalendar() {
 // ===================== VEHICLES =====================
 function renderVehicles() {
   const vehicles = S.data.vehicles.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-  const rows = vehicles.length ? vehicles.map(v => {
+  const rows = vehicles.length ? vehicles.map((v, idx) => {
+    const isFirst = idx === 0;
+    const isLast = idx === vehicles.length - 1;
     return `<tr style="cursor:pointer" onclick="editVehicle('${v.id}')">
       <td style="font-weight:500;color:var(--ink)">${esc(v.name)}</td>
       <td>${esc(v.type)}</td>
       <td>${esc(v.licensePlate || '—')}</td>
       <td style="color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.notes || '')}</td>
       <td style="white-space:nowrap">
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();moveVehicleUp('${v.id}', ${idx})" data-tooltip="Move up" ${isFirst ? 'disabled' : ''}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg></button>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();moveVehicleDown('${v.id}', ${idx})" data-tooltip="Move down" ${isLast ? 'disabled' : ''}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
         <button class="btn-icon btn-sm" onclick="event.stopPropagation();confirmDeleteVehicle('${v.id}')" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
       </td>
     </tr>`;
@@ -1321,6 +1350,28 @@ function editVehicle(id) {
     }
     markDirty(); render(); return true;
   });
+}
+
+function moveVehicleUp(id, idx) {
+  if (idx <= 0) return;
+  const vehicles = S.data.vehicles.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const currentVehicle = vehicles[idx];
+  const prevVehicle = vehicles[idx - 1];
+  const tempOrder = currentVehicle.sortOrder;
+  currentVehicle.sortOrder = prevVehicle.sortOrder;
+  prevVehicle.sortOrder = tempOrder;
+  markDirty(); render();
+}
+
+function moveVehicleDown(id, idx) {
+  const vehicles = S.data.vehicles.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  if (idx >= vehicles.length - 1) return;
+  const currentVehicle = vehicles[idx];
+  const nextVehicle = vehicles[idx + 1];
+  const tempOrder = currentVehicle.sortOrder;
+  currentVehicle.sortOrder = nextVehicle.sortOrder;
+  nextVehicle.sortOrder = tempOrder;
+  markDirty(); render();
 }
 
 function confirmDeleteVehicle(id) {
@@ -1451,7 +1502,7 @@ function shareWithConflicts() {
   showToast('Added conflicting users to share list', 'info');
 }
 
-function newBooking() { S.activeTab = 'bookings'; editBooking(null); renderNav(); }
+function newBooking(preselectedVehicleId) { S.activeTab = 'bookings'; editBooking(null, preselectedVehicleId); renderNav(); }
 
 function renderUserNameField(value) {
   const userNameConfig = S.data.settings.userNameConfig || { type: 'text', options: [] };
@@ -1474,9 +1525,9 @@ function renderUserNameField(value) {
   }
 }
 
-function editBooking(id) {
+function editBooking(id, preselectedVehicleId) {
   const b = id ? S.data.bookings.find(b => b.id === id) : null;
-  S.editingBooking = b ? JSON.parse(JSON.stringify(b)) : { id: null, vehicleId: '', userName: '', purpose: '', periodStart: '', periodEnd: '', status: S.data.settings.statuses[0] || 'pending', remarks: '', customFields: {}, shareWith: [], shareNote: '' };
+  S.editingBooking = b ? JSON.parse(JSON.stringify(b)) : { id: null, vehicleId: preselectedVehicleId || '', userName: '', purpose: '', periodStart: '', periodEnd: '', status: S.data.settings.statuses[0] || 'pending', remarks: '', customFields: {}, shareWith: [], shareNote: '' };
   const vehicles = S.data.vehicles;
   const statuses = S.data.settings.statuses || DEFAULT_SETTINGS.statuses;
   const customCols = S.data.settings.customColumns || [];
@@ -2135,13 +2186,25 @@ document.addEventListener('keydown', e => {
 // ===================== GANTT TOOLTIP =====================
 document.addEventListener('mousemove', (e) => {
   const tooltip = document.getElementById('gantt-tooltip');
-  const target = e.target.closest('.gantt-booking-bar');
+  // Check for booking bar tooltip
+  let target = e.target.closest('.gantt-booking-bar');
   if (target && target.title) {
     tooltip.textContent = target.title;
     tooltip.style.display = 'block';
     const rect = target.getBoundingClientRect();
     tooltip.style.left = (rect.left + rect.width / 2) + 'px';
     tooltip.style.top = (rect.top - 40) + 'px';
+    tooltip.style.transform = 'translateX(-50%)';
+    return;
+  }
+  // Check for date cell tooltip
+  target = e.target.closest('[data-tooltip]');
+  if (target) {
+    tooltip.textContent = target.getAttribute('data-tooltip');
+    tooltip.style.display = 'block';
+    const rect = target.getBoundingClientRect();
+    tooltip.style.left = (rect.left + rect.width / 2) + 'px';
+    tooltip.style.top = (rect.top - 35) + 'px';
     tooltip.style.transform = 'translateX(-50%)';
   } else {
     tooltip.style.display = 'none';
