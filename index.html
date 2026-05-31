@@ -995,6 +995,25 @@ function renderDashboard() {
       return b.vehicleId === v.id && b.status !== 'cancelled' && bEnd >= widgetStartDate && bStart <= viewEnd;
     });
 
+    // Pre-compute overlap slot assignments for visible bookings
+    const sortedVB = [...vehicleBookings].sort((a, b) => new Date(a.periodStart) - new Date(b.periodStart));
+    const slotAssignments = new Map();
+    const slotEnds = [];
+    for (const ob of sortedVB) {
+      const oStart = new Date(ob.periodStart);
+      const oEnd = new Date(ob.periodEnd);
+      let slot = -1;
+      for (let si = 0; si < slotEnds.length; si++) {
+        if (slotEnds[si] <= oStart) { slot = si; slotEnds[si] = oEnd; break; }
+      }
+      if (slot === -1) { slot = slotEnds.length; slotEnds.push(oEnd); }
+      slotAssignments.set(ob.id, slot);
+    }
+
+    const dayWidth = 120;
+    const barHeight = 24;
+    const barSpacing = 4;
+
     const bookingBars = vehicleBookings.map(b => {
       const bStart = new Date(b.periodStart);
       const bEnd = new Date(b.periodEnd);
@@ -1004,7 +1023,6 @@ function renderDashboard() {
       const clampedEnd = new Date(Math.min(bEnd, viewEnd));
       const startOffset = (clampedStart - widgetStartDate) / (1000 * 60 * 60);
       const duration = (clampedEnd - clampedStart) / (1000 * 60 * 60);
-      const dayWidth = 120;
       const leftPos = startOffset * (dayWidth / 24);
       const width = Math.max(duration * (dayWidth / 24), 4);
 
@@ -1018,17 +1036,22 @@ function renderDashboard() {
       };
       const barColor = statusColors[b.status] || '#d9a441';
       const isCancelled = b.status === 'cancelled';
+      const overlapIndex = slotAssignments.get(b.id) || 0;
+      const topOffset = 4 + overlapIndex * (barHeight + barSpacing);
 
       return `<div class="gantt-booking-bar ${esc(b.status)}"
-        style="left:${leftPos}px;width:${width}px;background-color:${barColor}!important;color:#fff!important;${isCancelled ? 'opacity:0.6;text-decoration:line-through;' : ''}"
+        style="left:${leftPos}px;width:${width}px;height:${barHeight}px;top:${topOffset}px;background-color:${barColor}!important;color:#fff!important;font-size:11px;line-height:${barHeight}px;${isCancelled ? 'opacity:0.6;text-decoration:line-through;' : ''}"
         data-tooltip="${escAttr(b.userName)} - ${escAttr(b.purpose)}"
         onclick="editBooking('${b.id}')"
       >${esc(b.userName)}</div>`;
     }).join('');
 
+    const maxSlots = slotAssignments.size > 0 ? Math.max(...slotAssignments.values()) + 1 : 1;
+    const rowHeight = maxSlots * (barHeight + barSpacing) + 8;
+
     return `<div class="gantt-row">
       <div class="gantt-row-label">${esc(v.name)}</div>
-      <div class="gantt-timeline">
+      <div class="gantt-timeline" style="min-height:${rowHeight}px">
         ${Array(widgetDays).fill(0).map((_, i) => {
           const date = new Date(widgetStartDate);
           date.setDate(date.getDate() + i);
@@ -1734,7 +1757,7 @@ function renderSettings() {
         </div>
         <div class="form-row">
           <div class="form-group" style="margin-bottom:0"><label class="form-label">Type</label><select class="form-input" id="cf-type" onchange="toggleCfOptions()"><option value="text">Text</option><option value="number">Number</option><option value="date">Date</option><option value="select">Select (single)</option><option value="multiselect">Multi-select</option></select></div>
-          <div class="form-group" style="margin-bottom:0" id="cf-options-group"><label class="form-label">Options (comma-separated, for select/multiselect)</label><input class="form-input" id="cf-options" placeholder="opt1, opt2, opt3"></div>
+          <div class="form-group" style="margin-bottom:0;display:none" id="cf-options-group"><label class="form-label">Options (comma-separated, for select/multiselect)</label><input class="form-input" id="cf-options" placeholder="opt1, opt2, opt3"></div>
         </div>
         <button class="btn btn-sm btn-primary" onclick="addCustomField()" style="margin-top:10px" id="cf-submit-btn">Add Field</button>
         <button class="btn btn-sm" onclick="cancelEditCustomField()" style="margin-top:10px;display:none" id="cf-cancel-btn">Cancel</button>
