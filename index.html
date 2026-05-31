@@ -51,6 +51,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit}
 .btn-ghost:hover{background:var(--surface-soft)}
 .btn-icon{padding:6px;border-radius:var(--radius-sm);background:transparent;border:1px solid transparent}
 .btn-icon:hover{background:var(--surface-soft);border-color:var(--hairline)}
+.shortcut-hint{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0 4px;margin-left:auto;background:rgba(255,255,255,.2);border-radius:3px;font-size:11px;font-weight:600;line-height:1}
 
 /* Layout */
 .app{display:none;height:100vh;overflow:hidden}
@@ -267,6 +268,11 @@ select.form-input{cursor:pointer}
 .gantt-date-cells{display:flex}
 .gantt-date-cell{flex:0 0 120px;padding:8px 4px;text-align:center;font-size:11px;font-weight:500;border-bottom:1px solid var(--hairline);border-right:1px solid var(--hairline)}
 .gantt-date-cell.today{background:var(--highlight-bg)}
+.gantt-date-cell.holiday-nationwide{background:var(--warning-bg)!important;border-color:var(--warning-border)!important}
+.gantt-date-cell.holiday-state{background:#ffe4e6!important;border-color:#e8744f!important}
+.gantt-time-cell.today{background:var(--highlight-bg)!important}
+.gantt-time-cell.holiday-nationwide{background:var(--warning-bg)!important}
+.gantt-time-cell.holiday-state{background:#ffe4e6!important}
 .gantt-row{display:grid;grid-template-columns:150px 1fr;min-height:60px;border-bottom:1px solid var(--hairline)}
 .gantt-row-label{padding:8px 12px;font-size:13px;font-weight:500;border-right:1px solid var(--hairline);display:flex;align-items:center}
 .gantt-timeline{position:relative;min-height:60px;background:var(--surface-soft}
@@ -296,7 +302,7 @@ select.form-input{cursor:pointer}
 <div id="landing" class="landing">
   <div class="landing-card">
     <div class="landing-logo">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
     </div>
     <h1>FleetHub</h1>
     <p>Fleet Management — Local File Mode<br>No server required. All data stays in your JSON file.</p>
@@ -339,9 +345,9 @@ select.form-input{cursor:pointer}
 
   <!-- Header -->
   <header class="header">
-    <a class="header-logo" href="#">
+    <a class="header-logo" href="#" style="display:flex;align-items:center;gap:8px;font-weight:700;color:var(--ink);font-size:16px;text-decoration:none">
       <span class="logo-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 0-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
       </span>
       FleetHub
     </a>
@@ -375,6 +381,7 @@ select.form-input{cursor:pointer}
         <button class="btn btn-primary" onclick="newBooking()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
           New Booking
+          <span class="shortcut-hint">N</span>
         </button>
       </div>
     </nav>
@@ -453,8 +460,13 @@ const DEFAULT_SETTINGS = {
   statuses: ['pending', 'confirmed', 'in-use', 'returned', 'cancelled'],
   vehicleTypes: ['sedan', 'suv', 'pickup', 'van', 'bus', 'motorcycle', 'other'],
   customColumns: [],
-  shareMessage: 'Hi, I would like to share this ride with you. Is that possible?'
+  shareMessage: 'Hi, I would like to share this ride with you. Is that possible?',
+  germanState: null
 };
+
+// ===================== OS DETECTION =====================
+const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0 || navigator.userAgent.toUpperCase().indexOf('MAC') >= 0;
+const saveShortcut = isMac ? '⌘+Enter' : 'Ctrl+Enter';
 
 function getDefaultData() {
   return {
@@ -472,6 +484,126 @@ function fmtDateTime(d) { if (!d) return '—'; const dt = new Date(d); return d
 function isToday(d) { if (!d) return false; const dt = new Date(d), now = new Date(); return dt.toDateString() === now.toDateString(); }
 function isActive(b) { const now = new Date(); const s = new Date(b.periodStart), e = new Date(b.periodEnd); return now >= s && now <= e; }
 function uid() { return 'User-' + Math.random().toString(36).substr(2, 6).toUpperCase(); }
+
+// ===================== GERMAN HOLIDAYS =====================
+// Format date as YYYY-MM-DD in local timezone (not UTC)
+function formatDateLocal(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getEasterDate(year) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+}
+
+function getGermanHolidays(year, state = null) {
+  const holidays = [];
+  const easterSunday = getEasterDate(year);
+  const goodFriday = new Date(easterSunday); goodFriday.setDate(goodFriday.getDate() - 2);
+  const easterMonday = new Date(easterSunday); easterMonday.setDate(easterMonday.getDate() + 1);
+  const ascensionDay = new Date(easterSunday); ascensionDay.setDate(ascensionDay.getDate() + 39);
+  const whitMonday = new Date(easterSunday); whitMonday.setDate(whitMonday.getDate() + 50);
+  const corpusChristi = new Date(easterSunday); corpusChristi.setDate(corpusChristi.getDate() + 60);
+
+  // Nationwide holidays
+  holidays.push({ date: new Date(year, 0, 1), name: 'Neujahr', states: null });
+  holidays.push({ date: goodFriday, name: 'Karfreitag', states: null });
+  holidays.push({ date: easterMonday, name: 'Ostermontag', states: null });
+  holidays.push({ date: new Date(year, 4, 1), name: 'Tag der Arbeit', states: null });
+  holidays.push({ date: ascensionDay, name: 'Christi Himmelfahrt', states: null });
+  holidays.push({ date: whitMonday, name: 'Pfingstmontag', states: null });
+  holidays.push({ date: new Date(year, 9, 3), name: 'Tag der Deutschen Einheit', states: null });
+  holidays.push({ date: new Date(year, 11, 25), name: 'Erster Weihnachtstag', states: null });
+  holidays.push({ date: new Date(year, 11, 26), name: 'Zweiter Weihnachtstag', states: null });
+
+  // State-specific holidays
+  const BW = ['Baden-Württemberg', 'BW', 'baden-württemberg'];
+  const BY = ['Bayern', 'Bavaria', 'BY', 'bayern'];
+  const BE = ['Berlin', 'BE', 'berlin'];
+  const BB = ['Brandenburg', 'BB', 'brandenburg'];
+  const HB = ['Bremen', 'HB', 'bremen'];
+  const HH = ['Hamburg', 'HH', 'hamburg'];
+  const HE = ['Hessen', 'Hesse', 'HE', 'hessen'];
+  const MV = ['Mecklenburg-Vorpommern', 'MV', 'mecklenburg-vorpommern'];
+  const NI = ['Niedersachsen', 'Lower Saxony', 'NI', 'niedersachsen'];
+  const NW = ['Nordrhein-Westfalen', 'North Rhine-Westphalia', 'NRW', 'NW', 'nordrhein-westfalen'];
+  const RP = ['Rheinland-Pfalz', 'Rhineland-Palatinate', 'RP', 'rheinland-pfalz'];
+  const SL = ['Saarland', 'SL', 'saarland'];
+  const SN = ['Sachsen', 'Saxony', 'SN', 'sachsen'];
+  const ST = ['Sachsen-Anhalt', 'Saxony-Anhalt', 'ST', 'sachsen-anhalt'];
+  const SH = ['Schleswig-Holstein', 'SH', 'schleswig-holstein'];
+  const TH = ['Thüringen', 'Thuringia', 'TH', 'thüringen'];
+
+  const stateLower = state ? state.toLowerCase() : '';
+  const isState = (arr) => state && arr.some(s => s.toLowerCase() === stateLower);
+
+  // Epiphany (Jan 6)
+  if (isState(BW) || isState(BY) || isState(ST)) {
+    holidays.push({ date: new Date(year, 0, 6), name: 'Heilige Drei Könige', states: [BW[0], BY[0], ST[0]] });
+  }
+
+  // International Women's Day (Mar 8) - Berlin only
+  if (isState(BE)) {
+    holidays.push({ date: new Date(year, 2, 8), name: 'Internationaler Frauentag', states: [BE[0]] });
+  }
+
+  // Corpus Christi (60 days after Easter)
+  if (isState(BW) || isState(BY) || isState(HE) || isState(NW) || isState(RP) || isState(SL)) {
+    holidays.push({ date: corpusChristi, name: 'Fronleichnam', states: [BW[0], BY[0], HE[0], NW[0], RP[0], SL[0]] });
+  }
+
+  // Peace Festival (Aug 8) - Bavaria only
+  if (isState(BY)) {
+    holidays.push({ date: new Date(year, 7, 8), name: 'Friedensfest', states: [BY[0]] });
+  }
+
+  // Assumption Day (Aug 15)
+  if (isState(BY) || isState(SL)) {
+    holidays.push({ date: new Date(year, 7, 15), name: 'Mariä Himmelfahrt', states: [BY[0], SL[0]] });
+  }
+
+  // Reformation Day (Oct 31)
+  if (isState(BB) || isState(BY) || isState(HH) || isState(MV) || isState(NI) || isState(SN) || isState(ST) || isState(TH)) {
+    holidays.push({ date: new Date(year, 9, 31), name: 'Reformationstag', states: [BB[0], BY[0], HH[0], MV[0], NI[0], SN[0], ST[0], TH[0]] });
+  }
+
+  // All Saints' Day (Nov 1)
+  if (isState(BW) || isState(BY) || isState(NW) || isState(RP) || isState(SL)) {
+    holidays.push({ date: new Date(year, 10, 1), name: 'Allerheiligen', states: [BW[0], BY[0], NW[0], RP[0], SL[0]] });
+  }
+
+  // Day of Prayer and Repentance (Wednesday before Nov 23) - Saxony only
+  const nov23 = new Date(year, 10, 23);
+  let dayOfRepentance = new Date(nov23);
+  while (dayOfRepentance.getDay() !== 3) {
+    dayOfRepentance.setDate(dayOfRepentance.getDate() - 1);
+  }
+  if (isState(SN)) {
+    holidays.push({ date: dayOfRepentance, name: 'Buß- und Bettag', states: [SN[0]] });
+  }
+
+  return holidays.map(h => ({
+    date: formatDateLocal(h.date),
+    name: h.name,
+    isNationwide: !h.states
+  }));
+}
 
 // ===================== FILE I/O =====================
 async function openFile() {
@@ -786,9 +918,15 @@ function goToToday() {
 }
 
 // ===================== DASHBOARD =====================
+// Get fleet icon - same sports car icon as Vehicles menu
+function getFleetIconSvg(vehicles) {
+  return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M14 10l-2-6"/><path d="M18 10h2"/></svg>`;
+}
+
 function renderDashboard() {
   const vehicles = S.data.vehicles;
   const bookings = S.data.bookings;
+  const now = new Date();
   const activeBookings = bookings.filter(isActive);
   const availableNow = vehicles.filter(v => !activeBookings.some(b => b.vehicleId === v.id && (b.status === 'confirmed' || b.status === 'in-use')));
   const todayBookings = bookings.filter(b => isToday(b.periodStart));
@@ -801,11 +939,43 @@ function renderDashboard() {
   const widgetStartDate = new Date();
   widgetStartDate.setHours(0, 0, 0, 0);
 
+  // Get German holidays for dashboard widget
+  const widgetYear = widgetStartDate.getFullYear();
+  const widgetHolidays = S.data.settings.germanState ? getGermanHolidays(widgetYear, S.data.settings.germanState) : [];
+  const widgetHolidayMap = {};
+  widgetHolidays.forEach(h => {
+    widgetHolidayMap[h.date] = h;
+  });
+
   const widgetDateCells = [];
   for (let i = 0; i < widgetDays; i++) {
     const date = new Date(widgetStartDate);
     date.setDate(date.getDate() + i);
-    widgetDateCells.push(`<div class="gantt-date-cell">${date.toLocaleDateString('en-US', {weekday:'short',month:'numeric',day:'numeric'})}</div>`);
+    const isToday = date.toDateString() === now.toDateString();
+    const dateStr = formatDateLocal(date);
+    const holiday = widgetHolidayMap[dateStr];
+
+    let bgStyle = '';
+    let holidayClass = '';
+    let holidayTitle = '';
+    let holidayIcon = '';
+
+    if (holiday) {
+      if (holiday.isNationwide) {
+        bgStyle = 'background:var(--warning-bg)!important;border-color:var(--warning-border)!important;';
+        holidayClass = ' holiday-nationwide';
+        holidayTitle = `title="${esc(holiday.name)} (Nationwide holiday)"`;
+      } else {
+        bgStyle = 'background:#ffe4e6!important;border-color:#e8744f!important;';
+        holidayClass = ' holiday-state';
+        holidayTitle = `title="${esc(holiday.name)} (State-specific holiday)"`;
+      }
+      holidayIcon = '<span style="margin-left:4px;font-size:9px;color:var(--muted)">🎉</span>';
+    } else if (isToday) {
+      bgStyle = 'background:var(--highlight-bg)!important;';
+    }
+
+    widgetDateCells.push(`<div class="gantt-date-cell${isToday ? ' today' : ''}${holidayClass}" style="${bgStyle}" ${holidayTitle}>${date.toLocaleDateString('en-US', {weekday:'short',month:'numeric',day:'numeric'})}${holidayIcon}</div>`);
   }
 
   const widgetRows = vehicles.length ? vehicles.slice(0, 5).map(v => {
@@ -836,7 +1006,25 @@ function renderDashboard() {
     return `<div class="gantt-row">
       <div class="gantt-row-label">${esc(v.name)}</div>
       <div class="gantt-timeline">
-        ${Array(widgetDays).fill(0).map((_, i) => `<div class="gantt-time-cell" style="left:${i * 120}px;width:120px"></div>`).join('')}
+        ${Array(widgetDays).fill(0).map((_, i) => {
+          const date = new Date(widgetStartDate);
+          date.setDate(date.getDate() + i);
+          const isToday = date.toDateString() === now.toDateString();
+          const dateStr = formatDateLocal(date);
+          const holiday = widgetHolidayMap[dateStr];
+
+          let bgStyle = '';
+          let holidayClass = '';
+          let titleAttr = '';
+          if (holiday) {
+            titleAttr = `title="${esc(holiday.name)} (${holiday.isNationwide ? 'Nationwide' : 'State-specific'} holiday)"`;
+            holidayClass = holiday.isNationwide ? ' holiday-nationwide' : ' holiday-state';
+          } else if (isToday) {
+            bgStyle = 'background:var(--highlight-bg)!important;';
+          }
+
+          return `<div class="gantt-time-cell${isToday ? ' today' : ''}${holidayClass}" style="left:${i * 120}px;width:120px;${bgStyle}" ${titleAttr}></div>`;
+        }).join('')}
         ${bookingBars}
       </div>
     </div>`;
@@ -886,7 +1074,7 @@ function renderDashboard() {
   return `<div class="fade-in">
     <div class="tab-header"><h2>${TABS[0].icon} Dashboard</h2></div>
     <div class="stats-grid">
-      <div class="stat-card"><div class="stat-icon" style="background:var(--primary)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div><div class="stat-value">${vehicles.length}</div><div class="stat-label">Total Vehicles</div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--primary)">${getFleetIconSvg(vehicles)}</div><div class="stat-value">${vehicles.length}</div><div class="stat-label">Total Vehicles</div></div>
       <div class="stat-card"><div class="stat-icon" style="background:var(--success)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div class="stat-value">${availableNow.length}</div><div class="stat-label">Available Now</div></div>
       <div class="stat-card"><div class="stat-icon" style="background:var(--link)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></div><div class="stat-value">${todayBookings.length}</div><div class="stat-label">Today's Bookings</div></div>
       <div class="stat-card"><div class="stat-icon" style="background:var(--mustard)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="stat-value">${pendingCount}</div><div class="stat-label">Pending Approval</div></div>
@@ -922,15 +1110,45 @@ function renderCalendar() {
     startDate.setDate(startDate.getDate() - daysToMonday);
   }
 
+  // Get German holidays if configured
+  const currentYear = startDate.getFullYear();
+  const holidays = S.data.settings.germanState ? getGermanHolidays(currentYear, S.data.settings.germanState) : [];
+  const holidayMap = {};
+  holidays.forEach(h => {
+    holidayMap[h.date] = h;
+  });
+
   // Generate date cells (Mon-Sun for week view)
   const dateCells = [];
   for (let i = 0; i < daysToShow; i++) {
     const date = new Date(startDate);
     date.setDate(date.getDate() + i);
     const isToday = date.toDateString() === now.toDateString();
+    const dateStr = formatDateLocal(date);
+    const holiday = holidayMap[dateStr];
+
+    let bgStyle = '';
+    let holidayClass = '';
+    let holidayTitle = '';
+
+    if (holiday) {
+      if (holiday.isNationwide) {
+        bgStyle = 'background:var(--warning-bg)!important;border-color:var(--warning-border)!important;';
+        holidayClass = ' holiday-nationwide';
+        holidayTitle = `title="${esc(holiday.name)} (Nationwide holiday)"`;
+      } else {
+        bgStyle = 'background:#ffe4e6!important;border-color:#e8744f!important;';
+        holidayClass = ' holiday-state';
+        holidayTitle = `title="${esc(holiday.name)} (State-specific holiday)"`;
+      }
+    } else if (isToday) {
+      bgStyle = 'background:var(--highlight-bg)!important;';
+    }
+
     dateCells.push({
       date: date,
-      html: `<div class="gantt-date-cell${isToday ? ' today' : ''}">${date.toLocaleDateString('en-US', {weekday:'short',month:'numeric',day:'numeric'})}</div>`
+      html: `<div class="gantt-date-cell${isToday ? ' today' : ''}${holidayClass}" style="${bgStyle}" ${holidayTitle}>${date.toLocaleDateString('en-US', {weekday:'short',month:'numeric',day:'numeric'})}${holiday ? `<span style="margin-left:4px;font-size:9px;color:var(--muted)">🎉</span>` : ''}</div>`,
+      holiday: holiday
     });
   }
 
@@ -991,7 +1209,19 @@ function renderCalendar() {
       <div class="gantt-row-label">${esc(v.name)}</div>
       <div class="gantt-timeline" style="min-width:${dateCells.length * dayWidth}px">
         <!-- Grid lines for each work day -->
-        ${dateCells.map((cell, i) => `<div class="gantt-time-cell" style="left:${i * dayWidth}px;width:${dayWidth}px"></div>`).join('')}
+        ${dateCells.map((cell, i) => {
+          const isToday = cell.date.toDateString() === now.toDateString();
+          let bgStyle = '';
+          let holidayClass = '';
+          let titleAttr = '';
+          if (cell.holiday) {
+            titleAttr = `title="${esc(cell.holiday.name)} (${cell.holiday.isNationwide ? 'Nationwide' : 'State-specific'} holiday)"`;
+            holidayClass = cell.holiday.isNationwide ? ' holiday-nationwide' : ' holiday-state';
+          } else if (isToday) {
+            bgStyle = 'background:var(--highlight-bg)!important;';
+          }
+          return `<div class="gantt-time-cell${isToday ? ' today' : ''}${holidayClass}" style="left:${i * dayWidth}px;width:${dayWidth}px;${bgStyle}" ${titleAttr}></div>`;
+        }).join('')}
         ${bookingBars}
       </div>
     </div>`;
@@ -1034,7 +1264,6 @@ function renderVehicles() {
       <td style="font-weight:500;color:var(--ink)">${esc(v.name)}</td>
       <td>${esc(v.type)}</td>
       <td>${esc(v.licensePlate || '—')}</td>
-      <td><span class="badge badge-${esc(v.status)}">${esc(v.status)}</span></td>
       <td style="color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.notes || '')}</td>
       <td style="white-space:nowrap">
         <button class="btn-icon btn-sm" onclick="event.stopPropagation();confirmDeleteVehicle('${v.id}')" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
@@ -1051,7 +1280,7 @@ function renderVehicles() {
         </button>
       </div>
     </div>
-    ${vehicles.length ? `<div class="card"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>License Plate</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div></div>` :
+    ${vehicles.length ? `<div class="card"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>License Plate</th><th>Notes</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div></div>` :
       `<div class="card"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg><h3>No vehicles yet</h3><p>Add your first vehicle to get started.</p></div></div>`}
   </div>`;
 }
@@ -1391,6 +1620,7 @@ function renderSettings() {
     { id: 'statuses', label: 'Booking Statuses', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--mustard)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>' },
     { id: 'vehicleTypes', label: 'Vehicle Types', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--forest)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M14 10l-2-6"/><path d="M18 10h2"/></svg>' },
     { id: 'customFields', label: 'Custom Fields', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>' },
+    { id: 'calendarSettings', label: 'Calendar', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>' },
     { id: 'apiConfig', label: 'AI API Config', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--coral)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>' },
     { id: 'fileInfo', label: 'File Info', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>' },
   ];
@@ -1423,6 +1653,43 @@ function renderSettings() {
         <button class="btn btn-sm btn-primary" onclick="addCustomField()" style="margin-top:10px" id="cf-submit-btn">Add Field</button>
         <button class="btn btn-sm" onclick="cancelEditCustomField()" style="margin-top:10px;display:none" id="cf-cancel-btn">Cancel</button>
       </div>`;
+  } else if (S.settingsTab === 'calendarSettings') {
+    const currentState = settings.germanState || '';
+    const germanStates = [
+      { value: '', label: 'None (no holidays)' },
+      { value: 'Baden-Württemberg', label: 'Baden-Württemberg' },
+      { value: 'Bayern', label: 'Bayern (Bavaria)' },
+      { value: 'Berlin', label: 'Berlin' },
+      { value: 'Brandenburg', label: 'Brandenburg' },
+      { value: 'Bremen', label: 'Bremen' },
+      { value: 'Hamburg', label: 'Hamburg' },
+      { value: 'Hessen', label: 'Hessen (Hesse)' },
+      { value: 'Mecklenburg-Vorpommern', label: 'Mecklenburg-Vorpommern' },
+      { value: 'Niedersachsen', label: 'Niedersachsen (Lower Saxony)' },
+      { value: 'Nordrhein-Westfalen', label: 'Nordrhein-Westfalen (North Rhine-Westphalia)' },
+      { value: 'Rheinland-Pfalz', label: 'Rheinland-Pfalz (Rhineland-Palatinate)' },
+      { value: 'Saarland', label: 'Saarland' },
+      { value: 'Sachsen', label: 'Sachsen (Saxony)' },
+      { value: 'Sachsen-Anhalt', label: 'Sachsen-Anhalt (Saxony-Anhalt)' },
+      { value: 'Schleswig-Holstein', label: 'Schleswig-Holstein' },
+      { value: 'Thüringen', label: 'Thüringen (Thuringia)' }
+    ];
+    const stateOptions = germanStates.map(s => `<option value="${esc(s.value)}"${currentState === s.value ? ' selected' : ''}>${esc(s.label)}</option>`).join('');
+    content = `<div style="margin-bottom:14px">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Configure calendar display settings, including German federal holidays for specific states.</p>
+      <div class="form-group"><label class="form-label">German State (Bundesland)</label><select class="form-input" id="german-state" onchange="saveGermanState()">${stateOptions}</select><div class="form-hint">Select a German state to show state-specific holidays on the calendar. Nationwide holidays (New Year, Good Friday, Easter Monday, etc.) are always shown.</div></div>
+      <div style="margin-top:16px;padding:12px;border:1px solid var(--hairline);border-radius:var(--radius-sm)">
+        <h4 style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px">Holiday Legend</h4>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:var(--warning-bg);border:1px solid var(--warning-border);border-radius:4px;font-size:12px">
+            <span style="width:12px;height:12px;background:var(--warning);border-radius:2px"></span> Nationwide holidays
+          </span>
+          <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:#ffe4e6;border:1px solid #e8744f;border-radius:4px;font-size:12px">
+            <span style="width:12px;height:12px;background:var(--coral);border-radius:2px"></span> State-specific holidays
+          </span>
+        </div>
+      </div>
+    </div>`;
   } else if (S.settingsTab === 'apiConfig') {
     const curEndpoint = localStorage.getItem('fleethub_ai_endpoint') || '';
     const curKey = localStorage.getItem('fleethub_ai_key') || '';
@@ -1515,6 +1782,12 @@ function addSettingItem(key) {
 function removeSettingItem(key, val) {
   S.data.settings[key] = (S.data.settings[key] || []).filter(v => v !== val);
   markDirty(); render(); showToast(`Removed "${val}"`, 'success');
+}
+
+function saveGermanState() {
+  const state = document.getElementById('german-state').value;
+  S.data.settings.germanState = state || null;
+  markDirty(); render(); showToast(`German state updated`, 'success');
 }
 
 function toggleCfOptions() {
@@ -1724,7 +1997,7 @@ function openDialog(title, bodyHtml, onConfirm, isDanger = false) {
   document.getElementById('dialog-body').innerHTML = bodyHtml;
   document.getElementById('dialog-footer').innerHTML = `
     <button class="btn" onclick="closeDialog()">Cancel</button>
-    <button class="btn ${isDanger ? 'btn-danger' : 'btn-primary'}" id="dialog-confirm" onclick="dialogConfirm()">${isDanger ? 'Delete' : 'Save'}</button>
+    <button class="btn ${isDanger ? 'btn-danger' : 'btn-primary'}" id="dialog-confirm" onclick="dialogConfirm()">${isDanger ? 'Delete' : 'Save'} <span style="font-size:11px;opacity:0.7;margin-left:4px">(${saveShortcut})</span></button>
   `;
   dialogCallback = onConfirm;
   document.getElementById('dialog-overlay').classList.add('active');
