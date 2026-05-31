@@ -1733,13 +1733,19 @@ function renderSettings() {
 
   // Booking Statuses Section
   const statusTags = (settings.statuses || []).map(s => `<span class="tag-item">${esc(s)}<button onclick="removeSettingItem('statuses','${esc(s)}')">×</button></span>`).join('');
-  const statusesContent = `<div class="tag-list">${statusTags || '<span style="font-size:13px;color:var(--muted)">No statuses defined</span>'}</div>
-    <div class="tag-input-row"><input id="settings-input-statuses" placeholder="Add status (e.g. approved)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('statuses')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('statuses')">Add</button></div>`;
+  const statusesContent = `<div>
+    <h4 style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px">Booking Statuses</h4>
+    <div class="tag-list">${statusTags || '<span style="font-size:13px;color:var(--muted)">No statuses defined</span>'}</div>
+    <div class="tag-input-row"><input id="settings-input-statuses" placeholder="Add status (e.g. approved)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('statuses')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('statuses')">Add</button></div>
+  </div>`;
 
   // Vehicle Types Section
   const typeTags = (settings.vehicleTypes || []).map(t => `<span class="tag-item">${esc(t)}<button onclick="removeSettingItem('vehicleTypes','${esc(t)}')">×</button></span>`).join('');
-  const typesContent = `<div class="tag-list">${typeTags || '<span style="font-size:13px;color:var(--muted)">No vehicle types defined</span>'}</div>
-    <div class="tag-input-row"><input id="settings-input-types" placeholder="Add type (e.g. truck)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('vehicleTypes')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('vehicleTypes')">Add</button></div>`;
+  const typesContent = `<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--hairline)">
+    <h4 style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px">Vehicle Types</h4>
+    <div class="tag-list">${typeTags || '<span style="font-size:13px;color:var(--muted)">No vehicle types defined</span>'}</div>
+    <div class="tag-input-row"><input id="settings-input-types" placeholder="Add type (e.g. truck)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('vehicleTypes')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('vehicleTypes')">Add</button></div>
+  </div>`;
 
   // Custom Fields Section
   const cols = settings.customColumns || [];
@@ -2135,6 +2141,9 @@ function openDialog(title, bodyHtml, onConfirm, isDanger = false) {
 function closeDialog() {
   document.getElementById('dialog-overlay').classList.remove('active');
   dialogCallback = null;
+  // Restore focus to body so keyboard shortcuts work after closing dialog
+  document.activeElement?.blur();
+  document.body.focus();
 }
 
 function dialogConfirm() {
