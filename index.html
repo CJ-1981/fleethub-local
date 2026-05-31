@@ -18,6 +18,7 @@
   --destructive:#b91c1c;--destructive-bg:#fee2e2;--destructive-border:#dc2626;
   --info:#254fad;--info-bg:#dbeafe;--info-border:#458fff;
   --coral:#aa2d00;--forest:#0a2e0e;--cream:#f5e9d4;--mustard:#d9a441;
+          --highlight-bg:#fef9c3;
   --radius-sm:6px;--radius-md:10px;--radius-lg:12px;
   --font:'Inter',system-ui,-apple-system,sans-serif;
   --header-h:56px;--sidebar-w:240px;
@@ -49,11 +50,15 @@ button,input,select,textarea{font-family:inherit;font-size:inherit}
 .btn-ghost{border-color:transparent;background:transparent}
 .btn-ghost:hover{background:var(--surface-soft)}
 .btn-icon{padding:6px;border-radius:var(--radius-sm);background:transparent;border:1px solid transparent}
-.btn-icon:hover{background:var(--surface-soft);border-color:var(--hairline)}
+.btn-icon:hover:not(:disabled){background:var(--surface-soft);border-color:var(--hairline)}
+.btn-icon:disabled{opacity:0.3;cursor:not-allowed}
+.shortcut-hint{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0 4px;margin-left:auto;background:rgba(255,255,255,.2);border-radius:3px;font-size:11px;font-weight:600;line-height:1}
 
 /* Layout */
-.app{display:none;height:100vh;overflow:hidden}
+body{background:var(--surface-soft)}
+.app{display:none;min-height:100vh}
 .app.active{display:flex;flex-direction:column}
+.app-wrapper{display:flex;flex-direction:column;flex:1;width:100%;max-width:1400px;margin:0 auto;background:var(--canvas)}
 .header{height:var(--header-h);border-bottom:1px solid var(--hairline);display:flex;align-items:center;padding:0 16px;gap:12px;background:var(--canvas);flex-shrink:0;position:sticky;top:0;z-index:100}
 .header-logo{display:flex;align-items:center;gap:8px;font-weight:700;color:var(--ink);font-size:16px;text-decoration:none}
 .header-logo .logo-icon{width:32px;height:32px;background:var(--primary);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;color:#fff}
@@ -68,19 +73,19 @@ button,input,select,textarea{font-family:inherit;font-size:inherit}
 .save-indicator.unsaved{color:var(--warning)}
 .save-indicator.saving{color:var(--info)}
 
-.body-wrap{display:flex;flex:1;overflow:hidden}
+.body-wrap{display:flex;flex:1}
 .sidebar{width:var(--sidebar-w);border-right:1px solid var(--hairline);background:var(--canvas);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
 .sidebar-nav{padding:8px;flex:1}
 .sidebar-nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:var(--radius-sm);color:var(--body);cursor:pointer;font-weight:500;transition:background .15s;border:none;background:transparent;width:100%;text-align:left}
 .sidebar-nav-item:hover{background:var(--surface-soft)}
 .sidebar-nav-item.active{background:var(--primary);color:#fff}
+.sidebar-nav-item.active .nav-shortcut{color:rgba(255,255,255,.7)}
 .sidebar-nav-item svg{width:18px;height:18px;flex-shrink:0}
 .sidebar-nav-item .badge{margin-left:auto;background:var(--hairline);color:var(--body);font-size:11px;padding:1px 6px;border-radius:999px;font-weight:600}
+.nav-shortcut{margin-left:auto;font-size:11px;color:var(--muted);opacity:.6}
 .sidebar-nav-item.active .badge{background:rgba(255,255,255,.2);color:#fff}
-.sidebar-cta{padding:12px;border-top:1px solid var(--hairline)}
-.sidebar-cta .btn{width:100%;justify-content:center}
 
-.main-content{flex:1;overflow-y:auto;padding:24px;max-width:1200px}
+.main-content{flex:1;padding:24px}
 .mobile-nav{display:none;border-top:1px solid var(--hairline);overflow-x:auto;flex-shrink:0}
 .mobile-nav-inner{display:flex;padding:8px;gap:4px}
 .mobile-nav-item{display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--radius-sm);color:var(--body);font-weight:500;font-size:13px;white-space:nowrap;border:none;background:transparent;cursor:pointer}
@@ -114,7 +119,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit}
 .stat-card .stat-label{font-size:12px;color:var(--muted);margin-top:4px;font-weight:500}
 
 /* Two-column */
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:24px 0}
 @media(max-width:900px){.two-col{grid-template-columns:1fr}}
 
 /* Table */
@@ -183,11 +188,6 @@ select.form-input{cursor:pointer}
 .share-tag button:hover{color:var(--destructive)}
 
 /* Chat */
-.chat-panel{width:320px;border-left:1px solid var(--hairline);display:flex;flex-direction:column;background:var(--canvas);flex-shrink:0}
-@media(max-width:1100px){.chat-panel{display:none}}
-.chat-header{padding:12px 16px;border-bottom:1px solid var(--hairline);font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px}
-.chat-header svg{width:18px;height:18px}
-.chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
 .chat-msg{max-width:85%;display:flex;gap:8px}
 .chat-msg.user{align-self:flex-end;flex-direction:row-reverse}
 .chat-msg-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px}
@@ -201,14 +201,17 @@ select.form-input{cursor:pointer}
 .chat-input-area textarea:focus{border-color:var(--ring)}
 
 /* Settings */
-.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-@media(max-width:900px){.settings-grid{grid-template-columns:1fr}}
-.settings-card{border:1px solid var(--hairline);border-radius:var(--radius-md);overflow:hidden}
-.settings-card-header{padding:12px 16px;border-bottom:1px solid var(--hairline);font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.03em;display:flex;align-items:center;gap:8px;color:var(--ink)}
-.settings-card-header svg{width:16px;height:16px}
-.settings-card-body{padding:16px}
+.settings-container{max-width:700px}
+.settings-section{border:1px solid var(--hairline);border-radius:var(--radius-md);margin-bottom:8px;overflow:hidden;background:var(--canvas)}
+.settings-section.danger{border-color:var(--destructive-border);background:var(--destructive-bg)}
+.settings-section-header{width:100%;padding:12px 16px;display:flex;align-items:center;gap:8px;border:none;background:transparent;cursor:pointer;font-weight:500;font-size:14px;color:var(--ink);text-align:left}
+.settings-section-header:hover{background:var(--surface-soft)}
+.settings-section-header svg{flex-shrink:0}
+.settings-section-header span{margin-left:4px}
+.settings-section-body{padding:16px;border-top:1px solid var(--hairline)}
+.settings-section.danger .settings-section-body{border-top-color:var(--destructive-border)}
 .tag-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
-.tag-item{display:flex;align-items:center;gap:4px;padding:3px 10px;background:var(--surface-soft);border:1px solid var(--hairline);border-radius:999px;font-size:13px}
+.tag-item{display:flex;align-items:center;gap:4px;padding:4px 10px;background:var(--surface-soft);border:1px solid var(--hairline);border-radius:999px;font-size:13px}
 .tag-item button{background:none;border:none;cursor:pointer;color:var(--muted);font-size:15px;line-height:1;padding:0}
 .tag-item button:hover{color:var(--destructive)}
 .tag-input-row{display:flex;gap:8px}
@@ -227,7 +230,9 @@ select.form-input{cursor:pointer}
 
 /* Tooltip */
 [data-tooltip]{position:relative}
-[data-tooltip]:hover::after{content:attr(data-tooltip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:4px 8px;background:var(--ink);color:#fff;font-size:11px;border-radius:var(--radius-sm);white-space:nowrap;pointer-events:none;z-index:999}
+[data-tooltip]:hover::after{content:attr(data-tooltip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:4px 8px;background:var(--ink);color:#fff;font-size:11px;border-radius:var(--radius-sm);white-space:nowrap;pointer-events:none;z-index:99999}
+/* Suppress CSS tooltip on Gantt elements (JS tooltip handles these) */
+.gantt-booking-bar[data-tooltip]:hover::after,.gantt-date-cell[data-tooltip]:hover::after,.gantt-time-cell[data-tooltip]:hover::after,.gantt-row-label[data-tooltip]:hover::after{display:none!important}
 
 /* Custom fields table */
 .cf-table{width:100%;border-collapse:collapse}
@@ -258,6 +263,40 @@ select.form-input{cursor:pointer}
 .toast-success{background:var(--success-bg);color:var(--success);border-color:var(--success-border)}
 .toast-error{background:var(--destructive-bg);color:var(--destructive);border-color:var(--destructive-border)}
 .toast-info{background:var(--info-bg);color:var(--info);border-color:var(--info-border)}
+
+/* Gantt Chart */
+.gantt-container{overflow:auto;max-height:600px;border:1px solid var(--hairline);border-radius:var(--radius-sm)}
+.gantt-header-row{display:grid;grid-template-columns:150px 1fr;position:sticky;top:0;background:var(--surface-strong);z-index:10}
+.gantt-corner-cell{padding:8px 12px;font-weight:600;font-size:12px;border-bottom:1px solid var(--hairline);border-right:1px solid var(--hairline)}
+.gantt-date-cells{display:flex}
+.gantt-date-cell{flex:0 0 120px;padding:8px 4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;border-bottom:1px solid var(--hairline);border-right:1px solid var(--hairline);position:relative}
+.gantt-date-cell.today{background:var(--highlight-bg)}
+.gantt-date-cell.holiday-nationwide{background:var(--warning-bg)!important;border-color:var(--warning-border)!important}
+.gantt-date-cell.holiday-state{background:#ffe4e6!important;border-color:#e8744f!important}
+.gantt-time-cell.today{background:var(--highlight-bg)!important}
+.gantt-time-cell.holiday-nationwide{background:var(--warning-bg)!important}
+.gantt-time-cell.holiday-state{background:#ffe4e6!important}
+.gantt-row{display:grid;grid-template-columns:150px 1fr;min-height:60px;border-bottom:1px solid var(--hairline)}
+.gantt-row-label{padding:8px 12px;font-size:13px;font-weight:500;border-right:1px solid var(--hairline);display:flex;align-items:center}
+.gantt-timeline{position:relative;min-height:60px;background:var(--surface-soft)}
+.gantt-time-cell{position:absolute;flex:0 0 120px;height:100%;border-right:1px solid var(--hairline);background:var(--canvas);top:0}
+.gantt-booking-bar{position:absolute;height:60px;top:0;border-radius:4px;font-size:12px;font-weight:500;cursor:pointer;transition:opacity .15s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px;line-height:60px;z-index:5;will-change:opacity,left}
+.gantt-booking-bar:hover{opacity:.8}
+.gantt-booking-bar.pending{background-color:#d9a441;background:#d9a441;color:#fff!important}
+.gantt-booking-bar.confirmed{background-color:#254fad;background:#254fad;color:#fff!important}
+.gantt-booking-bar.in-use{background-color:#006400;background:#006400;color:#fff!important}
+.gantt-booking-bar.returned{background-color:#41454d;background:#41454d;color:#fff!important}
+.gantt-booking-bar.cancelled{background-color:#b91c1c;background:#b91c1c;color:#fff!important;opacity:.6;text-decoration:line-through}
+.gantt-nav-controls{display:flex;gap:4px;margin-left:auto}
+.gantt-view-toggle{display:flex;gap:4px;margin-left:8px}
+.dashboard-gantt{max-height:340px;overflow:auto;border:1px solid var(--hairline);border-radius:var(--radius-sm);margin-bottom:16px}
+.dashboard-gantt .gantt-row{min-height:40px}
+.dashboard-gantt .gantt-booking-bar{height:28px;top:4px;font-size:11px;line-height:28px}
+@media(max-width:768px){
+  .gantt-row{grid-template-columns:100px 1fr}
+  .gantt-corner-cell,.gantt-row-label{padding:6px 8px;font-size:12px}
+  .gantt-date-cell{flex:0 0 80px;padding:6px 2px;display:flex;align-items:center;justify-content:center;font-size:10px;position:relative}
+}
 </style>
 </head>
 <body>
@@ -266,7 +305,7 @@ select.form-input{cursor:pointer}
 <div id="landing" class="landing">
   <div class="landing-card">
     <div class="landing-logo">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
     </div>
     <h1>FleetHub</h1>
     <p>Fleet Management — Local File Mode<br>No server required. All data stays in your JSON file.</p>
@@ -307,11 +346,12 @@ select.form-input{cursor:pointer}
     <button class="btn btn-sm" onclick="acquireLock()" style="margin-left:auto">Take Over</button>
   </div>
 
+  <div class="app-wrapper">
   <!-- Header -->
   <header class="header">
-    <a class="header-logo" href="#">
+    <a class="header-logo" href="#" style="display:flex;align-items:center;gap:8px;font-weight:700;color:var(--ink);font-size:16px;text-decoration:none">
       <span class="logo-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 0-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
       </span>
       FleetHub
     </a>
@@ -341,36 +381,11 @@ select.form-input{cursor:pointer}
     <!-- Sidebar -->
     <nav class="sidebar">
       <div class="sidebar-nav" id="sidebar-nav"></div>
-      <div class="sidebar-cta">
-        <button class="btn btn-primary" onclick="newBooking()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-          New Booking
-        </button>
-      </div>
     </nav>
 
     <!-- Main Content -->
     <main class="main-content" id="main-content"></main>
-
-    <!-- AI Chat Panel -->
-    <aside class="chat-panel" id="chat-panel">
-      <div class="chat-header">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
-        AI Assistant
-        <span style="margin-left:auto">
-          <button class="btn-icon btn-sm" onclick="clearChat()" data-tooltip="Clear chat">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-          </button>
-        </span>
-      </div>
-      <div class="chat-messages" id="chat-messages"></div>
-      <div class="chat-input-area">
-        <textarea id="chat-input" rows="1" placeholder="Ask about your fleet..." onkeydown="chatKeydown(event)"></textarea>
-        <button class="btn btn-primary btn-sm" onclick="sendChat()" data-tooltip="Send">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
-        </button>
-      </div>
-    </aside>
+  </div>
   </div>
 
   <!-- Mobile Nav -->
@@ -388,6 +403,9 @@ select.form-input{cursor:pointer}
 
 <!-- Toast Container -->
 <div class="toast-container" id="toast-container"></div>
+
+<!-- Gantt Tooltip -->
+<div id="gantt-tooltip" style="position:fixed;display:none;padding:8px 12px;background:var(--ink);color:#fff;font-size:12px;border-radius:4px;pointer-events:none;z-index:10000;max-width:300px;white-space:normal"></div>
 
 <script>
 // ===================== STATE =====================
@@ -411,15 +429,22 @@ const S = {
   pageSize: 10,
   chatMessages: [],
   chatLoading: false,
-  settingsTab: 'statuses',
+  openSections: ['booking', 'data'],
+  calendarView: 'week',
+  calendarStart: new Date().toISOString(),
 };
 
 const DEFAULT_SETTINGS = {
   statuses: ['pending', 'confirmed', 'in-use', 'returned', 'cancelled'],
   vehicleTypes: ['sedan', 'suv', 'pickup', 'van', 'bus', 'motorcycle', 'other'],
   customColumns: [],
-  shareMessage: 'Hi, I would like to share this ride with you. Is that possible?'
+  shareMessage: 'Hi, I would like to share this ride with you. Is that possible?',
+  germanState: null
 };
+
+// ===================== OS DETECTION =====================
+const isMac = (navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || '').toUpperCase().indexOf('MAC') >= 0;
+const saveShortcut = isMac ? '⌘+Enter' : 'Ctrl+Enter';
 
 function getDefaultData() {
   return {
@@ -431,12 +456,135 @@ function getDefaultData() {
 }
 
 function genId() { return Date.now().toString(36) + Math.random().toString(36).substr(2, 9); }
-function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+const _escDiv = document.createElement('div');
+function esc(s) { if (s == null || s === '') return ''; _escDiv.textContent = String(s); return _escDiv.innerHTML; }
+function escAttr(s) { if (s == null || s === '') return ''; return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
 function fmtDate(d) { if (!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
 function fmtDateTime(d) { if (!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
 function isToday(d) { if (!d) return false; const dt = new Date(d), now = new Date(); return dt.toDateString() === now.toDateString(); }
 function isActive(b) { const now = new Date(); const s = new Date(b.periodStart), e = new Date(b.periodEnd); return now >= s && now <= e; }
 function uid() { return 'User-' + Math.random().toString(36).substr(2, 6).toUpperCase(); }
+
+// ===================== GERMAN HOLIDAYS =====================
+// Format date as YYYY-MM-DD in local timezone (not UTC)
+function formatDateLocal(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getEasterDate(year) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+}
+
+function getGermanHolidays(year, state = null) {
+  const holidays = [];
+  const easterSunday = getEasterDate(year);
+  const goodFriday = new Date(easterSunday); goodFriday.setDate(goodFriday.getDate() - 2);
+  const easterMonday = new Date(easterSunday); easterMonday.setDate(easterMonday.getDate() + 1);
+  const ascensionDay = new Date(easterSunday); ascensionDay.setDate(ascensionDay.getDate() + 39);
+  const whitMonday = new Date(easterSunday); whitMonday.setDate(whitMonday.getDate() + 50);
+  const corpusChristi = new Date(easterSunday); corpusChristi.setDate(corpusChristi.getDate() + 60);
+
+  // Nationwide holidays
+  holidays.push({ date: new Date(year, 0, 1), name: 'Neujahr', states: null });
+  holidays.push({ date: goodFriday, name: 'Karfreitag', states: null });
+  holidays.push({ date: easterMonday, name: 'Ostermontag', states: null });
+  holidays.push({ date: new Date(year, 4, 1), name: 'Tag der Arbeit', states: null });
+  holidays.push({ date: ascensionDay, name: 'Christi Himmelfahrt', states: null });
+  holidays.push({ date: whitMonday, name: 'Pfingstmontag', states: null });
+  holidays.push({ date: new Date(year, 9, 3), name: 'Tag der Deutschen Einheit', states: null });
+  holidays.push({ date: new Date(year, 11, 25), name: 'Erster Weihnachtstag', states: null });
+  holidays.push({ date: new Date(year, 11, 26), name: 'Zweiter Weihnachtstag', states: null });
+
+  // State-specific holidays
+  const BW = ['Baden-Württemberg', 'BW', 'baden-württemberg'];
+  const BY = ['Bayern', 'Bavaria', 'BY', 'bayern'];
+  const BE = ['Berlin', 'BE', 'berlin'];
+  const BB = ['Brandenburg', 'BB', 'brandenburg'];
+  const HB = ['Bremen', 'HB', 'bremen'];
+  const HH = ['Hamburg', 'HH', 'hamburg'];
+  const HE = ['Hessen', 'Hesse', 'HE', 'hessen'];
+  const MV = ['Mecklenburg-Vorpommern', 'MV', 'mecklenburg-vorpommern'];
+  const NI = ['Niedersachsen', 'Lower Saxony', 'NI', 'niedersachsen'];
+  const NW = ['Nordrhein-Westfalen', 'North Rhine-Westphalia', 'NRW', 'NW', 'nordrhein-westfalen'];
+  const RP = ['Rheinland-Pfalz', 'Rhineland-Palatinate', 'RP', 'rheinland-pfalz'];
+  const SL = ['Saarland', 'SL', 'saarland'];
+  const SN = ['Sachsen', 'Saxony', 'SN', 'sachsen'];
+  const ST = ['Sachsen-Anhalt', 'Saxony-Anhalt', 'ST', 'sachsen-anhalt'];
+  const SH = ['Schleswig-Holstein', 'SH', 'schleswig-holstein'];
+  const TH = ['Thüringen', 'Thuringia', 'TH', 'thüringen'];
+
+  const stateLower = state ? state.toLowerCase() : '';
+  const isState = (arr) => state && arr.some(s => s.toLowerCase() === stateLower);
+
+  // Epiphany (Jan 6)
+  if (isState(BW) || isState(BY) || isState(ST)) {
+    holidays.push({ date: new Date(year, 0, 6), name: 'Heilige Drei Könige', states: [BW[0], BY[0], ST[0]] });
+  }
+
+  // International Women's Day (Mar 8) - Berlin only
+  if (isState(BE)) {
+    holidays.push({ date: new Date(year, 2, 8), name: 'Internationaler Frauentag', states: [BE[0]] });
+  }
+
+  // Corpus Christi (60 days after Easter)
+  if (isState(BW) || isState(BY) || isState(HE) || isState(NW) || isState(RP) || isState(SL)) {
+    holidays.push({ date: corpusChristi, name: 'Fronleichnam', states: [BW[0], BY[0], HE[0], NW[0], RP[0], SL[0]] });
+  }
+
+  // Peace Festival (Aug 8) - Bavaria only
+  if (isState(BY)) {
+    holidays.push({ date: new Date(year, 7, 8), name: 'Friedensfest', states: [BY[0]] });
+  }
+
+  // Assumption Day (Aug 15)
+  if (isState(BY) || isState(SL)) {
+    holidays.push({ date: new Date(year, 7, 15), name: 'Mariä Himmelfahrt', states: [BY[0], SL[0]] });
+  }
+
+  // Reformation Day (Oct 31)
+  if (isState(BB) || isState(HB) || isState(HH) || isState(MV) || isState(NI) || isState(SN) || isState(ST) || isState(SH) || isState(TH)) {
+    holidays.push({ date: new Date(year, 9, 31), name: 'Reformationstag', states: [BB[0], HB[0], HH[0], MV[0], NI[0], SN[0], ST[0], SH[0], TH[0]] });
+  }
+
+  // All Saints' Day (Nov 1)
+  if (isState(BW) || isState(BY) || isState(NW) || isState(RP) || isState(SL)) {
+    holidays.push({ date: new Date(year, 10, 1), name: 'Allerheiligen', states: [BW[0], BY[0], NW[0], RP[0], SL[0]] });
+  }
+
+  // Day of Prayer and Repentance (Wednesday before Nov 23) - Saxony only
+  const nov23 = new Date(year, 10, 23);
+  let dayOfRepentance = new Date(nov23);
+  dayOfRepentance.setDate(dayOfRepentance.getDate() - 1);
+  while (dayOfRepentance.getDay() !== 3) {
+    dayOfRepentance.setDate(dayOfRepentance.getDate() - 1);
+  }
+  if (isState(SN)) {
+    holidays.push({ date: dayOfRepentance, name: 'Buß- und Bettag', states: [SN[0]] });
+  }
+
+  return holidays.map(h => ({
+    date: formatDateLocal(h.date),
+    name: h.name,
+    isNationwide: !h.states
+  }));
+}
 
 // ===================== FILE I/O =====================
 async function openFile() {
@@ -452,7 +600,8 @@ async function openFile() {
     if (!S.data.settings) S.data.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
     if (!S.data.vehicles) S.data.vehicles = [];
     if (!S.data.bookings) S.data.bookings = [];
-    // ensure settings has all keys
+    // Ensure sortOrder exists on all vehicles (handles imports/legacy files)
+    S.data.vehicles.forEach((v, i) => { if (v.sortOrder === undefined || v.sortOrder === null) v.sortOrder = i; });
     for (const k of Object.keys(DEFAULT_SETTINGS)) { if (!S.data.settings[k]) S.data.settings[k] = JSON.parse(JSON.stringify(DEFAULT_SETTINGS[k])); }
     saveRecentFile(handle.name);
     enterApp();
@@ -671,22 +820,32 @@ window.addEventListener('beforeunload', (e) => {
 
 // ===================== NAVIGATION =====================
 const TABS = [
-  { id: 'dashboard', label: 'Dashboard', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>' },
-  { id: 'bookings', label: 'Bookings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>' },
-  { id: 'vehicles', label: 'Vehicles', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>' },
-  { id: 'settings', label: 'Settings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>' },
+  { id: 'dashboard', label: 'Dashboard', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>', shortcut: '1' },
+  { id: 'calendar', label: 'Calendar', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>', shortcut: '2' },
+  { id: 'bookings', label: 'Bookings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>', shortcut: '3' },
+  { id: 'vehicles', label: 'Vehicles', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M14 10l-2-6"/><path d="M18 10h2"/></svg>', shortcut: '4' },
+  { id: 'settings', label: 'Settings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>', shortcut: '5' },
+	  { id: 'chat', label: 'AI Assistant', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>', shortcut: '6' },
 ];
 
 function setTab(tab) { S.activeTab = tab; S.bookingPage = 1; render(); }
 
 function renderNav() {
   const pendingCount = S.data.bookings.filter(b => b.status === 'pending').length;
-  document.getElementById('sidebar-nav').innerHTML = TABS.map(t => {
+  const navItems = TABS.map(t => {
     const badge = t.id === 'bookings' && pendingCount ? `<span class="badge">${pendingCount}</span>` : '';
+    const shortcut = t.shortcut ? `<span class="nav-shortcut">[${t.shortcut}]</span>` : '';
     return `<button class="sidebar-nav-item${S.activeTab === t.id ? ' active' : ''}" onclick="setTab('${t.id}')">
-      ${t.icon}${t.label}${badge}
+      ${t.icon}${t.label}${badge}${shortcut}
     </button>`;
   }).join('');
+  // Add New Booking button after nav items
+  const newBookingBtn = `<button class="sidebar-nav-item" onclick="newBooking()" style="margin-top:8px;color:var(--primary)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+    New Booking
+    <span class="nav-shortcut">[N]</span>
+  </button>`;
+  document.getElementById('sidebar-nav').innerHTML = navItems + newBookingBtn;
   document.getElementById('mobile-nav').innerHTML = `<div class="mobile-nav-inner">${TABS.map(t => {
     const badge = t.id === 'bookings' && pendingCount ? `<span class="badge">${pendingCount}</span>` : '';
     return `<button class="mobile-nav-item${S.activeTab === t.id ? ' active' : ''}" onclick="setTab('${t.id}')">
@@ -721,16 +880,45 @@ function render() {
   const mc = document.getElementById('main-content');
   switch (S.activeTab) {
     case 'dashboard': mc.innerHTML = renderDashboard(); break;
+    case 'calendar': mc.innerHTML = renderCalendar(); break;
     case 'bookings': mc.innerHTML = renderBookings(); break;
     case 'vehicles': mc.innerHTML = renderVehicles(); break;
     case 'settings': mc.innerHTML = renderSettings(); break;
+    case 'chat': mc.innerHTML = renderChatPage(); break;
   }
+  renderChatMessages();
+}
+
+
+// ===================== CALENDAR NAVIGATION =====================
+function navigateCalendar(direction) {
+  const days = S.calendarView === 'week' ? 7 : 30;
+  const current = new Date(S.calendarStart);
+  current.setDate(current.getDate() + (direction * days));
+  S.calendarStart = current.toISOString();
+  render();
+}
+
+function setCalendarView(mode) {
+  S.calendarView = mode;
+  render();
+}
+
+function goToToday() {
+  S.calendarStart = new Date().toISOString();
+  render();
 }
 
 // ===================== DASHBOARD =====================
+// Get fleet icon - same sports car icon as Vehicles menu
+function getFleetIconSvg(vehicles) {
+  return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M14 10l-2-6"/><path d="M18 10h2"/></svg>`;
+}
+
 function renderDashboard() {
-  const vehicles = S.data.vehicles;
+  const vehicles = [...S.data.vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   const bookings = S.data.bookings;
+  const now = new Date();
   const activeBookings = bookings.filter(isActive);
   const availableNow = vehicles.filter(v => !activeBookings.some(b => b.vehicleId === v.id && (b.status === 'confirmed' || b.status === 'in-use')));
   const todayBookings = bookings.filter(b => isToday(b.periodStart));
@@ -738,10 +926,168 @@ function renderDashboard() {
   const activeUsers = new Set(activeBookings.map(b => b.userName)).size;
   const sharedCount = bookings.filter(b => b.shareWith && b.shareWith.length > 0).length;
 
+  // Compact Calendar Widget (showing next 3 days)
+  const widgetDays = 7;
+  const widgetStartDate = new Date();
+  widgetStartDate.setHours(0, 0, 0, 0);
+
+  // Get German holidays for dashboard widget (include next year for year boundary)
+  const widgetYear = widgetStartDate.getFullYear();
+  const widgetEndDate = new Date(widgetStartDate);
+  widgetEndDate.setDate(widgetEndDate.getDate() + widgetDays - 1);
+  const widgetEndYear = widgetEndDate.getFullYear();
+  const widgetYears = new Set([widgetYear, widgetEndYear]);
+  const widgetHolidays = [...widgetYears].flatMap(y => getGermanHolidays(y, S.data.settings.germanState));
+  const widgetHolidayMap = {};
+  widgetHolidays.forEach(h => {
+    widgetHolidayMap[h.date] = h;
+  });
+
+  const widgetDateCells = [];
+  for (let i = 0; i < widgetDays; i++) {
+    const date = new Date(widgetStartDate);
+    date.setDate(date.getDate() + i);
+    const isToday = date.toDateString() === now.toDateString();
+    const dateStr = formatDateLocal(date);
+    const holiday = widgetHolidayMap[dateStr];
+
+    let bgStyle = '';
+    let holidayClass = '';
+    let holidayTitle = '';
+    let holidayIcon = '';
+
+    if (holiday) {
+      if (holiday.isNationwide) {
+        bgStyle = 'background:var(--warning-bg)!important;border-color:var(--warning-border)!important;';
+        holidayClass = ' holiday-nationwide';
+        holidayTitle = `data-tooltip="${escAttr(holiday.name)} (Nationwide holiday)"`;
+      } else {
+        bgStyle = 'background:#ffe4e6!important;border-color:#e8744f!important;';
+        holidayClass = ' holiday-state';
+        holidayTitle = `data-tooltip="${escAttr(holiday.name)} (State-specific holiday)"`;
+      }
+      holidayIcon = '<span style="margin-left:4px;font-size:9px;color:var(--muted)">🎉</span>';
+    } else if (isToday) {
+      bgStyle = 'background:var(--highlight-bg)!important;';
+    }
+
+    widgetDateCells.push(`<div class="gantt-date-cell${isToday ? ' today' : ''}${holidayClass}" style="${bgStyle}" ${holidayTitle}>${date.toLocaleDateString('en-US', {weekday:'short',month:'numeric',day:'numeric'})}${holidayIcon}</div>`);
+  }
+
+  const widgetViewEnd = new Date(widgetStartDate);
+  widgetViewEnd.setDate(widgetViewEnd.getDate() + widgetDays);
+
+  const widgetRows = vehicles.length ? vehicles.slice(0, 5).map(v => {
+    const vehicleBookings = bookings.filter(b => {
+      const bStart = new Date(b.periodStart);
+      const bEnd = new Date(b.periodEnd);
+      return b.vehicleId === v.id && b.status !== 'cancelled' && bEnd >= widgetStartDate && bStart <= widgetViewEnd;
+    });
+
+    // Pre-compute overlap slot assignments for visible bookings
+    const sortedVB = [...vehicleBookings].sort((a, b) => new Date(a.periodStart) - new Date(b.periodStart));
+    const slotAssignments = new Map();
+    const slotEnds = [];
+    for (const ob of sortedVB) {
+      const oStart = new Date(ob.periodStart);
+      const oEnd = new Date(ob.periodEnd);
+      let slot = -1;
+      for (let si = 0; si < slotEnds.length; si++) {
+        if (slotEnds[si] <= oStart) { slot = si; slotEnds[si] = oEnd; break; }
+      }
+      if (slot === -1) { slot = slotEnds.length; slotEnds.push(oEnd); }
+      slotAssignments.set(ob.id, slot);
+    }
+
+    const dayWidth = 120;
+    const barHeight = 24;
+    const barSpacing = 4;
+
+    const bookingBars = vehicleBookings.map(b => {
+      const bStart = new Date(b.periodStart);
+      const bEnd = new Date(b.periodEnd);
+      const clampedStart = new Date(Math.max(bStart, widgetStartDate));
+      const clampedEnd = new Date(Math.min(bEnd, widgetViewEnd));
+      if (clampedStart >= clampedEnd) return '';
+      const startOffset = (clampedStart - widgetStartDate) / (1000 * 60 * 60);
+      const duration = (clampedEnd - clampedStart) / (1000 * 60 * 60);
+      const leftPos = startOffset * (dayWidth / 24);
+      const width = Math.max(duration * (dayWidth / 24), 4);
+
+      // Status color mapping for inline styles (ensures colors always render)
+      const statusColors = {
+        'pending': '#d9a441',
+        'confirmed': '#254fad',
+        'in-use': '#006400',
+        'returned': '#41454d',
+        'cancelled': '#b91c1c'
+      };
+      const barColor = statusColors[b.status] || '#d9a441';
+      const overlapIndex = slotAssignments.get(b.id) || 0;
+      const topOffset = 4 + overlapIndex * (barHeight + barSpacing);
+
+      return `<div class="gantt-booking-bar ${esc(b.status)}"
+        style="left:${leftPos}px;width:${width}px;height:${barHeight}px;top:${topOffset}px;background-color:${barColor}!important;color:#fff!important;font-size:11px;line-height:${barHeight}px;"
+        data-tooltip="${escAttr(b.userName)} - ${escAttr(b.purpose)}"
+        onclick="editBooking(this.dataset.id)"
+        data-id="${escAttr(b.id)}"
+      >${esc(b.userName)}</div>`;
+    }).join('');
+
+    const maxSlots = slotAssignments.size > 0 ? Math.max(...slotAssignments.values()) + 1 : 1;
+    const rowHeight = maxSlots * (barHeight + barSpacing) + 8;
+
+    return `<div class="gantt-row">
+      <div class="gantt-row-label">${esc(v.name)}</div>
+      <div class="gantt-timeline" style="min-height:${rowHeight}px;min-width:${widgetDays * 120}px">
+        ${Array(widgetDays).fill(0).map((_, i) => {
+          const date = new Date(widgetStartDate);
+          date.setDate(date.getDate() + i);
+          const isToday = date.toDateString() === now.toDateString();
+          const dateStr = formatDateLocal(date);
+          const holiday = widgetHolidayMap[dateStr];
+
+          let bgStyle = '';
+          let holidayClass = '';
+          let titleAttr = '';
+          if (holiday) {
+            titleAttr = `data-tooltip="${escAttr(holiday.name)} (${holiday.isNationwide ? 'Nationwide' : 'State-specific'} holiday)"`;
+            holidayClass = holiday.isNationwide ? ' holiday-nationwide' : ' holiday-state';
+          } else if (isToday) {
+            bgStyle = 'background:var(--highlight-bg)!important;';
+          }
+
+          return `<div class="gantt-time-cell${isToday ? ' today' : ''}${holidayClass}" style="left:${i * 120}px;width:120px;${bgStyle}" ${titleAttr}></div>`;
+        }).join('')}
+        ${bookingBars}
+      </div>
+    </div>`;
+  }).join('') : '';
+
+  const dashboardGanttHtml = widgetRows ? `<div class="card">
+  <div class="card-header">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
+    Upcoming Schedule (Next 7 Days)
+    <a style="margin-left:auto;font-size:13px;color:var(--primary);cursor:pointer" onclick="setTab('calendar')">View Full Calendar →</a>
+  </div>
+  <div class="card-body" style="padding:0">
+    <div class="dashboard-gantt">
+      <div class="gantt-header-row">
+        <div class="gantt-corner-cell">Vehicle</div>
+        <div class="gantt-date-cells">${widgetDateCells.join('')}</div>
+      </div>
+      <div class="gantt-rows">${widgetRows}</div>
+    </div>
+  </div>
+</div>` : '';
+
   const fleetStatusHtml = vehicles.length ? vehicles.slice(0, 20).map(v => {
     const ab = activeBookings.find(b => b.vehicleId === v.id && (b.status === 'confirmed' || b.status === 'in-use'));
-    const statusBadge = ab ? `<span class="badge badge-in-use">${ab.userName}</span>` : `<span class="badge badge-available">Available</span>`;
-    return `<div class="vehicle-status-row">
+    const statusBadge = ab ? `<span class="badge badge-in-use">${esc(ab.userName)}</span>` : `<span class="badge badge-available">Available</span>`;
+    const clickAttr = ab
+      ? ` data-booking-id="${escAttr(ab.id)}" onclick="editBooking(this.dataset.bookingId)" style="cursor:pointer"`
+      : ` data-vehicle-id="${escAttr(v.id)}" onclick="newBooking(this.dataset.vehicleId)" style="cursor:pointer"`;
+    return `<div class="vehicle-status-row"${clickAttr}>
       <span class="v-name">${esc(v.name)}</span>
       ${v.licensePlate ? `<span class="v-plate">${esc(v.licensePlate)}</span>` : ''}
       <span style="margin-left:auto">${statusBadge}</span>
@@ -751,7 +1097,7 @@ function renderDashboard() {
   const upcoming = bookings.filter(b => new Date(b.periodStart) >= new Date()).sort((a, b) => new Date(a.periodStart) - new Date(b.periodStart)).slice(0, 5);
   const upcomingHtml = upcoming.length ? upcoming.map(b => {
     const v = vehicles.find(v => v.id === b.vehicleId);
-    return `<div class="vehicle-status-row">
+    return `<div class="vehicle-status-row" style="cursor:pointer" onclick="editBooking(this.dataset.id)" data-id="${escAttr(b.id)}">
       <div style="min-width:120px">
         <div style="font-weight:500;color:var(--ink)">${esc(v ? v.name : 'Unknown')}</div>
         <div style="font-size:12px;color:var(--muted)">${esc(b.userName)}</div>
@@ -765,33 +1111,238 @@ function renderDashboard() {
   return `<div class="fade-in">
     <div class="tab-header"><h2>${TABS[0].icon} Dashboard</h2></div>
     <div class="stats-grid">
-      <div class="stat-card"><div class="stat-icon" style="background:var(--primary)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div><div class="stat-value">${vehicles.length}</div><div class="stat-label">Total Vehicles</div></div>
-      <div class="stat-card"><div class="stat-icon" style="background:var(--success)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div class="stat-value">${availableNow.length}</div><div class="stat-label">Available Now</div></div>
-      <div class="stat-card"><div class="stat-icon" style="background:var(--link)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></div><div class="stat-value">${todayBookings.length}</div><div class="stat-label">Today's Bookings</div></div>
-      <div class="stat-card"><div class="stat-icon" style="background:var(--mustard)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="stat-value">${pendingCount}</div><div class="stat-label">Pending Approval</div></div>
-      <div class="stat-card"><div class="stat-icon" style="background:var(--forest)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="stat-value">${activeUsers}</div><div class="stat-label">Active Users</div></div>
-      <div class="stat-card"><div class="stat-icon" style="background:var(--coral)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="stat-value">${sharedCount}</div><div class="stat-label">Shared Rides</div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--primary)">${getFleetIconSvg(vehicles)}</div><div class="stat-value">${vehicles.length}</div><div class="stat-label">Total Vehicles</div></div>
+      ${availableNow.length ? '<div class="stat-card"><div class="stat-icon" style="background:var(--success)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div class="stat-value">' + availableNow.length + '</div><div class="stat-label">Available Now</div></div>' : ''}
+      ${todayBookings.length ? '<div class="stat-card"><div class="stat-icon" style="background:var(--link)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></div><div class="stat-value">' + todayBookings.length + '</div><div class="stat-label">Today\'s Bookings</div></div>' : ''}
+      ${pendingCount ? '<div class="stat-card"><div class="stat-icon" style="background:var(--mustard)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="stat-value">' + pendingCount + '</div><div class="stat-label">Pending Approval</div></div>' : ''}
+      ${activeUsers ? '<div class="stat-card"><div class="stat-icon" style="background:var(--forest)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="stat-value">' + activeUsers + '</div><div class="stat-label">Active Users</div></div>' : ''}
+      ${sharedCount ? '<div class="stat-card"><div class="stat-icon" style="background:var(--coral)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="stat-value">' + sharedCount + '</div><div class="stat-label">Shared Rides</div></div>' : ''}
     </div>
+    ${dashboardGanttHtml}
     <div class="two-col">
-      <div class="card"><div class="card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> Fleet Status</div><div class="card-body">${fleetStatusHtml}</div></div>
+      <div class="card"><div class="card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M14 10l-2-6"/><path d="M18 10h2"/></svg> Today's Fleet Status</div><div class="card-body">${fleetStatusHtml}</div></div>
       <div class="card"><div class="card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg> Upcoming Bookings</div><div class="card-body">${upcomingHtml}</div></div>
+    </div>
+  </div>`;
+}
+
+// ===================== CALENDAR =====================
+function renderCalendar() {
+  const vehicles = [...S.data.vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const bookings = S.data.bookings;
+  const viewMode = S.calendarView || 'week';
+  const daysToShow = viewMode === 'week' ? 7 : 30; // Mon-Sun for week view
+
+  // Work hours: 6am to 8pm = 14 hours
+  const workStartHour = 6;
+  const workEndHour = 20;
+
+  const startDate = new Date(S.calendarStart);
+  startDate.setHours(0, 0, 0, 0); // Normalize to midnight
+  const now = new Date();
+
+  // Adjust start date to Monday if in week mode
+  if (viewMode === 'week') {
+    const dayOfWeek = startDate.getDay();
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    startDate.setDate(startDate.getDate() - daysToMonday);
+  }
+
+  // Get German holidays if configured (include next year for year boundary views)
+  const currentYear = startDate.getFullYear();
+  const viewEndDate = new Date(startDate);
+  viewEndDate.setDate(viewEndDate.getDate() + daysToShow - 1);
+  const endYear = viewEndDate.getFullYear();
+  const yearsToFetch = new Set([currentYear, endYear]);
+  const holidays = [...yearsToFetch].flatMap(y => getGermanHolidays(y, S.data.settings.germanState));
+  const holidayMap = {};
+  holidays.forEach(h => {
+    holidayMap[h.date] = h;
+  });
+
+  // Generate date cells (Mon-Sun for week view)
+  const dateCells = [];
+  for (let i = 0; i < daysToShow; i++) {
+    const date = new Date(startDate);
+    date.setDate(date.getDate() + i);
+    const isToday = date.toDateString() === now.toDateString();
+    const dateStr = formatDateLocal(date);
+    const holiday = holidayMap[dateStr];
+
+    let bgStyle = '';
+    let holidayClass = '';
+    let holidayTitle = '';
+
+    if (holiday) {
+      if (holiday.isNationwide) {
+        bgStyle = 'background:var(--warning-bg)!important;border-color:var(--warning-border)!important;';
+        holidayClass = ' holiday-nationwide';
+        holidayTitle = `data-tooltip="${escAttr(holiday.name)} (Nationwide holiday)"`;
+      } else {
+        bgStyle = 'background:#ffe4e6!important;border-color:#e8744f!important;';
+        holidayClass = ' holiday-state';
+        holidayTitle = `data-tooltip="${escAttr(holiday.name)} (State-specific holiday)"`;
+      }
+    } else if (isToday) {
+      bgStyle = 'background:var(--highlight-bg)!important;';
+    }
+
+    dateCells.push({
+      date: date,
+      html: `<div class="gantt-date-cell${isToday ? ' today' : ''}${holidayClass}" style="${bgStyle}" ${holidayTitle}>${date.toLocaleDateString('en-US', {weekday:'short',month:'numeric',day:'numeric'})}${holiday ? `<span style="margin-left:4px;font-size:9px;color:var(--muted)">🎉</span>` : ''}</div>`,
+      holiday: holiday
+    });
+  }
+
+  const dayWidth = 120; // pixels per work day
+  const hourWidth = dayWidth / (workEndHour - workStartHour);
+
+  // Helper: map a date to x-position on the Gantt timeline
+  const firstVisibleDate = new Date(dateCells[0].date);
+  firstVisibleDate.setHours(0, 0, 0, 0); // Normalize to midnight
+  const msPerDay = 86400000;
+  function ganttX(date) {
+    const dateMidnight = new Date(date);
+    dateMidnight.setHours(0, 0, 0, 0);
+    const dayOffset = Math.round((dateMidnight.getTime() - firstVisibleDate.getTime()) / msPerDay);
+    const hour = date.getHours() + date.getMinutes() / 60;
+    return dayOffset * dayWidth + Math.max(0, Math.min(workEndHour - workStartHour, hour - workStartHour)) * hourWidth;
+  }
+
+  const lastVisibleEnd = new Date(dateCells[dateCells.length - 1].date);
+  lastVisibleEnd.setDate(lastVisibleEnd.getDate() + 1);
+
+  // Generate vehicle rows with booking bars
+  const vehicleRows = vehicles.length ? vehicles.map(v => {
+    const vehicleBookings = bookings.filter(b => b.vehicleId === v.id && b.status !== 'cancelled');
+
+    // Clamp to visible range for slot assignment and rendering
+    const visibleBookings = vehicleBookings.filter(b => {
+      const bs = new Date(b.periodStart);
+      const be = new Date(b.periodEnd);
+      return be > firstVisibleDate && bs < lastVisibleEnd;
+    });
+
+    // Pre-compute overlap slot assignments for visible bookings only
+    const sortedVB = [...visibleBookings].sort((a, b) => new Date(a.periodStart) - new Date(b.periodStart));
+    const slotAssignments = new Map();
+    const slotEnds = [];
+    for (const ob of sortedVB) {
+      const oStart = new Date(ob.periodStart);
+      const oEnd = new Date(ob.periodEnd);
+      let slot = -1;
+      for (let si = 0; si < slotEnds.length; si++) {
+        if (slotEnds[si] <= oStart) { slot = si; slotEnds[si] = oEnd; break; }
+      }
+      if (slot === -1) { slot = slotEnds.length; slotEnds.push(oEnd); }
+      slotAssignments.set(ob.id, slot);
+    }
+
+    const bookingBars = visibleBookings.map(b => {
+      const bStart = new Date(b.periodStart);
+      const bEnd = new Date(b.periodEnd);
+
+      // Clamp booking to visible range (supports bookings starting before or ending after)
+      const cStart = new Date(Math.max(bStart.getTime(), firstVisibleDate.getTime()));
+      const cEnd = new Date(Math.min(bEnd.getTime(), lastVisibleEnd.getTime()));
+
+      if (cStart >= cEnd) return ''; // Booking entirely outside visible range
+
+      const leftOffset = ganttX(cStart);
+      const rightOffset = ganttX(cEnd);
+      const barWidth = Math.max(rightOffset - leftOffset, 4);
+
+      const overlapIndex = slotAssignments.get(b.id) || 0;
+      const topOffset = overlapIndex * 64; // 60px bar height + 4px spacing
+
+      // Status color mapping for inline styles (ensures colors always render)
+      const statusColors = {
+        'pending': '#d9a441',
+        'confirmed': '#254fad',
+        'in-use': '#006400',
+        'returned': '#41454d',
+        'cancelled': '#b91c1c'
+      };
+      const barColor = statusColors[b.status] || '#d9a441';
+
+      return `<div class="gantt-booking-bar ${esc(b.status)}"
+        style="left:${leftOffset}px;width:${Math.max(barWidth, 4)}px;top:${topOffset}px;background-color:${barColor}!important;color:#fff!important;"
+        data-tooltip="${escAttr(b.userName)} - ${escAttr(b.purpose)} (${fmtDateTime(b.periodStart)} to ${fmtDateTime(b.periodEnd)})"
+        onclick="editBooking(this.dataset.id)"
+        data-id="${escAttr(b.id)}"
+      >${esc(b.userName)}</div>`;
+    }).join('');
+
+    // Calculate max overlap slots for this vehicle to set row height
+    const maxSlots = slotAssignments.size > 0 ? Math.max(...slotAssignments.values()) + 1 : 1;
+    const rowHeight = maxSlots * 64;
+
+    return `<div class="gantt-row">
+      <div class="gantt-row-label">${esc(v.name)}</div>
+      <div class="gantt-timeline" style="min-width:${dateCells.length * dayWidth}px;min-height:${rowHeight}px">
+        <!-- Grid lines for each work day -->
+        ${dateCells.map((cell, i) => {
+          const isToday = cell.date.toDateString() === now.toDateString();
+          let bgStyle = '';
+          let holidayClass = '';
+          let titleAttr = '';
+          if (cell.holiday) {
+            titleAttr = `data-tooltip="${escAttr(cell.holiday.name)} (${cell.holiday.isNationwide ? 'Nationwide' : 'State-specific'} holiday)"`;
+            holidayClass = cell.holiday.isNationwide ? ' holiday-nationwide' : ' holiday-state';
+          } else if (isToday) {
+            bgStyle = 'background:var(--highlight-bg)!important;';
+          }
+          return `<div class="gantt-time-cell${isToday ? ' today' : ''}${holidayClass}" style="left:${i * dayWidth}px;width:${dayWidth}px;${bgStyle}" ${titleAttr}></div>`;
+        }).join('')}
+        ${bookingBars}
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty-state"><p>No vehicles to display</p></div>';
+
+  return `<div class="fade-in">
+    <div class="tab-header">
+      <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg> Schedule Calendar (${viewMode === 'week' ? 'Mon-Sun, 6am-8pm' : 'Month'})</h2>
+      <div class="tab-header-actions">
+        <div class="gantt-nav-controls">
+          <button class="btn btn-sm" onclick="navigateCalendar(-1)">← Prev</button>
+          <button class="btn btn-sm" onclick="goToToday()">Today</button>
+          <button class="btn btn-sm" onclick="navigateCalendar(1)">Next →</button>
+        </div>
+        <div class="gantt-view-toggle">
+          <button class="btn btn-sm ${viewMode === 'week' ? 'btn-primary' : ''}" onclick="setCalendarView('week')">Week</button>
+          <button class="btn btn-sm ${viewMode === 'month' ? 'btn-primary' : ''}" onclick="setCalendarView('month')">Month</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body" style="padding:0">
+        <div class="gantt-container">
+          <div class="gantt-header-row">
+            <div class="gantt-corner-cell">Vehicle</div>
+            <div class="gantt-date-cells">${dateCells.map(c => c.html).join('')}</div>
+          </div>
+          <div class="gantt-rows">${vehicleRows}</div>
+        </div>
+      </div>
     </div>
   </div>`;
 }
 
 // ===================== VEHICLES =====================
 function renderVehicles() {
-  const vehicles = S.data.vehicles.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-  const rows = vehicles.length ? vehicles.map(v => {
-    return `<tr>
+  const vehicles = [...S.data.vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const rows = vehicles.length ? vehicles.map((v, idx) => {
+    const isFirst = idx === 0;
+    const isLast = idx === vehicles.length - 1;
+    return `<tr style="cursor:pointer" onclick="editVehicle('${v.id}')">
       <td style="font-weight:500;color:var(--ink)">${esc(v.name)}</td>
       <td>${esc(v.type)}</td>
       <td>${esc(v.licensePlate || '—')}</td>
-      <td><span class="badge badge-${esc(v.status)}">${esc(v.status)}</span></td>
       <td style="color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.notes || '')}</td>
       <td style="white-space:nowrap">
-        <button class="btn-icon btn-sm" onclick="editVehicle('${v.id}')" data-tooltip="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
-        <button class="btn-icon btn-sm" onclick="confirmDeleteVehicle('${v.id}')" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();moveVehicleUp(${idx})" data-tooltip="Move up" ${isFirst ? 'disabled' : ''}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg></button>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();moveVehicleDown(${idx})" data-tooltip="Move down" ${isLast ? 'disabled' : ''}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();confirmDeleteVehicle('${v.id}')" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
       </td>
     </tr>`;
   }).join('') : '';
@@ -805,7 +1356,7 @@ function renderVehicles() {
         </button>
       </div>
     </div>
-    ${vehicles.length ? `<div class="card"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>License Plate</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div></div>` :
+    ${vehicles.length ? `<div class="card"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>License Plate</th><th>Notes</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div></div>` :
       `<div class="card"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg><h3>No vehicles yet</h3><p>Add your first vehicle to get started.</p></div></div>`}
   </div>`;
 }
@@ -846,6 +1397,30 @@ function editVehicle(id) {
     }
     markDirty(); render(); return true;
   });
+}
+
+function moveVehicleUp(idx) {
+  if (idx <= 0) return;
+  const vehicles = [...S.data.vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  vehicles.forEach((v, i) => { v.sortOrder = i; });
+  const currentVehicle = vehicles[idx];
+  const prevVehicle = vehicles[idx - 1];
+  const tempOrder = currentVehicle.sortOrder;
+  currentVehicle.sortOrder = prevVehicle.sortOrder;
+  prevVehicle.sortOrder = tempOrder;
+  markDirty(); render();
+}
+
+function moveVehicleDown(idx) {
+  const vehicles = [...S.data.vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  if (idx >= vehicles.length - 1) return;
+  vehicles.forEach((v, i) => { v.sortOrder = i; });
+  const currentVehicle = vehicles[idx];
+  const nextVehicle = vehicles[idx + 1];
+  const tempOrder = currentVehicle.sortOrder;
+  currentVehicle.sortOrder = nextVehicle.sortOrder;
+  nextVehicle.sortOrder = tempOrder;
+  markDirty(); render();
 }
 
 function confirmDeleteVehicle(id) {
@@ -894,18 +1469,23 @@ function renderBookings() {
   const rows = pageItems.map(b => {
     const v = vehicles.find(v => v.id === b.vehicleId);
     const shareCount = (b.shareWith || []).length;
-    const cfHtml = customCols.map(col => `<td style="font-size:13px">${esc((b.customFields || {})[col.key] || '—')}</td>`).join('');
-    return `<tr>
+    const cfHtml = customCols.map(col => {
+      const val = (b.customFields || {})[col.key];
+      if (Array.isArray(val)) return `<td style="font-size:13px">${val.length ? esc(val.join(', ')) : '—'}</td>`;
+      return `<td style="font-size:13px">${esc(val != null ? String(val) : '—')}</td>`;
+    }).join('');
+    return `<tr style="cursor:pointer" onclick="editBooking(this.dataset.id)" data-id="${escAttr(b.id)}">
       <td style="font-weight:500;color:var(--ink)">${esc(v ? v.name : 'Unknown')}</td>
       <td>${esc(b.userName)}</td>
       <td>${esc(b.purpose)}</td>
       <td style="white-space:nowrap;font-size:13px">${fmtDate(b.periodStart)}<br>${fmtDate(b.periodEnd)}</td>
       <td><span class="badge badge-${esc(b.status)}">${esc(b.status)}</span></td>
       ${cfHtml}
-      <td>${shareCount ? `<span class="badge badge-shared" style="cursor:pointer" onclick="openShareDialog('${b.id}')">${shareCount}</span>` : '—'}</td>
+      <td>${shareCount ? `<span class="badge badge-shared" style="cursor:pointer" onclick="event.stopPropagation();openShareDialog('${b.id}')">${shareCount}</span>` : '—'}</td>
+      <td style="white-space:nowrap;font-size:12px;color:var(--muted)">${fmtDateTime(b.createdAt)}</td>
+      <td style="white-space:nowrap;font-size:12px;color:var(--muted)">${fmtDateTime(b.updatedAt)}</td>
       <td style="white-space:nowrap">
-        <button class="btn-icon btn-sm" onclick="editBooking('${b.id}')" data-tooltip="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
-        <button class="btn-icon btn-sm" onclick="confirmDeleteBooking('${b.id}')" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();confirmDeleteBooking(this.dataset.id)" data-tooltip="Delete" data-id="${escAttr(b.id)}" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
       </td>
     </tr>`;
   }).join('');
@@ -923,7 +1503,7 @@ function renderBookings() {
         <select onchange="S.bookingStatusFilter=this.value;S.bookingPage=1;render()"><option value="">All Statuses</option>${statusOptions}</select>
       </div>
     </div>
-    ${pageItems.length ? `<div class="card"><div class="table-wrap"><table><thead><tr><th>Vehicle</th><th>User</th><th>Purpose</th><th>Period</th><th>Status</th>${customCols.map(c => `<th>${esc(c.label)}</th>`).join('')}<th>Share</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${pageItems.length ? `<div class="card"><div class="table-wrap"><table><thead><tr><th>Vehicle</th><th>User</th><th>Purpose</th><th>Period</th><th>Status</th>${customCols.map(c => `<th>${esc(c.label)}</th>`).join('')}<th>Share</th><th>Created</th><th>Updated</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="pagination" style="padding:8px 12px">
         <span>Showing ${start + 1}–${Math.min(start + S.pageSize, filtered.length)} of ${filtered.length}</span>
         <div style="display:flex;gap:4px">
@@ -973,30 +1553,56 @@ function shareWithConflicts() {
   showToast('Added conflicting users to share list', 'info');
 }
 
-function newBooking() { S.activeTab = 'bookings'; editBooking(null); renderNav(); }
+function newBooking(preselectedVehicleId) { editBooking(null, preselectedVehicleId); }
 
-function editBooking(id) {
+function renderUserNameField(value) {
+  const userNameConfig = S.data.settings.userNameConfig || { type: 'text', options: [] };
+
+  if (userNameConfig.type === 'select') {
+    const options = (userNameConfig.options || []).map(o => `<option value="${escAttr(o)}"${value === o ? ' selected' : ''}>${esc(o)}</option>`).join('');
+    return `<div class="form-group"><label class="form-label">User Name *</label><select class="form-input" id="b-user"><option value="">Select user...</option>${options}</select></div>`;
+  } else if (userNameConfig.type === 'multiselect') {
+    const selectedValues = Array.isArray(value) ? value : (value ? String(value).split(',').map(v => v.trim()) : []);
+    const options = (userNameConfig.options || []).map(o => {
+      const checked = selectedValues.includes(o) ? ' checked' : '';
+      return '<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" class="un-select-field" value="' + escAttr(o) + '"' + checked + '> ' + esc(o) + '</label>';
+    }).join('');
+    return `<div class="form-group"><label class="form-label">User Name *</label>
+      <input type="hidden" id="b-user" value="${escAttr(value || '')}">
+      <div style="display:flex;flex-wrap:wrap;gap:8px">${options}</div>
+    </div>`;
+  } else {
+    return `<div class="form-group"><label class="form-label">User Name *</label><input class="form-input" id="b-user" value="${escAttr(value)}" placeholder="Who is booking?"></div>`;
+  }
+}
+
+function editBooking(id, preselectedVehicleId) {
   const b = id ? S.data.bookings.find(b => b.id === id) : null;
-  S.editingBooking = b ? JSON.parse(JSON.stringify(b)) : { id: null, vehicleId: '', userName: '', purpose: '', periodStart: '', periodEnd: '', status: S.data.settings.statuses[0] || 'pending', remarks: '', customFields: {}, shareWith: [], shareNote: '' };
-  const vehicles = S.data.vehicles;
+  S.editingBooking = b ? JSON.parse(JSON.stringify(b)) : { id: null, vehicleId: preselectedVehicleId || '', userName: '', purpose: '', periodStart: '', periodEnd: '', status: S.data.settings.statuses[0] || 'pending', remarks: '', customFields: {}, shareWith: [], shareNote: '' };
+  const vehicles = [...S.data.vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   const statuses = S.data.settings.statuses || DEFAULT_SETTINGS.statuses;
   const customCols = S.data.settings.customColumns || [];
   const eb = S.editingBooking;
 
   const vehicleOptions = vehicles.map(v => `<option value="${v.id}"${eb.vehicleId === v.id ? ' selected' : ''}>${esc(v.name)}</option>`).join('');
   const statusOptions = statuses.map(s => `<option value="${s}"${eb.status === s ? ' selected' : ''}>${s}</option>`).join('');
-  const shareTags = (eb.shareWith || []).map(name => `<span class="share-tag">${esc(name)}<button onclick="removeShareName(this,'${esc(name)}')">×</button></span>`).join('');
+  const shareTags = (eb.shareWith || []).map(name => `<span class="share-tag">${esc(name)}<button data-name="${escAttr(name)}" onclick="removeShareName(this,this.dataset.name)">×</button></span>`).join('');
   const customFieldsHtml = customCols.map(col => {
-    const val = (eb.customFields || {})[col.key] || '';
-    if (col.type === 'select') return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><select class="form-input cf-field" data-key="${esc(col.key)}">${(col.options || []).map(o => `<option value="${esc(o)}"${val === o ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
-    if (col.type === 'number') return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><input class="form-input cf-field" type="number" data-key="${esc(col.key)}" value="${esc(val)}"></div>`;
-    if (col.type === 'date') return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><input class="form-input cf-field" type="date" data-key="${esc(col.key)}" value="${esc(val)}"></div>`;
-    return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><input class="form-input cf-field" data-key="${esc(col.key)}" value="${esc(val)}"></div>`;
+    const val = (eb.customFields || {})[col.key] ?? '';
+    if (col.type === 'select') return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><select class="form-input cf-field" data-key="${escAttr(col.key)}">${(col.options || []).map(o => `<option value="${escAttr(o)}"${val === o ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
+    if (col.type === 'multiselect') {
+      const selectedValues = Array.isArray(val) ? val : (val ? String(val).split(',').map(v => v.trim()).filter(Boolean) : []);
+      return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><div style="display:flex;flex-wrap:wrap;gap:8px">${(col.options || []).map(o => `<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" class="cf-field" data-key="${escAttr(col.key)}" value="${escAttr(o)}"${selectedValues.includes(o) ? ' checked' : ''}> ${esc(o)}</label>`).join('')}</div></div>`;
+    }
+    if (col.type === 'number') return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><input class="form-input cf-field" type="number" data-key="${escAttr(col.key)}" value="${escAttr(val !== '' ? String(val) : '')}"></div>`;
+    if (col.type === 'date') return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><input class="form-input cf-field" type="date" data-key="${escAttr(col.key)}" value="${escAttr(val !== '' ? String(val) : '')}"></div>`;
+    return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><input class="form-input cf-field" data-key="${escAttr(col.key)}" value="${escAttr(val !== '' ? String(val) : '')}"></div>`;
   }).join('');
 
   openDialog(b ? 'Edit Booking' : 'New Booking', `
-    <div class="form-group"><label class="form-label">Vehicle *</label><select class="form-input" id="b-vehicle"><option value="">Select vehicle...</option>${vehicleOptions}</select></div>
-    <div class="form-group"><label class="form-label">User Name *</label><input class="form-input" id="b-user" value="${esc(eb.userName)}" placeholder="Who is booking?"></div>
+    <div id="conflict-warning"></div>
+    <div class="form-group"><label class="form-label">Vehicle *</label><select class="form-input" id="b-vehicle" onchange="checkConflicts()"><option value="">Select vehicle...</option>${vehicleOptions}</select></div>
+    ${renderUserNameField(eb.userName)}
     <div class="form-group"><label class="form-label">Purpose *</label><input class="form-input" id="b-purpose" value="${esc(eb.purpose)}" placeholder="e.g. Client meeting"></div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Start *</label><input class="form-input" id="b-start" type="datetime-local" value="${eb.periodStart ? eb.periodStart.slice(0, 16) : ''}" onchange="checkConflicts()"></div>
@@ -1016,14 +1622,30 @@ function editBooking(id) {
     </div>
   `, () => {
     const vehicleId = document.getElementById('b-vehicle').value;
-    const userName = document.getElementById('b-user').value.trim();
+    // Handle userName - could be text, select, or multiselect
+    const userNameConfig = S.data.settings.userNameConfig || { type: 'text' };
+    let userName = '';
+    if (userNameConfig.type === 'multiselect') {
+      const selected = Array.from(document.querySelectorAll('.un-select-field:checked')).map(el => el.value);
+      userName = selected.join(', ');
+      document.getElementById('b-user').value = userName;
+    } else {
+      userName = document.getElementById('b-user').value.trim();
+    }
     const purpose = document.getElementById('b-purpose').value.trim();
     const periodStart = document.getElementById('b-start').value;
     const periodEnd = document.getElementById('b-end').value;
     if (!vehicleId || !userName || !purpose || !periodStart || !periodEnd) { showToast('Please fill all required fields', 'error'); return false; }
 
     const customFields = {};
-    document.querySelectorAll('.cf-field').forEach(el => { customFields[el.dataset.key] = el.value; });
+    document.querySelectorAll('.cf-field').forEach(el => {
+      if (el.type === 'checkbox') {
+        if (!customFields[el.dataset.key]) customFields[el.dataset.key] = [];
+        if (el.checked) customFields[el.dataset.key].push(el.value);
+      } else {
+        customFields[el.dataset.key] = el.value;
+      }
+    });
 
     const data = {
       vehicleId, userName, purpose,
@@ -1047,6 +1669,8 @@ function editBooking(id) {
     S.editingBooking = null;
     markDirty(); render(); return true;
   });
+  // Check conflicts immediately when opening edit dialog
+  if (b) setTimeout(checkConflicts, 0);
 }
 
 function checkConflicts() {
@@ -1054,6 +1678,8 @@ function checkConflicts() {
   S.editingBooking.vehicleId = document.getElementById('b-vehicle')?.value || '';
   S.editingBooking.periodStart = document.getElementById('b-start')?.value || '';
   S.editingBooking.periodEnd = document.getElementById('b-end')?.value || '';
+  const warningEl = document.getElementById('conflict-warning');
+  if (warningEl) warningEl.innerHTML = renderConflictWarning(S.editingBooking);
 }
 
 function addShareName() {
@@ -1077,7 +1703,7 @@ function removeShareName(btn, name) {
 function renderShareTags() {
   const el = document.getElementById('share-tags');
   if (!el || !S.editingBooking) return;
-  const tags = (S.editingBooking.shareWith || []).map(name => `<span class="share-tag">${esc(name)}<button onclick="removeShareName(this,'${esc(name)}')">×</button></span>`).join('');
+  const tags = (S.editingBooking.shareWith || []).map(name => `<span class="share-tag">${esc(name)}<button data-name="${escAttr(name)}" onclick="removeShareName(this,this.dataset.name)">×</button></span>`).join('');
   el.innerHTML = tags || '<span style="font-size:13px;color:var(--muted)">No co-passengers</span>';
 }
 
@@ -1097,117 +1723,168 @@ function confirmDeleteBooking(id) {
 // ===================== SETTINGS =====================
 function renderSettings() {
   const settings = S.data.settings;
-  const tabs = [
-    { id: 'statuses', label: 'Booking Statuses', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--mustard)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>' },
-    { id: 'vehicleTypes', label: 'Vehicle Types', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--forest)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>' },
-    { id: 'customFields', label: 'Custom Fields', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>' },
-    { id: 'apiConfig', label: 'AI API Config', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--coral)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>' },
-    { id: 'fileInfo', label: 'File Info', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>' },
-  ];
+  const isOpen = (id) => (S.openSections || []).includes(id);
+  const toggleSection = (id) => {
+    S.openSections = (S.openSections || []).includes(id)
+      ? S.openSections.filter(s => s !== id)
+      : [...S.openSections, id];
+    render();
+  };
 
-  let content = '';
-  if (S.settingsTab === 'statuses') {
-    const tags = (settings.statuses || []).map(s => `<span class="tag-item">${esc(s)}<button onclick="removeSettingItem('statuses','${esc(s)}')">×</button></span>`).join('');
-    content = `<div class="tag-list">${tags || '<span style="font-size:13px;color:var(--muted)">No statuses defined</span>'}</div>
-      <div class="tag-input-row"><input id="settings-input" placeholder="Add status (e.g. approved)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('statuses')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('statuses')">Add</button></div>`;
-  } else if (S.settingsTab === 'vehicleTypes') {
-    const tags = (settings.vehicleTypes || []).map(t => `<span class="tag-item">${esc(t)}<button onclick="removeSettingItem('vehicleTypes','${esc(t)}')">×</button></span>`).join('');
-    content = `<div class="tag-list">${tags || '<span style="font-size:13px;color:var(--muted)">No vehicle types defined</span>'}</div>
-      <div class="tag-input-row"><input id="settings-input" placeholder="Add type (e.g. truck)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('vehicleTypes')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('vehicleTypes')">Add</button></div>`;
-  } else if (S.settingsTab === 'customFields') {
-    const cols = settings.customColumns || [];
-    content = `<div style="margin-bottom:12px">${cols.length ? `<table class="cf-table"><thead><tr><th>Label</th><th>Key</th><th>Type</th><th>Options</th><th></th></tr></thead><tbody>${cols.map(c => `<tr><td>${esc(c.label)}</td><td style="color:var(--muted)">${esc(c.key)}</td><td>${esc(c.type)}</td><td style="color:var(--muted)">${esc((c.options || []).join(', '))}</td><td><button class="btn-icon btn-sm" onclick="removeCustomField('${esc(c.key)}')" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></td></tr>`).join('')}</tbody></table>` : '<span style="font-size:13px;color:var(--muted)">No custom fields defined</span>'}</div>
-      <div style="padding:12px;border:1px solid var(--hairline);border-radius:var(--radius-sm)">
-        <div class="form-row" style="margin-bottom:8px">
-          <div class="form-group" style="margin-bottom:0"><label class="form-label">Label</label><input class="form-input" id="cf-label" placeholder="e.g. Department"></div>
-          <div class="form-group" style="margin-bottom:0"><label class="form-label">Key</label><input class="form-input" id="cf-key" placeholder="e.g. department"></div>
-        </div>
-        <div class="form-row">
-          <div class="form-group" style="margin-bottom:0"><label class="form-label">Type</label><select class="form-input" id="cf-type"><option value="text">Text</option><option value="number">Number</option><option value="date">Date</option><option value="select">Select</option></select></div>
-          <div class="form-group" style="margin-bottom:0"><label class="form-label">Options (comma-separated, for select)</label><input class="form-input" id="cf-options" placeholder="opt1, opt2, opt3"></div>
-        </div>
-        <button class="btn btn-sm btn-primary" onclick="addCustomField()" style="margin-top:10px">Add Field</button>
-      </div>`;
-  } else if (S.settingsTab === 'apiConfig') {
-    const curEndpoint = localStorage.getItem('fleethub_ai_endpoint') || '';
-    const curKey = localStorage.getItem('fleethub_ai_key') || '';
-    const curModel = localStorage.getItem('fleethub_ai_model') || '';
-    const maskedKey = curKey ? curKey.slice(0, 6) + '...' + curKey.slice(-4) : '';
-    content = `<div style="margin-bottom:14px">
-      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Configure an OpenAI-compatible API to enable intelligent AI assistant responses. Works with OpenAI, Azure OpenAI, Groq, Together AI, Ollama, and any compatible endpoint.</p>
-      <div class="form-group"><label class="form-label">API Endpoint URL</label><input class="form-input" id="api-endpoint" placeholder="https://api.openai.com/v1/chat/completions" value="${esc(curEndpoint)}"><div class="form-hint">Full URL to the chat completions endpoint</div></div>
-      <div class="form-group"><label class="form-label">API Key</label><div style="position:relative"><input class="form-input" id="api-key" type="password" placeholder="sk-... or your API key" value="${esc(curKey)}" style="padding-right:40px"><button class="btn-icon" onclick="toggleApiKeyVisibility()" style="position:absolute;right:4px;top:50%;transform:translateY(-50%)"><svg id="api-key-eye" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>${maskedKey ? '<div class="form-hint">Current key: ' + esc(maskedKey) + '</div>' : ''}</div>
-      <div class="form-group"><label class="form-label">Model Name</label><input class="form-input" id="api-model" placeholder="gpt-4o-mini" value="${esc(curModel)}"><div class="form-hint">e.g. gpt-4o-mini, gpt-4o, claude-3-haiku, llama3, deepseek-chat</div></div>
-      <div style="display:flex;gap:8px;margin-top:4px">
-        <button class="btn btn-primary btn-sm" onclick="saveApiConfig()">Save Configuration</button>
-        <button class="btn btn-sm" onclick="testApiConfig()">Test Connection</button>
-        <button class="btn btn-sm btn-danger" onclick="clearApiConfig()">Clear</button>
+  // Booking Statuses Section
+  const statusTags = (settings.statuses || []).map(s => `<span class="tag-item">${esc(s)}<button onclick="removeSettingItem('statuses','${esc(s)}')">×</button></span>`).join('');
+  const statusesContent = `<div>
+    <h4 style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px">Booking Statuses</h4>
+    <div class="tag-list">${statusTags || '<span style="font-size:13px;color:var(--muted)">No statuses defined</span>'}</div>
+    <div class="tag-input-row"><input id="settings-input-statuses" placeholder="Add status (e.g. approved)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('statuses')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('statuses')">Add</button></div>
+  </div>`;
+
+  // Vehicle Types Section
+  const typeTags = (settings.vehicleTypes || []).map(t => `<span class="tag-item">${esc(t)}<button onclick="removeSettingItem('vehicleTypes','${esc(t)}')">×</button></span>`).join('');
+  const typesContent = `<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--hairline)">
+    <h4 style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px">Vehicle Types</h4>
+    <div class="tag-list">${typeTags || '<span style="font-size:13px;color:var(--muted)">No vehicle types defined</span>'}</div>
+    <div class="tag-input-row"><input id="settings-input-types" placeholder="Add type (e.g. truck)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('vehicleTypes')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('vehicleTypes')">Add</button></div>
+  </div>`;
+
+  // Custom Fields Section
+  const cols = settings.customColumns || [];
+  const userNameConfig = settings.userNameConfig || { type: 'text', options: [] };
+  const customFieldsContent = `<div style="margin-bottom:12px"><table class="cf-table"><thead><tr><th>Label</th><th>Key</th><th>Type</th><th>Options</th><th></th></tr></thead><tbody>
+    <tr style="background:var(--highlight-bg)"><td><strong>User Name</strong> <span style="font-size:11px;color:var(--muted);margin-left:4px">(built-in)</span></td><td style="color:var(--muted)">userName</td><td>${esc(userNameConfig.type)}</td><td style="color:var(--muted)">${userNameConfig.options ? esc(userNameConfig.options.join(', ')) : '—'}</td><td><button class="btn-icon btn-sm" onclick="editUserNameConfig()" style="color:var(--link)" data-tooltip="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button></td></tr>
+    ${cols.length ? cols.map(c => `<tr><td>${esc(c.label)}</td><td style="color:var(--muted)">${esc(c.key)}</td><td>${esc(c.type)}</td><td style="color:var(--muted)">${esc((c.options || []).join(', '))}</td><td><button class="btn-icon btn-sm" onclick="editCustomField('${esc(c.key)}')" style="color:var(--link)" data-tooltip="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button> <button class="btn-icon btn-sm" onclick="removeCustomField('${esc(c.key)}')" style="color:var(--destructive)" data-tooltip="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></td></tr>`).join('') : ''}
+  </tbody></table></div>
+    <div style="padding:12px;border:1px solid var(--hairline);border-radius:var(--radius-sm)" id="cf-form">
+      <div class="form-row" style="margin-bottom:8px">
+        <div class="form-group" style="margin-bottom:0"><label class="form-label">Label</label><input class="form-input" id="cf-label" placeholder="e.g. Department"></div>
+        <div class="form-group" style="margin-bottom:0"><label class="form-label">Key</label><input class="form-input" id="cf-key" placeholder="e.g. department"></div>
       </div>
-    </div>
-    <div style="margin-top:16px;padding:12px;border:1px solid var(--hairline);border-radius:var(--radius-sm)">
-      <h4 style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px">Quick Presets</h4>
-      <div style="display:flex;flex-wrap:wrap;gap:6px">
-        <button class="btn btn-sm" onclick="applyApiPreset('openai')">OpenAI</button>
-        <button class="btn btn-sm" onclick="applyApiPreset('groq')">Groq</button>
-        <button class="btn btn-sm" onclick="applyApiPreset('together')">Together AI</button>
-        <button class="btn btn-sm" onclick="applyApiPreset('ollama')">Ollama (local)</button>
-        <button class="btn btn-sm" onclick="applyApiPreset('deepseek')">DeepSeek</button>
+      <div class="form-row">
+        <div class="form-group" style="margin-bottom:0"><label class="form-label">Type</label><select class="form-input" id="cf-type" onchange="toggleCfOptions()"><option value="text">Text</option><option value="number">Number</option><option value="date">Date</option><option value="select">Select (single)</option><option value="multiselect">Multi-select</option></select></div>
+        <div class="form-group" style="margin-bottom:0;display:none" id="cf-options-group"><label class="form-label">Options (comma-separated)</label><input class="form-input" id="cf-options" placeholder="opt1, opt2, opt3"></div>
       </div>
-    </div>
-    <div id="api-test-result" style="margin-top:12px"></div>`;
-  } else if (S.settingsTab === 'fileInfo') {
-    content = `<div class="file-info-card">
-      <div class="file-info-row"><span class="label">File Name</span><span class="value">${esc(S.fileName)}</span></div>
-      <div class="file-info-row"><span class="label">Version</span><span class="value">${esc(S.data.meta.version || '1.0')}</span></div>
-      <div class="file-info-row"><span class="label">Last Modified</span><span class="value">${fmtDateTime(S.data.meta.lastModified)}</span></div>
-      <div class="file-info-row"><span class="label">Vehicles</span><span class="value">${S.data.vehicles.length}</span></div>
-      <div class="file-info-row"><span class="label">Bookings</span><span class="value">${S.data.bookings.length}</span></div>
-      <div class="file-info-row"><span class="label">Locked By</span><span class="value">${esc(S.data.meta.lockedBy || 'None')}</span></div>
-      <div class="file-info-row"><span class="label">Lock Time</span><span class="value">${S.data.meta.lockedAt ? fmtDateTime(S.data.meta.lockedAt) : '—'}</span></div>
-      <div class="file-info-row"><span class="label">Your ID</span><span class="value" style="font-family:monospace;font-size:12px">${esc(S.lockId || '—')}</span></div>
+      <button class="btn btn-sm btn-primary" onclick="addCustomField()" style="margin-top:10px" id="cf-submit-btn">Add Field</button>
+      <button class="btn btn-sm" onclick="cancelEditCustomField()" style="margin-top:10px;display:none" id="cf-cancel-btn">Cancel</button>
     </div>`;
-  }
+
+  // Calendar Settings Section
+  const currentState = settings.germanState || '';
+  const germanStates = [
+    { value: '', label: 'None (no holidays)' },
+    { value: 'Baden-Württemberg', label: 'Baden-Württemberg' },
+    { value: 'Bayern', label: 'Bayern (Bavaria)' },
+    { value: 'Berlin', label: 'Berlin' },
+    { value: 'Brandenburg', label: 'Brandenburg' },
+    { value: 'Bremen', label: 'Bremen' },
+    { value: 'Hamburg', label: 'Hamburg' },
+    { value: 'Hessen', label: 'Hessen (Hesse)' },
+    { value: 'Mecklenburg-Vorpommern', label: 'Mecklenburg-Vorpommern' },
+    { value: 'Niedersachsen', label: 'Niedersachsen (Lower Saxony)' },
+    { value: 'Nordrhein-Westfalen', label: 'Nordrhein-Westfalen (North Rhine-Westphalia)' },
+    { value: 'Rheinland-Pfalz', label: 'Rheinland-Pfalz (Rhineland-Palatinate)' },
+    { value: 'Saarland', label: 'Saarland' },
+    { value: 'Sachsen', label: 'Sachsen (Saxony)' },
+    { value: 'Sachsen-Anhalt', label: 'Sachsen-Anhalt (Saxony-Anhalt)' },
+    { value: 'Schleswig-Holstein', label: 'Schleswig-Holstein' },
+    { value: 'Thüringen', label: 'Thüringen (Thuringia)' }
+  ];
+  const stateOptions = germanStates.map(s => `<option value="${esc(s.value)}"${currentState === s.value ? ' selected' : ''}>${esc(s.label)}</option>`).join('');
+  const calendarContent = `<div style="margin-bottom:14px">
+    <div class="form-group"><label class="form-label">German State (Bundesland)</label><select class="form-input" id="german-state" onchange="saveGermanState()">${stateOptions}</select><div class="form-hint">Select a German state to show state-specific holidays on the calendar. Nationwide holidays are always shown.</div></div>
+    <div style="margin-top:12px;padding:10px;border:1px solid var(--hairline);border-radius:var(--radius-sm);background:var(--surface-soft)">
+      <span style="display:inline-flex;align-items:center;gap:6px;margin-right:12px;font-size:12px"><span style="width:10px;height:10px;background:var(--warning);border-radius:2px"></span> Nationwide</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px"><span style="width:10px;height:10px;background:var(--coral);border-radius:2px"></span> State-specific</span>
+    </div>
+  </div>`;
+
+  // AI API Config Section
+  const curEndpoint = localStorage.getItem('fleethub_ai_endpoint') || '';
+  const curKey = localStorage.getItem('fleethub_ai_key') || '';
+  const curModel = localStorage.getItem('fleethub_ai_model') || '';
+  const maskedKey = curKey ? curKey.slice(0, 6) + '...' + curKey.slice(-4) : '';
+  const apiContent = `<div style="margin-bottom:14px">
+    <div class="form-group"><label class="form-label">API Endpoint URL</label><input class="form-input" id="api-endpoint" placeholder="https://api.openai.com/v1/chat/completions" value="${esc(curEndpoint)}"><div class="form-hint">Full URL to the chat completions endpoint</div></div>
+    <div class="form-group"><label class="form-label">API Key</label><div style="position:relative"><input class="form-input" id="api-key" type="password" placeholder="sk-... or your API key" value="${esc(curKey)}" style="padding-right:40px"><button class="btn-icon" onclick="toggleApiKeyVisibility()" style="position:absolute;right:4px;top:50%;transform:translateY(-50%)"><svg id="api-key-eye" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>${maskedKey ? '<div class="form-hint">Current: ' + esc(maskedKey) + '</div>' : ''}</div>
+    <div class="form-group"><label class="form-label">Model Name</label><input class="form-input" id="api-model" placeholder="gpt-4o-mini" value="${esc(curModel)}"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary btn-sm" onclick="saveApiConfig()">Save</button>
+      <button class="btn btn-sm" onclick="testApiConfig()">Test</button>
+      <button class="btn btn-sm btn-danger" onclick="clearApiConfig()">Clear</button>
+    </div>
+  </div>
+  <div style="padding:10px;border:1px solid var(--hairline);border-radius:var(--radius-sm);background:var(--surface-soft)">
+    <span style="font-size:12px;color:var(--muted)">Quick presets: </span>
+    <button class="btn btn-sm" onclick="applyApiPreset('openai')">OpenAI</button>
+    <button class="btn btn-sm" onclick="applyApiPreset('groq')">Groq</button>
+    <button class="btn btn-sm" onclick="applyApiPreset('ollama')">Ollama</button>
+  </div>
+  <div id="api-test-result" style="margin-top:12px"></div>`;
+
+  // File Info Section
+  const fileInfoContent = `<div class="file-info-card">
+    <div class="file-info-row"><span class="label">File Name</span><span class="value">${esc(S.fileName)}</span></div>
+    <div class="file-info-row"><span class="label">Vehicles</span><span class="value">${S.data.vehicles.length}</span></div>
+    <div class="file-info-row"><span class="label">Bookings</span><span class="value">${S.data.bookings.length}</span></div>
+    <div class="file-info-row"><span class="label">Last Modified</span><span class="value">${fmtDateTime(S.data.meta.lastModified)}</span></div>
+    <div class="file-info-row"><span class="label">Locked By</span><span class="value">${esc(S.data.meta.lockedBy || 'None')}</span></div>
+  </div>`;
+
+  // Accordion section renderer
+  const section = (id, icon, label, content) => {
+    const open = isOpen(id);
+    return `<div class="settings-section">
+      <button class="settings-section-header" onclick="toggleSettingsSection('${id}')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform 0.2s;transform:rotate(${open ? '90deg' : '0deg'})" class="accordion-chevron"><path d="m9 18 6-6-6-6"/></svg>
+        ${icon}
+        <span>${label}</span>
+      </button>
+      <div class="settings-section-body" style="display:${open ? 'block' : 'none'}">${content}</div>
+    </div>`;
+  };
 
   return `<div class="fade-in">
     <div class="tab-header"><h2>${TABS[3].icon} Settings</h2></div>
-    <div class="settings-grid">
-      <div>
-        <div style="display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap">${tabs.map(t => `<button class="btn btn-sm${S.settingsTab === t.id ? ' btn-primary' : ''}" onclick="S.settingsTab='${t.id}';render()">${t.icon} ${t.label}</button>`).join('')}</div>
-        <div class="card"><div class="card-body">${content}</div></div>
-      </div>
-      <div>
-        <div class="card" style="margin-bottom:16px">
-          <div class="card-header">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--link)"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 15 7 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Data Actions
-          </div>
-          <div class="card-body" style="display:flex;flex-direction:column;gap:8px">
-            <button class="btn" onclick="exportJSON()" style="width:100%;justify-content:center">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Export Fleet Data (JSON)
-            </button>
-            <button class="btn" onclick="importJSON()" style="width:100%;justify-content:center">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 15 7 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Import Fleet Data (JSON)
-            </button>
-          </div>
+    <div class="settings-container">
+      ${section('booking', '<svg viewBox="0 0 24 24" fill="none" stroke="var(--mustard)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>', 'Booking Configuration', statusesContent + typesContent)}
+      ${section('fields', '<svg viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>', 'Custom Fields', customFieldsContent)}
+      ${section('calendar', '<svg viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>', 'Calendar Settings', calendarContent)}
+      ${section('api', '<svg viewBox="0 0 24 24" fill="none" stroke="var(--coral)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>', 'AI API Configuration', apiContent)}
+      ${section('file', '<svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>', 'File Information', fileInfoContent)}
+      ${section('data', '<svg viewBox="0 0 24 24" fill="none" stroke="var(--link)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 15 7 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>', 'Data Actions', `
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn" onclick="exportJSON()" style="width:100%;justify-content:center">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export Fleet Data (JSON)
+          </button>
+          <button class="btn" onclick="importJSON()" style="width:100%;justify-content:center">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 15 7 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Import Fleet Data (JSON)
+          </button>
         </div>
-        <div class="card">
-          <div class="card-header">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--destructive)"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-            Danger Zone
-          </div>
-          <div class="card-body" style="display:flex;flex-direction:column;gap:8px">
-            <button class="btn btn-danger" onclick="confirmClearAll()" style="width:100%;justify-content:center">Clear All Data</button>
-          </div>
+      `)}
+      <div class="settings-section danger">
+        <button class="settings-section-header" onclick="toggleSettingsSection('danger')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--destructive)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform 0.2s;transform:rotate(${isOpen('danger') ? '90deg' : '0deg'})" class="accordion-chevron"><path d="m9 18 6-6-6-6"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--destructive)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+          <span style="color:var(--destructive)">Danger Zone</span>
+        </button>
+        <div class="settings-section-body" style="display:${isOpen('danger') ? 'block' : 'none'}">
+          <button class="btn btn-danger" onclick="confirmClearAll()" style="width:100%">Clear All Data</button>
         </div>
       </div>
     </div>
   </div>`;
 }
 
+function toggleSettingsSection(id) {
+  S.openSections = (S.openSections || []).includes(id)
+    ? S.openSections.filter(s => s !== id)
+    : [...S.openSections, id];
+  render();
+}
+
 function addSettingItem(key) {
-  const input = document.getElementById('settings-input');
+  const input = document.getElementById('settings-input-' + (key === 'statuses' ? 'statuses' : 'types'));
   const val = input.value.trim();
   if (!val) return;
   if (!S.data.settings[key]) S.data.settings[key] = [];
@@ -1222,6 +1899,58 @@ function removeSettingItem(key, val) {
   markDirty(); render(); showToast(`Removed "${val}"`, 'success');
 }
 
+function saveGermanState() {
+  const state = document.getElementById('german-state').value;
+  S.data.settings.germanState = state || null;
+  markDirty(); render(); showToast(`German state updated`, 'success');
+}
+
+function toggleCfOptions() {
+  const type = document.getElementById('cf-type').value;
+  const optionsGroup = document.getElementById('cf-options-group');
+  if (optionsGroup) {
+    optionsGroup.style.display = (type === 'select' || type === 'multiselect') ? 'block' : 'none';
+  }
+}
+
+function editUserNameConfig() {
+  const config = S.data.settings.userNameConfig || { type: 'text', options: [] };
+  const dialogHtml = `
+    <div class="form-group"><label class="form-label">User Name Field Type</label>
+    <select class="form-input" id="un-type" onchange="toggleUnOptions()">
+      <option value="text" ${config.type === 'text' ? 'selected' : ''}>Text</option>
+      <option value="select" ${config.type === 'select' ? 'selected' : ''}>Select (single)</option>
+      <option value="multiselect" ${config.type === 'multiselect' ? 'selected' : ''}>Multi-select</option>
+    </select></div>
+    <div class="form-group" id="un-options-group" style="margin-top:12px;display:${config.type === 'text' ? 'none' : 'block'}">
+      <label class="form-label">Known User Names (comma-separated)</label>
+      <input class="form-input" id="un-options" placeholder="John Doe, Jane Smith, Bob Wilson" value="${escAttr((config.options || []).join(', '))}">
+      <div class="form-hint">These options will be available when creating bookings</div>
+    </div>
+  `;
+
+  openDialog('Configure User Name Field', dialogHtml, () => {
+    const type = document.getElementById('un-type').value;
+    const optionsStr = document.getElementById('un-options').value;
+    const options = optionsStr.split(',').map(o => o.trim()).filter(Boolean);
+
+    if ((type === 'select' || type === 'multiselect') && !options.length) { showToast('At least one option is required for select/multiselect types', 'error'); return false; }
+    S.data.settings.userNameConfig = { type, options: options.length ? options : undefined };
+    markDirty(); render(); showToast('User Name field configured', 'success');
+    return true;
+  });
+
+  toggleUnOptions();
+}
+
+function toggleUnOptions() {
+  const type = document.getElementById('un-type').value;
+  const optionsGroup = document.getElementById('un-options-group');
+  if (optionsGroup) {
+    optionsGroup.style.display = type === 'text' ? 'none' : 'block';
+  }
+}
+
 function addCustomField() {
   const label = document.getElementById('cf-label').value.trim();
   const key = document.getElementById('cf-key').value.trim().replace(/[^a-zA-Z0-9_]/g, '');
@@ -1229,7 +1958,15 @@ function addCustomField() {
   const options = document.getElementById('cf-options').value.split(',').map(o => o.trim()).filter(Boolean);
   if (!label || !key) { showToast('Label and Key are required', 'error'); return; }
   if (!S.data.settings.customColumns) S.data.settings.customColumns = [];
-  S.data.settings.customColumns.push({ id: genId(), key, label, type, options: type === 'select' ? options : undefined });
+  if (S.data.settings.customColumns.some(c => c.key === key)) { showToast(`A custom field with key "${key}" already exists`, 'error'); return; }
+  if ((type === 'select' || type === 'multiselect') && !options.length) { showToast('At least one option is required for select/multiselect types', 'error'); return; }
+  const optionsField = (type === 'select' || type === 'multiselect') ? options : undefined;
+  S.data.settings.customColumns.push({ id: genId(), key, label, type, options: optionsField });
+  document.getElementById('cf-label').value = '';
+  document.getElementById('cf-key').value = '';
+  document.getElementById('cf-type').value = 'text';
+  document.getElementById('cf-options').value = '';
+  toggleCfOptions();
   markDirty(); render(); showToast('Custom field added', 'success');
 }
 
@@ -1238,13 +1975,64 @@ function removeCustomField(key) {
   markDirty(); render(); showToast('Custom field removed', 'success');
 }
 
+let editingCustomFieldKey = null;
+
+function editCustomField(key) {
+  const col = S.data.settings.customColumns.find(c => c.key === key);
+  if (!col) return;
+  editingCustomFieldKey = key;
+  document.getElementById('cf-label').value = col.label;
+  document.getElementById('cf-key').value = col.key;
+  document.getElementById('cf-key').disabled = true;
+  document.getElementById('cf-type').value = col.type;
+  document.getElementById('cf-options').value = (col.options || []).join(', ');
+  document.getElementById('cf-submit-btn').textContent = 'Update Field';
+  document.getElementById('cf-submit-btn').onclick = updateCustomField;
+  document.getElementById('cf-cancel-btn').style.display = 'inline-block';
+  toggleCfOptions();
+}
+
+function updateCustomField() {
+  if (!editingCustomFieldKey) return;
+  const label = document.getElementById('cf-label').value.trim();
+  const newKey = document.getElementById('cf-key').value.trim().replace(/[^a-zA-Z0-9_]/g, '');
+  const type = document.getElementById('cf-type').value;
+  const options = document.getElementById('cf-options').value.split(',').map(o => o.trim()).filter(Boolean);
+  if (!label || !newKey) { showToast('Label and Key are required', 'error'); return; }
+  if ((type === 'select' || type === 'multiselect') && !options.length) { showToast('At least one option is required for select/multiselect types', 'error'); return; }
+  const optionsField = (type === 'select' || type === 'multiselect') ? options : undefined;
+  const idx = S.data.settings.customColumns.findIndex(c => c.key === editingCustomFieldKey);
+  if (idx !== -1) {
+    S.data.settings.customColumns[idx] = { ...S.data.settings.customColumns[idx], key: newKey, label, type, options: optionsField };
+    markDirty(); render(); showToast('Custom field updated', 'success');
+  }
+  cancelEditCustomField();
+}
+
+function cancelEditCustomField() {
+  editingCustomFieldKey = null;
+  document.getElementById('cf-label').value = '';
+  document.getElementById('cf-key').value = '';
+  document.getElementById('cf-key').disabled = false;
+  document.getElementById('cf-type').value = 'text';
+  document.getElementById('cf-options').value = '';
+  document.getElementById('cf-submit-btn').textContent = 'Add Field';
+  document.getElementById('cf-submit-btn').onclick = addCustomField;
+  document.getElementById('cf-cancel-btn').style.display = 'none';
+  toggleCfOptions();
+}
+
 async function importJSON() {
   try {
     const [handle] = await window.showOpenFilePicker({ types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }] });
     const file = await handle.getFile();
     const text = await file.text();
     const imported = JSON.parse(text);
-    if (imported.vehicles) S.data.vehicles = imported.vehicles;
+    if (imported.vehicles) {
+      S.data.vehicles = imported.vehicles;
+      // Ensure sortOrder exists on all imported vehicles
+      S.data.vehicles.forEach((v, i) => { if (v.sortOrder === undefined || v.sortOrder === null) v.sortOrder = i; });
+    }
     if (imported.bookings) S.data.bookings = imported.bookings;
     if (imported.settings) Object.assign(S.data.settings, imported.settings);
     markDirty(); render(); showToast('Data imported successfully', 'success');
@@ -1339,16 +2127,23 @@ function openDialog(title, bodyHtml, onConfirm, isDanger = false) {
   document.getElementById('dialog-body').innerHTML = bodyHtml;
   document.getElementById('dialog-footer').innerHTML = `
     <button class="btn" onclick="closeDialog()">Cancel</button>
-    <button class="btn ${isDanger ? 'btn-danger' : 'btn-primary'}" id="dialog-confirm" onclick="dialogConfirm()">${isDanger ? 'Delete' : 'Save'}</button>
+    <button class="btn ${isDanger ? 'btn-danger' : 'btn-primary'}" id="dialog-confirm" onclick="dialogConfirm()">${isDanger ? 'Delete' : 'Save'} <span style="font-size:11px;opacity:0.7;margin-left:4px">(${saveShortcut})</span></button>
   `;
   dialogCallback = onConfirm;
   document.getElementById('dialog-overlay').classList.add('active');
-  setTimeout(() => document.getElementById('dialog-confirm')?.focus(), 100);
+  setTimeout(() => {
+    document.querySelector('.dialog').scrollTop = 0;
+    const firstInput = document.querySelector('#dialog-body input, #dialog-body select');
+    if (firstInput) firstInput.focus();
+  }, 0);
 }
 
 function closeDialog() {
   document.getElementById('dialog-overlay').classList.remove('active');
   dialogCallback = null;
+  // Restore focus to body so keyboard shortcuts work after closing dialog
+  document.activeElement?.blur();
+  document.body.focus();
 }
 
 function dialogConfirm() {
@@ -1360,16 +2155,55 @@ function dialogConfirm() {
 
 function dialogOverlayClick(e) { if (e.target === e.currentTarget) closeDialog(); }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDialog(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeDialog();
+  // Ctrl/Cmd+Enter to save in dialogs
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    const dialogConfirmBtn = document.getElementById('dialog-confirm');
+    if (dialogConfirmBtn && document.getElementById('dialog-overlay').classList.contains('active')) {
+      e.preventDefault();
+      dialogConfirmBtn.click();
+    }
+  }
+});
 
 // ===================== CHAT =====================
-function renderChat() {
+function renderChatPage() {
+  return `<div class="fade-in">
+    <div class="tab-header"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg> AI Assistant</h2>
+      <div class="tab-header-actions">
+        <button class="btn btn-sm btn-ghost" onclick="clearChat()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+          Clear chat
+        </button>
+      </div>
+    </div>
+    <div class="card" style="height:calc(100vh - 180px);display:flex;flex-direction:column">
+      <div class="chat-messages" id="chat-messages" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px"></div>
+      <div class="chat-input-area" style="padding:16px;border-top:1px solid var(--hairline);display:flex;gap:8px;align-items:flex-end">
+        <textarea id="chat-input" rows="2" placeholder="Ask about your fleet..." onkeydown="chatKeydown(event)" style="flex:1;padding:10px 12px;border:1px solid var(--hairline);border-radius:var(--radius-sm);resize:none;outline:none;min-height:40px;max-height:120px;font-size:14px"></textarea>
+        <button class="btn btn-primary" onclick="sendChat()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+          Send
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderChatMessages() {
   const el = document.getElementById('chat-messages');
+  if (!el) return;
   el.innerHTML = S.chatMessages.map(m => {
     const avatar = m.role === 'assistant' ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>' : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
     return `<div class="chat-msg ${m.role}"><div class="chat-msg-avatar">${avatar}</div><div class="chat-msg-bubble">${esc(m.content)}</div></div>`;
   }).join('');
   el.scrollTop = el.scrollHeight;
+}
+
+// Legacy renderChat for compatibility (called from sendChat)
+function renderChat() {
+  renderChatMessages();
 }
 
 function chatKeydown(e) {
@@ -1456,11 +2290,56 @@ function showToast(msg, type = 'info') {
   setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity .3s'; setTimeout(() => toast.remove(), 300); }, 3000);
 }
 
-// ===================== KEYBOARD SHORTCUTS =====================
+// ===================== KEYBOARD SHORTCUTS (consolidated) =====================
 document.addEventListener('keydown', e => {
-  if (e.ctrlKey || e.metaKey) {
-    if (e.key === 's') { e.preventDefault(); saveFile(); }
-    if (e.key === 'n') { e.preventDefault(); newBooking(); }
+  // Ctrl/Cmd+S to save (always active, even in inputs)
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveFile(); }
+  // Ctrl/Cmd+N for new booking (not in inputs, not during dialog)
+  if ((e.ctrlKey || e.metaKey) && e.key === 'n' && !isFormElement(e.target) && !document.getElementById('dialog-overlay')?.classList.contains('active')) { e.preventDefault(); newBooking(); }
+});
+
+function isFormElement(el) {
+  const tag = el.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+}
+
+// ===================== GANTT TOOLTIP =====================
+const ganttTooltipEl = document.getElementById('gantt-tooltip');
+document.addEventListener('mousemove', (e) => {
+  if (!ganttTooltipEl) return;
+  // Check for data-tooltip on any element (booking bars, date cells, time cells)
+  const target = e.target.closest('.gantt-booking-bar[data-tooltip], .gantt-date-cell[data-tooltip], .gantt-time-cell[data-tooltip], .gantt-row-label[data-tooltip]');
+  if (target) {
+    ganttTooltipEl.textContent = target.getAttribute('data-tooltip');
+    ganttTooltipEl.style.display = 'block';
+    ganttTooltipEl.style.left = e.clientX + 'px';
+    ganttTooltipEl.style.top = (e.clientY - 40) + 'px';
+    ganttTooltipEl.style.transform = 'translateX(-50%)';
+  } else {
+    ganttTooltipEl.style.display = 'none';
+  }
+});
+
+// ===================== KEYBOARD SHORTCUTS (non-modifier keys) =====================
+document.addEventListener('keydown', (e) => {
+  // Only handle non-modifier shortcuts when not typing in a form element or dialog
+  if (isFormElement(e.target)) return;
+  if (document.getElementById('dialog-overlay')?.classList.contains('active')) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return; // Let the Ctrl/Cmd handler above deal with those
+
+  const key = e.key.toLowerCase();
+
+  // Tab navigation 1-6
+  if (key >= '1' && key <= '6') {
+    const tabIndex = parseInt(key) - 1;
+    if (TABS[tabIndex]) {
+      setTab(TABS[tabIndex].id);
+    }
+  }
+
+  // N for new booking
+  if (key === 'n') {
+    newBooking();
   }
 });
 
@@ -1498,6 +2377,8 @@ function loadFromInput(input) {
       if (!S.data.settings) S.data.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
       if (!S.data.vehicles) S.data.vehicles = [];
       if (!S.data.bookings) S.data.bookings = [];
+      // Ensure sortOrder exists on all vehicles (handles imports/legacy files)
+      S.data.vehicles.forEach((v, i) => { if (v.sortOrder === undefined || v.sortOrder === null) v.sortOrder = i; });
       for (const k of Object.keys(DEFAULT_SETTINGS)) { if (!S.data.settings[k]) S.data.settings[k] = JSON.parse(JSON.stringify(DEFAULT_SETTINGS[k])); }
       S.fileName = file.name;
       S.fileHandle = null;

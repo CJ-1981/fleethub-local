@@ -15,6 +15,10 @@
 - **GitHub Pages ready** — Host the HTML file; data stays local
 - **AI Assistant** — Built-in fleet chat (local mode or connect your own API)
 - **Keyboard shortcuts** — `Ctrl+S` to save, `Ctrl+N` for new booking
+- **📅 Calendar View** — Gantt chart-style calendar showing vehicle schedules across time
+- **🎯 Enhanced Custom Fields** — Multi-select fields, editable field definitions
+- **⚡ Click-to-Edit** — Click any booking or vehicle row to edit (no pencil icons)
+- **🚗 Modern Icons** — Updated sports car icon for vehicles
 
 ## Quick Start
 
@@ -43,7 +47,7 @@
 
 ## JSON Schema
 
-```json
+```jsonc
 {
   "meta": {
     "version": "1.0",
@@ -75,7 +79,10 @@
       "periodEnd": "ISO datetime",
       "status": "pending|confirmed|in-use|returned|cancelled",
       "remarks": "Optional",
-      "customFields": { "key": "value" },
+      "customFields": {
+        "text_field": "value",
+        "multiselect_field": ["value1", "value2"]  // Array for multiselect types
+      },
       "shareWith": ["Co-passenger names"],
       "shareNote": "Optional message",
       "createdAt": "ISO timestamp",
@@ -86,7 +93,13 @@
     "statuses": ["pending", "confirmed", "in-use", "returned", "cancelled"],
     "vehicleTypes": ["sedan", "suv", "pickup", "van", "bus", "motorcycle", "other"],
     "customColumns": [
-      { "id": "unique-id", "key": "department", "label": "Department", "type": "text" }
+      {
+        "id": "unique-id",
+        "key": "department",
+        "label": "Department",
+        "type": "text|number|date|select|multiselect",
+        "options": ["opt1", "opt2"]  // Required for select/multiselect types
+      }
     ],
     "shareMessage": "Default carpool message"
   }
@@ -116,15 +129,67 @@ localStorage.setItem('fleethub_ai_key', 'your-api-key');
 localStorage.setItem('fleethub_ai_model', 'gpt-4o-mini');
 ```
 
+## Calendar View
+
+The Calendar tab provides a Gantt chart-style visualization of your fleet schedule:
+
+- **Vehicle rows** — Each vehicle appears as a horizontal lane
+- **Time-based columns** — View bookings across days (week view: 7 days, month view: 30 days)
+- **Color-coded bars** — Booking bars are colored by status (pending=mustard, confirmed=blue, in-use=green, returned=gray, cancelled=red)
+- **Interactive** — Hover for details (user, purpose, date range), click to edit
+- **Navigation** — Previous/Next buttons to navigate through time, "Today" button to jump to current date
+- **Dashboard widget** — Compact 3-day view on the dashboard for quick reference
+
+## Custom Fields
+
+Custom fields extend booking data with your organization's specific needs:
+
+### Field Types
+- **Text** — Free-form text input
+- **Number** — Numeric values
+- **Date** — Date picker
+- **Select** — Single value from dropdown
+- **Multi-select** — Multiple values as checkboxes
+
+### Managing Custom Fields
+1. Go to **Settings → Custom Fields**
+2. Fill in **Label** (display name) and **Key** (field identifier)
+3. Select **Type** and provide options (for select/multiselect)
+4. Click **Add Field**
+5. Fields can be edited or deleted anytime
+
+### Usage
+- Custom fields appear in booking create/edit forms
+- Multi-select values display as comma-separated lists in the bookings table
+- Field definitions are editable — click the edit icon to modify label, type, or options
+- Perfect for tracking: departments, priorities, cost centers, project codes, etc.
+
 ## Screenshots
 
-*Dashboard with fleet statistics and status overview*
+### Dashboard
+![Dashboard](screenshots/dashboard.png)
 
-*Booking management with search, filters, and conflict detection*
+Dashboard with fleet statistics and status overview
 
-*Vehicle management with CRUD operations*
+### Bookings
+![Bookings](screenshots/bookings.png)
 
-*Settings panel for customizing statuses, types, and fields*
+Booking management with search, filters, and conflict detection
+
+### Vehicles
+![Vehicles](screenshots/vehicles.png)
+
+Vehicle management with CRUD operations
+
+### Calendar
+![Calendar](screenshots/calendar.png)
+
+Gantt chart-style calendar showing vehicle schedules across time
+
+### Settings
+![Settings](screenshots/settings.png)
+
+Settings panel for customizing statuses, types, and custom fields
 
 ## License
 
