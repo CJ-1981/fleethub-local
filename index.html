@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FleetHub — Local File Mode</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --primary:#181d26;--primary-hover:#0d1218;
+  --canvas:#ffffff;--surface-soft:#f8fafc;--surface-strong:#e0e2e6;
+  --hairline:#dddddd;--ink:#181d26;--body:#333840;--muted:#41454d;
+  --ring:#458fff;--link:#1b61c9;
+  --success:#006400;--success-bg:#dcfce7;--success-border:#39bf45;
+  --warning:#b45309;--warning-bg:#fef3c7;--warning-border:#d97706;
+  --destructive:#b91c1c;--destructive-bg:#fee2e2;--destructive-border:#dc2626;
+  --info:#254fad;--info-bg:#dbeafe;--info-border:#458fff;
+  --coral:#aa2d00;--forest:#0a2e0e;--cream:#f5e9d4;--mustard:#d9a441;
+  --radius-sm:6px;--radius-md:10px;--radius-lg:12px;
+  --font:'Inter',system-ui,-apple-system,sans-serif;
+  --header-h:56px;--sidebar-w:240px;
+}
+body{font-family:var(--font);font-size:14px;color:var(--body);background:var(--canvas);line-height:1.5;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font-family:inherit;font-size:inherit}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--surface-strong);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+
+/* Landing */
+.landing{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--surface-soft)}
+.landing-card{text-align:center;max-width:480px;padding:48px 40px;background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--radius-md)}
+.landing-logo{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;background:var(--primary);border-radius:var(--radius-sm);margin-bottom:20px}
+.landing-logo svg{color:#fff;width:24px;height:24px}
+.landing h1{font-size:22px;font-weight:700;color:var(--ink);margin-bottom:6px}
+.landing p{color:var(--muted);margin-bottom:32px;font-size:14px}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border:1px solid var(--hairline);border-radius:var(--radius-sm);background:var(--canvas);color:var(--ink);font-weight:500;cursor:pointer;transition:background .15s,border-color .15s;white-space:nowrap}
+.btn:hover{background:var(--surface-soft);border-color:var(--surface-strong)}
+.btn:active{background:var(--surface-strong)}
+.btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn-primary:hover{background:var(--primary-hover);border-color:var(--primary-hover)}
+.btn-sm{padding:4px 10px;font-size:13px}
+.btn-danger{color:var(--destructive);border-color:var(--destructive-border)}
+.btn-danger:hover{background:var(--destructive-bg)}
+.btn-ghost{border-color:transparent;background:transparent}
+.btn-ghost:hover{background:var(--surface-soft)}
+.btn-icon{padding:6px;border-radius:var(--radius-sm);background:transparent;border:1px solid transparent}
+.btn-icon:hover{background:var(--surface-soft);border-color:var(--hairline)}
+
+/* Layout */
+.app{display:none;height:100vh;overflow:hidden}
+.app.active{display:flex;flex-direction:column}
+.header{height:var(--header-h);border-bottom:1px solid var(--hairline);display:flex;align-items:center;padding:0 16px;gap:12px;background:var(--canvas);flex-shrink:0;position:sticky;top:0;z-index:100}
+.header-logo{display:flex;align-items:center;gap:8px;font-weight:700;color:var(--ink);font-size:16px;text-decoration:none}
+.header-logo .logo-icon{width:32px;height:32px;background:var(--primary);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;color:#fff}
+.header-logo .logo-icon svg{width:18px;height:18px}
+.header-filename{color:var(--muted);font-size:13px;padding:4px 10px;background:var(--surface-soft);border-radius:var(--radius-sm);border:1px solid var(--hairline);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.header-spacer{flex:1}
+.header-actions{display:flex;align-items:center;gap:4px}
+.lock-badge{display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:500;border:1px solid}
+.lock-badge.locked{color:var(--warning);background:var(--warning-bg);border-color:var(--warning-border)}
+.lock-badge.unlocked{color:var(--success);background:var(--success-bg);border-color:var(--success-border)}
+.save-indicator{font-size:12px;color:var(--muted);padding:0 8px}
+.save-indicator.unsaved{color:var(--warning)}
+.save-indicator.saving{color:var(--info)}
+
+.body-wrap{display:flex;flex:1;overflow:hidden}
+.sidebar{width:var(--sidebar-w);border-right:1px solid var(--hairline);background:var(--canvas);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.sidebar-nav{padding:8px;flex:1}
+.sidebar-nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:var(--radius-sm);color:var(--body);cursor:pointer;font-weight:500;transition:background .15s;border:none;background:transparent;width:100%;text-align:left}
+.sidebar-nav-item:hover{background:var(--surface-soft)}
+.sidebar-nav-item.active{background:var(--primary);color:#fff}
+.sidebar-nav-item svg{width:18px;height:18px;flex-shrink:0}
+.sidebar-nav-item .badge{margin-left:auto;background:var(--hairline);color:var(--body);font-size:11px;padding:1px 6px;border-radius:999px;font-weight:600}
+.sidebar-nav-item.active .badge{background:rgba(255,255,255,.2);color:#fff}
+.sidebar-cta{padding:12px;border-top:1px solid var(--hairline)}
+.sidebar-cta .btn{width:100%;justify-content:center}
+
+.main-content{flex:1;overflow-y:auto;padding:24px;max-width:1200px}
+.mobile-nav{display:none;border-top:1px solid var(--hairline);overflow-x:auto;flex-shrink:0}
+.mobile-nav-inner{display:flex;padding:8px;gap:4px}
+.mobile-nav-item{display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--radius-sm);color:var(--body);font-weight:500;font-size:13px;white-space:nowrap;border:none;background:transparent;cursor:pointer}
+.mobile-nav-item.active{background:var(--primary);color:#fff}
+
+@media(max-width:768px){
+  .sidebar{display:none}
+  .mobile-nav{display:block}
+  .main-content{padding:16px}
+  .header-filename{display:none}
+}
+
+/* Content */
+.tab-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.tab-header h2{font-size:18px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:8px}
+.tab-header h2 svg{width:20px;height:20px}
+.tab-header-actions{margin-left:auto;display:flex;gap:8px}
+
+/* Cards */
+.card{border:1px solid var(--hairline);border-radius:var(--radius-md);background:var(--canvas);overflow:hidden}
+.card-header{padding:14px 16px;border-bottom:1px solid var(--hairline);font-weight:600;font-size:13px;color:var(--ink);text-transform:uppercase;letter-spacing:.03em;display:flex;align-items:center;gap:8px}
+.card-header svg{width:16px;height:16px}
+.card-body{padding:16px}
+
+/* Stats Grid */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-bottom:24px}
+.stat-card{padding:16px;border:1px solid var(--hairline);border-radius:var(--radius-md);background:var(--canvas)}
+.stat-card .stat-icon{width:36px;height:36px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;margin-bottom:10px}
+.stat-card .stat-icon svg{width:20px;height:20px;color:#fff}
+.stat-card .stat-value{font-size:24px;font-weight:700;color:var(--ink);line-height:1}
+.stat-card .stat-label{font-size:12px;color:var(--muted);margin-top:4px;font-weight:500}
+
+/* Two-column */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+@media(max-width:900px){.two-col{grid-template-columns:1fr}}
+
+/* Table */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+thead th{padding:8px 12px;text-align:left;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid var(--hairline);background:var(--surface-soft);white-space:nowrap;position:sticky;top:0}
+tbody td{padding:10px 12px;border-bottom:1px solid var(--hairline);color:var(--body);vertical-align:middle}
+tbody tr:hover{background:var(--surface-soft)}
+tbody tr:last-child td{border-bottom:none}
+
+/* Badge */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:500;border:1px solid}
+.badge-available{color:var(--success);background:var(--success-bg);border-color:var(--success-border)}
+.badge-in-use{color:var(--info);background:var(--info-bg);border-color:var(--info-border)}
+.badge-maintenance{color:var(--warning);background:var(--warning-bg);border-color:var(--warning-border)}
+.badge-reserved{color:var(--coral);background:#fff1e6;border-color:#e8744f}
+.badge-pending{color:var(--mustard);background:#fef9e7;border-color:#e8c84a}
+.badge-confirmed{color:var(--info);background:var(--info-bg);border-color:var(--info-border)}
+.badge-returned{color:var(--success);background:var(--success-bg);border-color:var(--success-border)}
+.badge-cancelled{color:var(--muted);background:var(--surface-soft);border-color:var(--hairline)}
+.badge-shared{color:var(--coral);background:#fff1e6;border-color:#e8744f}
+
+/* Form */
+.form-group{margin-bottom:16px}
+.form-label{display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:4px}
+.form-input{width:100%;padding:8px 12px;border:1px solid var(--hairline);border-radius:var(--radius-sm);background:var(--canvas);color:var(--ink);outline:none;transition:border-color .15s}
+.form-input:focus{border-color:var(--ring);box-shadow:0 0 0 2px rgba(69,143,255,.15)}
+textarea.form-input{resize:vertical;min-height:60px}
+select.form-input{cursor:pointer}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:500px){.form-row{grid-template-columns:1fr}}
+.form-hint{font-size:12px;color:var(--muted);margin-top:2px}
+
+/* Dialog */
+.dialog-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.dialog-overlay.active{opacity:1;pointer-events:all}
+.dialog{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--radius-md);width:90%;max-width:520px;max-height:85vh;overflow-y:auto;box-shadow:0 8px 30px rgba(0,0,0,.12)}
+.dialog-header{padding:16px 20px;border-bottom:1px solid var(--hairline);font-weight:600;color:var(--ink);display:flex;align-items:center;justify-content:between}
+.dialog-header .btn-icon{margin-left:auto}
+.dialog-body{padding:20px}
+.dialog-footer{padding:12px 20px;border-top:1px solid var(--hairline);display:flex;justify-content:flex-end;gap:8px}
+
+/* Search */
+.search-bar{position:relative;max-width:320px}
+.search-bar svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--muted)}
+.search-bar input{width:100%;padding:8px 12px 8px 34px;border:1px solid var(--hairline);border-radius:var(--radius-sm);background:var(--canvas);outline:none}
+.search-bar input:focus{border-color:var(--ring)}
+
+/* Filters */
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.filters select{padding:8px 12px;border:1px solid var(--hairline);border-radius:var(--radius-sm);background:var(--canvas);outline:none;min-width:120px}
+
+/* Pagination */
+.pagination{display:flex;align-items:center;justify-content:space-between;padding:12px 0;font-size:13px;color:var(--muted)}
+.pagination button{padding:4px 10px;border:1px solid var(--hairline);border-radius:var(--radius-sm);background:var(--canvas);cursor:pointer;font-size:13px}
+.pagination button:hover:not(:disabled){background:var(--surface-soft)}
+.pagination button:disabled{opacity:.4;cursor:not-allowed}
+
+/* Share panel */
+.share-panel{background:var(--cream);border:1px solid #e8d4b8;border-radius:var(--radius-md);padding:14px;margin-top:12px}
+.share-panel h4{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.share-panel h4 svg{width:16px;height:16px}
+.share-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.share-tag{display:flex;align-items:center;gap:4px;padding:3px 8px;background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--radius-sm);font-size:13px}
+.share-tag button{background:none;border:none;cursor:pointer;color:var(--muted);padding:0;font-size:16px;line-height:1}
+.share-tag button:hover{color:var(--destructive)}
+
+/* Chat */
+.chat-panel{width:320px;border-left:1px solid var(--hairline);display:flex;flex-direction:column;background:var(--canvas);flex-shrink:0}
+@media(max-width:1100px){.chat-panel{display:none}}
+.chat-header{padding:12px 16px;border-bottom:1px solid var(--hairline);font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px}
+.chat-header svg{width:18px;height:18px}
+.chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.chat-msg{max-width:85%;display:flex;gap:8px}
+.chat-msg.user{align-self:flex-end;flex-direction:row-reverse}
+.chat-msg-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px}
+.chat-msg.assistant .chat-msg-avatar{background:var(--primary);color:#fff}
+.chat-msg.user .chat-msg-avatar{background:var(--surface-strong);color:var(--ink)}
+.chat-msg-bubble{padding:10px 14px;border-radius:var(--radius-md);font-size:13px;line-height:1.5;white-space:pre-wrap}
+.chat-msg.assistant .chat-msg-bubble{background:var(--surface-soft);border:1px solid var(--hairline);color:var(--body)}
+.chat-msg.user .chat-msg-bubble{background:var(--primary);color:#fff;border:1px solid var(--primary)}
+.chat-input-area{padding:12px 16px;border-top:1px solid var(--hairline);display:flex;gap:8px;align-items:flex-end}
+.chat-input-area textarea{flex:1;padding:8px 12px;border:1px solid var(--hairline);border-radius:var(--radius-sm);resize:none;outline:none;min-height:36px;max-height:120px;font-size:13px}
+.chat-input-area textarea:focus{border-color:var(--ring)}
+
+/* Settings */
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:900px){.settings-grid{grid-template-columns:1fr}}
+.settings-card{border:1px solid var(--hairline);border-radius:var(--radius-md);overflow:hidden}
+.settings-card-header{padding:12px 16px;border-bottom:1px solid var(--hairline);font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.03em;display:flex;align-items:center;gap:8px;color:var(--ink)}
+.settings-card-header svg{width:16px;height:16px}
+.settings-card-body{padding:16px}
+.tag-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.tag-item{display:flex;align-items:center;gap:4px;padding:3px 10px;background:var(--surface-soft);border:1px solid var(--hairline);border-radius:999px;font-size:13px}
+.tag-item button{background:none;border:none;cursor:pointer;color:var(--muted);font-size:15px;line-height:1;padding:0}
+.tag-item button:hover{color:var(--destructive)}
+.tag-input-row{display:flex;gap:8px}
+.tag-input-row input{flex:1;padding:6px 10px;border:1px solid var(--hairline);border-radius:var(--radius-sm);outline:none}
+.tag-input-row input:focus{border-color:var(--ring)}
+
+/* Empty state */
+.empty-state{text-align:center;padding:48px 24px;color:var(--muted)}
+.empty-state svg{width:48px;height:48px;margin-bottom:12px;opacity:.3}
+.empty-state h3{font-size:16px;color:var(--ink);margin-bottom:4px}
+.empty-state p{font-size:14px}
+
+/* Lock alert banner */
+.lock-alert{padding:12px 16px;background:var(--warning-bg);border-bottom:1px solid var(--warning-border);color:var(--warning);font-size:13px;display:flex;align-items:center;gap:8px;font-weight:500}
+.lock-alert svg{width:18px;height:18px;flex-shrink:0}
+
+/* Tooltip */
+[data-tooltip]{position:relative}
+[data-tooltip]:hover::after{content:attr(data-tooltip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:4px 8px;background:var(--ink);color:#fff;font-size:11px;border-radius:var(--radius-sm);white-space:nowrap;pointer-events:none;z-index:999}
+
+/* Custom fields table */
+.cf-table{width:100%;border-collapse:collapse}
+.cf-table th{padding:6px 10px;text-align:left;font-size:12px;font-weight:600;color:var(--muted);border-bottom:1px solid var(--hairline)}
+.cf-table td{padding:6px 10px;border-bottom:1px solid var(--hairline);font-size:13px}
+
+/* Animations */
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{animation:fadeIn .2s ease}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.pulse{animation:pulse 1.5s infinite}
+
+/* Vehicle list items */
+.vehicle-status-row{display:flex;align-items:center;gap:8px;padding:8px 0}
+.vehicle-status-row .v-name{font-weight:500;color:var(--ink)}
+.vehicle-status-row .v-plate{color:var(--muted);font-size:12px}
+
+/* File info */
+.file-info-card{padding:16px}
+.file-info-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--hairline);font-size:13px}
+.file-info-row:last-child{border-bottom:none}
+.file-info-row .label{color:var(--muted)}
+.file-info-row .value{color:var(--ink);font-weight:500}
+
+/* Toast */
+.toast-container{position:fixed;top:16px;right:16px;z-index:2000;display:flex;flex-direction:column;gap:8px}
+.toast{padding:12px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;border:1px solid;box-shadow:0 4px 12px rgba(0,0,0,.1);animation:fadeIn .2s ease;max-width:360px}
+.toast-success{background:var(--success-bg);color:var(--success);border-color:var(--success-border)}
+.toast-error{background:var(--destructive-bg);color:var(--destructive);border-color:var(--destructive-border)}
+.toast-info{background:var(--info-bg);color:var(--info);border-color:var(--info-border)}
+</style>
+</head>
+<body>
+
+<!-- Landing Screen -->
+<div id="landing" class="landing">
+  <div class="landing-card">
+    <div class="landing-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+    </div>
+    <h1>FleetHub</h1>
+    <p>Fleet Management — Local File Mode<br>No server required. All data stays in your JSON file.</p>
+    <div style="display:flex;flex-direction:column;gap:10px;align-items:center">
+      <button class="btn btn-primary" onclick="openFile()" style="width:240px;justify-content:center;padding:12px 20px;font-size:15px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
+        Open Fleet Data
+      </button>
+      <button class="btn" onclick="createNewFile()" style="width:240px;justify-content:center;padding:10px 16px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+        Create New File
+      </button>
+    </div>
+    <div id="recent-files" style="margin-top:24px;text-align:left"></div>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="app" class="app">
+  <!-- Lock Alert -->
+  <div id="lock-alert" class="lock-alert" style="display:none">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    <span id="lock-alert-text"></span>
+    <button class="btn btn-sm" onclick="acquireLock()" style="margin-left:auto">Take Over</button>
+  </div>
+
+  <!-- Header -->
+  <header class="header">
+    <a class="header-logo" href="#">
+      <span class="logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 0-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+      </span>
+      FleetHub
+    </a>
+    <span class="header-filename" id="header-filename">fleet-data.json</span>
+    <span class="save-indicator" id="save-indicator">Saved</span>
+    <div class="header-spacer"></div>
+    <span class="lock-badge unlocked" id="lock-badge">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <span id="lock-badge-text">Unlocked</span>
+    </span>
+    <div class="header-actions">
+      <button class="btn btn-sm" onclick="exportJSON()" data-tooltip="Export JSON">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export
+      </button>
+      <button class="btn btn-sm" onclick="saveFile()" id="save-btn" data-tooltip="Save">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Save
+      </button>
+      <button class="btn btn-sm btn-ghost" onclick="closeApp()" data-tooltip="Close file">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="body-wrap">
+    <!-- Sidebar -->
+    <nav class="sidebar">
+      <div class="sidebar-nav" id="sidebar-nav"></div>
+      <div class="sidebar-cta">
+        <button class="btn btn-primary" onclick="newBooking()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          New Booking
+        </button>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content" id="main-content"></main>
+
+    <!-- AI Chat Panel -->
+    <aside class="chat-panel" id="chat-panel">
+      <div class="chat-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+        AI Assistant
+        <span style="margin-left:auto">
+          <button class="btn-icon btn-sm" onclick="clearChat()" data-tooltip="Clear chat">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+          </button>
+        </span>
+      </div>
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-input-area">
+        <textarea id="chat-input" rows="1" placeholder="Ask about your fleet..." onkeydown="chatKeydown(event)"></textarea>
+        <button class="btn btn-primary btn-sm" onclick="sendChat()" data-tooltip="Send">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+        </button>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Mobile Nav -->
+  <div class="mobile-nav" id="mobile-nav"></div>
+</div>
+
+<!-- Dialog Overlay -->
+<div class="dialog-overlay" id="dialog-overlay" onclick="dialogOverlayClick(event)">
+  <div class="dialog" id="dialog">
+    <div class="dialog-header" id="dialog-header"></div>
+    <div class="dialog-body" id="dialog-body"></div>
+    <div class="dialog-footer" id="dialog-footer"></div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// ===================== STATE =====================
+const S = {
+  fileHandle: null,
+  fileName: '',
+  data: null,
+  dirty: false,
+  saving: false,
+  activeTab: 'dashboard',
+  lockId: null,
+  lockUser: null,
+  lockedBy: null,
+  editingVehicle: null,
+  editingBooking: null,
+  shareDialogBooking: null,
+  bookingSearch: '',
+  bookingVehicleFilter: '',
+  bookingStatusFilter: '',
+  bookingPage: 1,
+  pageSize: 10,
+  chatMessages: [],
+  chatLoading: false,
+  settingsTab: 'statuses',
+};
+
+const DEFAULT_SETTINGS = {
+  statuses: ['pending', 'confirmed', 'in-use', 'returned', 'cancelled'],
+  vehicleTypes: ['sedan', 'suv', 'pickup', 'van', 'bus', 'motorcycle', 'other'],
+  customColumns: [],
+  shareMessage: 'Hi, I would like to share this ride with you. Is that possible?'
+};
+
+function getDefaultData() {
+  return {
+    meta: { version: '1.0', lastModified: new Date().toISOString(), lockedBy: null, lockedAt: null, lockId: null },
+    vehicles: [],
+    bookings: [],
+    settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS))
+  };
+}
+
+function genId() { return Date.now().toString(36) + Math.random().toString(36).substr(2, 9); }
+function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function fmtDate(d) { if (!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+function fmtDateTime(d) { if (!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+function isToday(d) { if (!d) return false; const dt = new Date(d), now = new Date(); return dt.toDateString() === now.toDateString(); }
+function isActive(b) { const now = new Date(); const s = new Date(b.periodStart), e = new Date(b.periodEnd); return now >= s && now <= e; }
+function uid() { return 'User-' + Math.random().toString(36).substr(2, 6).toUpperCase(); }
+
+// ===================== FILE I/O =====================
+async function openFile() {
+  try {
+    const [handle] = await window.showOpenFilePicker({ types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }], multiple: false });
+    S.fileHandle = handle;
+    S.fileName = handle.name;
+    const file = await handle.getFile();
+    const text = await file.text();
+    S.data = JSON.parse(text);
+    // merge defaults
+    if (!S.data.meta) S.data.meta = { version: '1.0', lastModified: new Date().toISOString(), lockedBy: null, lockedAt: null, lockId: null };
+    if (!S.data.settings) S.data.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+    if (!S.data.vehicles) S.data.vehicles = [];
+    if (!S.data.bookings) S.data.bookings = [];
+    // ensure settings has all keys
+    for (const k of Object.keys(DEFAULT_SETTINGS)) { if (!S.data.settings[k]) S.data.settings[k] = JSON.parse(JSON.stringify(DEFAULT_SETTINGS[k])); }
+    saveRecentFile(handle.name);
+    enterApp();
+  } catch (e) { if (e.name !== 'AbortError') showToast('Failed to open file: ' + e.message, 'error'); }
+}
+
+async function createNewFile() {
+  try {
+    const handle = await window.showSaveFilePicker({ suggestedName: 'fleet-data.json', types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }] });
+    S.fileHandle = handle;
+    S.fileName = handle.name;
+    S.data = getDefaultData();
+    const writable = await handle.createWritable();
+    await writable.write(JSON.stringify(S.data, null, 2));
+    await writable.close();
+    saveRecentFile(handle.name);
+    enterApp();
+    showToast('New file created!', 'success');
+  } catch (e) { if (e.name !== 'AbortError') showToast('Failed to create file: ' + e.message, 'error'); }
+}
+
+async function saveFile() {
+  if (!S.fileHandle) return;
+  S.saving = true;
+  updateSaveIndicator();
+  try {
+    S.data.meta.lastModified = new Date().toISOString();
+    const writable = await S.fileHandle.createWritable();
+    await writable.write(JSON.stringify(S.data, null, 2));
+    await writable.close();
+    S.dirty = false;
+    showToast('File saved', 'success');
+  } catch (e) { showToast('Save failed: ' + e.message, 'error'); }
+  S.saving = false;
+  updateSaveIndicator();
+}
+
+function markDirty() {
+  S.dirty = true;
+  updateSaveIndicator();
+}
+
+async function exportJSON() {
+  const blob = new Blob([JSON.stringify(S.data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'fleet-export-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ===================== RECENT FILES =====================
+function saveRecentFile(name) {
+  let recent = JSON.parse(localStorage.getItem('fleethub_recent') || '[]');
+  recent = recent.filter(r => r !== name);
+  recent.unshift(name);
+  recent = recent.slice(0, 5);
+  localStorage.setItem('fleethub_recent', JSON.stringify(recent));
+}
+
+function renderRecentFiles() {
+  const el = document.getElementById('recent-files');
+  const recent = JSON.parse(localStorage.getItem('fleethub_recent') || '[]');
+  if (!recent.length) { el.innerHTML = ''; return; }
+  el.innerHTML = '<p style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:500">RECENT FILES</p>' +
+    recent.map(r => `<button class="btn btn-ghost" style="width:100%;justify-content:flex-start;padding:6px 10px;font-size:13px" onclick="document.getElementById('landing-file-input').click()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
+      ${esc(r)}
+    </button>`).join('');
+}
+
+// ===================== LOCKING =====================
+function getMyLockId() { return localStorage.getItem('fleethub_lockid') || uid(); }
+
+function initLock() {
+  S.lockId = getMyLockId();
+  localStorage.setItem('fleethub_lockid', S.lockId);
+  checkLock();
+  setInterval(checkLock, 30000);
+  try {
+    const bc = new BroadcastChannel('fleethub-lock');
+    bc.onmessage = () => checkLock();
+    S.bc = bc;
+  } catch(e) {}
+}
+
+function checkLock() {
+  const meta = S.data.meta;
+  if (meta && meta.lockedBy && meta.lockedBy !== S.lockId && meta.lockedAt) {
+    const elapsed = Date.now() - new Date(meta.lockedAt).getTime();
+    if (elapsed < 5 * 60 * 1000) { // 5 min stale threshold
+      S.lockedBy = meta.lockedBy;
+      showLockAlert(meta.lockedBy, elapsed);
+      return;
+    }
+  }
+  S.lockedBy = null;
+  hideLockAlert();
+}
+
+function acquireLock() {
+  S.data.meta.lockedBy = S.lockId;
+  S.data.meta.lockedAt = new Date().toISOString();
+  S.lockedBy = null;
+  hideLockAlert();
+  markDirty();
+  saveFile();
+  showToast('Lock acquired', 'success');
+}
+
+function releaseLock() {
+  if (S.data.meta.lockedBy === S.lockId) {
+    S.data.meta.lockedBy = null;
+    S.data.meta.lockedAt = null;
+  }
+}
+
+function showLockAlert(lockedBy, elapsed) {
+  const el = document.getElementById('lock-alert');
+  const text = document.getElementById('lock-alert-text');
+  text.textContent = `File is currently locked by ${lockedBy} (${Math.floor(elapsed / 60000)}m ago). Changes may conflict.`;
+  el.style.display = 'flex';
+}
+
+function hideLockAlert() { document.getElementById('lock-alert').style.display = 'none'; }
+
+// ===================== APP LIFECYCLE =====================
+function enterApp() {
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('app').classList.add('active');
+  document.getElementById('header-filename').textContent = S.fileName;
+  initLock();
+  // if no lock, acquire
+  if (!S.data.meta.lockedBy) {
+    S.data.meta.lockedBy = S.lockId;
+    S.data.meta.lockedAt = new Date().toISOString();
+    markDirty();
+  }
+  render();
+  if (!S.chatMessages.length) {
+    S.chatMessages = [{ id: genId(), role: 'assistant', content: 'Hello! I\'m your FleetHub AI assistant. Ask me about your vehicles, bookings, or fleet management tips. Note: AI responses require configuring an API endpoint in Settings.', timestamp: new Date() }];
+  }
+  renderChat();
+}
+
+function closeApp() {
+  releaseLock();
+  saveFile();
+  document.getElementById('app').classList.remove('active');
+  document.getElementById('landing').style.display = 'flex';
+  renderRecentFiles();
+}
+
+window.addEventListener('beforeunload', (e) => {
+  if (S.dirty) { releaseLock(); saveFile(); e.preventDefault(); e.returnValue = ''; }
+});
+
+// ===================== NAVIGATION =====================
+const TABS = [
+  { id: 'dashboard', label: 'Dashboard', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>' },
+  { id: 'bookings', label: 'Bookings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>' },
+  { id: 'vehicles', label: 'Vehicles', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>' },
+  { id: 'settings', label: 'Settings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>' },
+];
+
+function setTab(tab) { S.activeTab = tab; S.bookingPage = 1; render(); }
+
+function renderNav() {
+  const pendingCount = S.data.bookings.filter(b => b.status === 'pending').length;
+  document.getElementById('sidebar-nav').innerHTML = TABS.map(t => {
+    const badge = t.id === 'bookings' && pendingCount ? `<span class="badge">${pendingCount}</span>` : '';
+    return `<button class="sidebar-nav-item${S.activeTab === t.id ? ' active' : ''}" onclick="setTab('${t.id}')">
+      ${t.icon}${t.label}${badge}
+    </button>`;
+  }).join('');
+  document.getElementById('mobile-nav').innerHTML = `<div class="mobile-nav-inner">${TABS.map(t => {
+    const badge = t.id === 'bookings' && pendingCount ? `<span class="badge">${pendingCount}</span>` : '';
+    return `<button class="mobile-nav-item${S.activeTab === t.id ? ' active' : ''}" onclick="setTab('${t.id}')">
+      ${t.label}${badge}
+    </button>`;
+  }).join('')}</div>`;
+  updateLockBadge();
+}
+
+function updateLockBadge() {
+  const badge = document.getElementById('lock-badge');
+  const text = document.getElementById('lock-badge-text');
+  if (S.lockedBy && S.lockedBy !== S.lockId) {
+    badge.className = 'lock-badge locked';
+    text.textContent = 'Locked';
+  } else {
+    badge.className = 'lock-badge unlocked';
+    text.textContent = 'Unlocked';
+  }
+}
+
+function updateSaveIndicator() {
+  const el = document.getElementById('save-indicator');
+  if (S.saving) { el.className = 'save-indicator saving'; el.textContent = 'Saving...'; }
+  else if (S.dirty) { el.className = 'save-indicator unsaved'; el.textContent = 'Unsaved changes'; }
+  else { el.className = 'save-indicator'; el.textContent = 'Saved'; }
+}
+
+// ===================== RENDER =====================
+function render() {
+  renderNav();
+  const mc = document.getElementById('main-content');
+  switch (S.activeTab) {
+    case 'dashboard': mc.innerHTML = renderDashboard(); break;
+    case 'bookings': mc.innerHTML = renderBookings(); break;
+    case 'vehicles': mc.innerHTML = renderVehicles(); break;
+    case 'settings': mc.innerHTML = renderSettings(); break;
+  }
+}
+
+// ===================== DASHBOARD =====================
+function renderDashboard() {
+  const vehicles = S.data.vehicles;
+  const bookings = S.data.bookings;
+  const activeBookings = bookings.filter(isActive);
+  const availableNow = vehicles.filter(v => !activeBookings.some(b => b.vehicleId === v.id && (b.status === 'confirmed' || b.status === 'in-use')));
+  const todayBookings = bookings.filter(b => isToday(b.periodStart));
+  const pendingCount = bookings.filter(b => b.status === 'pending').length;
+  const activeUsers = new Set(activeBookings.map(b => b.userName)).size;
+  const sharedCount = bookings.filter(b => b.shareWith && b.shareWith.length > 0).length;
+
+  const fleetStatusHtml = vehicles.length ? vehicles.slice(0, 20).map(v => {
+    const ab = activeBookings.find(b => b.vehicleId === v.id && (b.status === 'confirmed' || b.status === 'in-use'));
+    const statusBadge = ab ? `<span class="badge badge-in-use">${ab.userName}</span>` : `<span class="badge badge-available">Available</span>`;
+    return `<div class="vehicle-status-row">
+      <span class="v-name">${esc(v.name)}</span>
+      ${v.licensePlate ? `<span class="v-plate">${esc(v.licensePlate)}</span>` : ''}
+      <span style="margin-left:auto">${statusBadge}</span>
+    </div>`;
+  }).join('') : '<div class="empty-state"><p>No vehicles yet</p></div>';
+
+  const upcoming = bookings.filter(b => new Date(b.periodStart) >= new Date()).sort((a, b) => new Date(a.periodStart) - new Date(b.periodStart)).slice(0, 5);
+  const upcomingHtml = upcoming.length ? upcoming.map(b => {
+    const v = vehicles.find(v => v.id === b.vehicleId);
+    return `<div class="vehicle-status-row">
+      <div style="min-width:120px">
+        <div style="font-weight:500;color:var(--ink)">${esc(v ? v.name : 'Unknown')}</div>
+        <div style="font-size:12px;color:var(--muted)">${esc(b.userName)}</div>
+      </div>
+      <span class="badge badge-${esc(b.status)}">${esc(b.status)}</span>
+      <span style="font-size:12px;color:var(--muted)">${fmtDate(b.periodStart)} — ${fmtDate(b.periodEnd)}</span>
+      ${b.shareWith && b.shareWith.length ? '<span class="badge badge-shared" style="margin-left:auto">Shared</span>' : ''}
+    </div>`;
+  }).join('') : '<div class="empty-state" style="padding:24px"><p>No upcoming bookings</p></div>';
+
+  return `<div class="fade-in">
+    <div class="tab-header"><h2>${TABS[0].icon} Dashboard</h2></div>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-icon" style="background:var(--primary)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div><div class="stat-value">${vehicles.length}</div><div class="stat-label">Total Vehicles</div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--success)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div class="stat-value">${availableNow.length}</div><div class="stat-label">Available Now</div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--link)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></div><div class="stat-value">${todayBookings.length}</div><div class="stat-label">Today's Bookings</div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--mustard)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="stat-value">${pendingCount}</div><div class="stat-label">Pending Approval</div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--forest)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="stat-value">${activeUsers}</div><div class="stat-label">Active Users</div></div>
+      <div class="stat-card"><div class="stat-icon" style="background:var(--coral)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="stat-value">${sharedCount}</div><div class="stat-label">Shared Rides</div></div>
+    </div>
+    <div class="two-col">
+      <div class="card"><div class="card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> Fleet Status</div><div class="card-body">${fleetStatusHtml}</div></div>
+      <div class="card"><div class="card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg> Upcoming Bookings</div><div class="card-body">${upcomingHtml}</div></div>
+    </div>
+  </div>`;
+}
+
+// ===================== VEHICLES =====================
+function renderVehicles() {
+  const vehicles = S.data.vehicles.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const rows = vehicles.length ? vehicles.map(v => {
+    return `<tr>
+      <td style="font-weight:500;color:var(--ink)">${esc(v.name)}</td>
+      <td>${esc(v.type)}</td>
+      <td>${esc(v.licensePlate || '—')}</td>
+      <td><span class="badge badge-${esc(v.status)}">${esc(v.status)}</span></td>
+      <td style="color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.notes || '')}</td>
+      <td style="white-space:nowrap">
+        <button class="btn-icon btn-sm" onclick="editVehicle('${v.id}')" data-tooltip="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+        <button class="btn-icon btn-sm" onclick="confirmDeleteVehicle('${v.id}')" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+      </td>
+    </tr>`;
+  }).join('') : '';
+
+  return `<div class="fade-in">
+    <div class="tab-header"><h2>${TABS[2].icon} Vehicles</h2>
+      <div class="tab-header-actions">
+        <button class="btn btn-primary btn-sm" onclick="editVehicle(null)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          Add Vehicle
+        </button>
+      </div>
+    </div>
+    ${vehicles.length ? `<div class="card"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>License Plate</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div></div>` :
+      `<div class="card"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg><h3>No vehicles yet</h3><p>Add your first vehicle to get started.</p></div></div>`}
+  </div>`;
+}
+
+function editVehicle(id) {
+  const v = id ? S.data.vehicles.find(v => v.id === id) : null;
+  S.editingVehicle = v;
+  const isEdit = !!v;
+  const types = S.data.settings.vehicleTypes || DEFAULT_SETTINGS.vehicleTypes;
+  const typeOptions = types.map(t => `<option value="${esc(t)}"${v && v.type === t ? ' selected' : ''}>${esc(t)}</option>`).join('');
+  const statuses = ['available', 'in-use', 'maintenance', 'reserved'];
+
+  openDialog(isEdit ? 'Edit Vehicle' : 'Add Vehicle', `
+    <div class="form-group"><label class="form-label">Name *</label><input class="form-input" id="v-name" value="${esc(v ? v.name : '')}" placeholder="e.g. Toyota Hilux #1"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Type</label><select class="form-input" id="v-type">${typeOptions}</select></div>
+      <div class="form-group"><label class="form-label">Status</label><select class="form-input" id="v-status">${statuses.map(s => `<option value="${s}"${v && v.status === s ? ' selected' : ''}>${s}</option>`).join('')}</select></div>
+    </div>
+    <div class="form-group"><label class="form-label">License Plate</label><input class="form-input" id="v-plate" value="${esc(v ? v.licensePlate || '' : '')}" placeholder="ABC-1234"></div>
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-input" id="v-notes" rows="2" placeholder="Optional notes...">${esc(v ? v.notes || '' : '')}</textarea></div>
+  `, () => {
+    const name = document.getElementById('v-name').value.trim();
+    if (!name) { showToast('Vehicle name is required', 'error'); return false; }
+    const data = {
+      name,
+      type: document.getElementById('v-type').value,
+      status: document.getElementById('v-status').value,
+      licensePlate: document.getElementById('v-plate').value.trim() || null,
+      notes: document.getElementById('v-notes').value.trim() || null,
+      updatedAt: new Date().toISOString()
+    };
+    if (isEdit) {
+      Object.assign(v, data);
+      showToast('Vehicle updated', 'success');
+    } else {
+      S.data.vehicles.push({ id: genId(), ...data, sortOrder: S.data.vehicles.length, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      showToast('Vehicle added', 'success');
+    }
+    markDirty(); render(); return true;
+  });
+}
+
+function confirmDeleteVehicle(id) {
+  const v = S.data.vehicles.find(v => v.id === id);
+  const bookingCount = S.data.bookings.filter(b => b.vehicleId === id).length;
+  openDialog('Delete Vehicle', `
+    <p>Are you sure you want to delete <strong>${esc(v.name)}</strong>?</p>
+    ${bookingCount ? `<p style="color:var(--warning);margin-top:8px;font-size:13px">This will also delete ${bookingCount} associated booking(s).</p>` : ''}
+  `, () => {
+    S.data.vehicles = S.data.vehicles.filter(v => v.id !== id);
+    S.data.bookings = S.data.bookings.filter(b => b.vehicleId !== id);
+    markDirty(); render(); showToast('Vehicle deleted', 'success'); return true;
+  }, true);
+}
+
+// ===================== BOOKINGS =====================
+function renderBookings() {
+  const vehicles = S.data.vehicles;
+  const allBookings = S.data.bookings.sort((a, b) => new Date(b.periodStart) - new Date(a.periodStart));
+
+  // Filter
+  let filtered = allBookings;
+  if (S.bookingSearch) {
+    const q = S.bookingSearch.toLowerCase();
+    filtered = filtered.filter(b => {
+      const v = vehicles.find(v => v.id === b.vehicleId);
+      return (v && v.name.toLowerCase().includes(q)) || b.userName.toLowerCase().includes(q) || b.purpose.toLowerCase().includes(q) || (b.remarks || '').toLowerCase().includes(q);
+    });
+  }
+  if (S.bookingVehicleFilter) filtered = filtered.filter(b => b.vehicleId === S.bookingVehicleFilter);
+  if (S.bookingStatusFilter) filtered = filtered.filter(b => b.status === S.bookingStatusFilter);
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filtered.length / S.pageSize));
+  if (S.bookingPage > totalPages) S.bookingPage = totalPages;
+  const start = (S.bookingPage - 1) * S.pageSize;
+  const pageItems = filtered.slice(start, start + S.pageSize);
+  const statuses = S.data.settings.statuses || DEFAULT_SETTINGS.statuses;
+
+  const vehicleOptions = vehicles.map(v => `<option value="${v.id}"${S.bookingVehicleFilter === v.id ? ' selected' : ''}>${esc(v.name)}</option>`).join('');
+  const statusOptions = statuses.map(s => `<option value="${s}"${S.bookingStatusFilter === s ? ' selected' : ''}>${s}</option>`).join('');
+  const customCols = S.data.settings.customColumns || [];
+
+  const conflictWarning = S.editingBooking ? renderConflictWarning(S.editingBooking) : '';
+
+  const rows = pageItems.map(b => {
+    const v = vehicles.find(v => v.id === b.vehicleId);
+    const shareCount = (b.shareWith || []).length;
+    const cfHtml = customCols.map(col => `<td style="font-size:13px">${esc((b.customFields || {})[col.key] || '—')}</td>`).join('');
+    return `<tr>
+      <td style="font-weight:500;color:var(--ink)">${esc(v ? v.name : 'Unknown')}</td>
+      <td>${esc(b.userName)}</td>
+      <td>${esc(b.purpose)}</td>
+      <td style="white-space:nowrap;font-size:13px">${fmtDate(b.periodStart)}<br>${fmtDate(b.periodEnd)}</td>
+      <td><span class="badge badge-${esc(b.status)}">${esc(b.status)}</span></td>
+      ${cfHtml}
+      <td>${shareCount ? `<span class="badge badge-shared" style="cursor:pointer" onclick="openShareDialog('${b.id}')">${shareCount}</span>` : '—'}</td>
+      <td style="white-space:nowrap">
+        <button class="btn-icon btn-sm" onclick="editBooking('${b.id}')" data-tooltip="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+        <button class="btn-icon btn-sm" onclick="confirmDeleteBooking('${b.id}')" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="fade-in">
+    <div class="tab-header"><h2>${TABS[1].icon} Bookings</h2></div>
+    ${conflictWarning}
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+      <div class="search-bar" style="flex:1;min-width:200px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input placeholder="Search bookings..." value="${esc(S.bookingSearch)}" oninput="S.bookingSearch=this.value;S.bookingPage=1;render()">
+      </div>
+      <div class="filters">
+        <select onchange="S.bookingVehicleFilter=this.value;S.bookingPage=1;render()"><option value="">All Vehicles</option>${vehicleOptions}</select>
+        <select onchange="S.bookingStatusFilter=this.value;S.bookingPage=1;render()"><option value="">All Statuses</option>${statusOptions}</select>
+      </div>
+    </div>
+    ${pageItems.length ? `<div class="card"><div class="table-wrap"><table><thead><tr><th>Vehicle</th><th>User</th><th>Purpose</th><th>Period</th><th>Status</th>${customCols.map(c => `<th>${esc(c.label)}</th>`).join('')}<th>Share</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="pagination" style="padding:8px 12px">
+        <span>Showing ${start + 1}–${Math.min(start + S.pageSize, filtered.length)} of ${filtered.length}</span>
+        <div style="display:flex;gap:4px">
+          <button ${S.bookingPage <= 1 ? 'disabled' : ''} onclick="S.bookingPage--;render()">Prev</button>
+          <span style="padding:4px 8px;font-size:13px">${S.bookingPage} / ${totalPages}</span>
+          <button ${S.bookingPage >= totalPages ? 'disabled' : ''} onclick="S.bookingPage++;render()">Next</button>
+        </div>
+      </div>
+    </div>` :
+      `<div class="card"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg><h3>No bookings yet</h3><p>Create your first booking to get started.</p></div></div>`}
+  </div>`;
+}
+
+function renderConflictWarning(booking) {
+  if (!booking.vehicleId || !booking.periodStart || !booking.periodEnd) return '';
+  const conflicts = S.data.bookings.filter(b => {
+    if (b.id === booking.id) return false;
+    if (b.vehicleId !== booking.vehicleId) return false;
+    if (b.status === 'cancelled') return false;
+    const bs = new Date(b.periodStart), be = new Date(b.periodEnd);
+    const ns = new Date(booking.periodStart), ne = new Date(booking.periodEnd);
+    return ns < be && ne > bs;
+  });
+  if (!conflicts.length) return '';
+  return `<div style="padding:10px 14px;background:var(--warning-bg);border:1px solid var(--warning-border);border-radius:var(--radius-sm);margin-bottom:16px;font-size:13px;color:var(--warning);display:flex;align-items:center;gap:8px">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+    Schedule conflict with ${conflicts.map(c => c.userName).join(', ')}.
+    <button class="btn btn-sm" onclick="shareWithConflicts()" style="margin-left:auto">Share Ride</button>
+  </div>`;
+}
+
+function shareWithConflicts() {
+  if (!S.editingBooking) return;
+  const conflicts = S.data.bookings.filter(b => {
+    if (b.id === S.editingBooking.id) return false;
+    if (b.vehicleId !== S.editingBooking.vehicleId) return false;
+    if (b.status === 'cancelled') return false;
+    const bs = new Date(b.periodStart), be = new Date(b.periodEnd);
+    const ns = new Date(S.editingBooking.periodStart), ne = new Date(S.editingBooking.periodEnd);
+    return ns < be && ne > bs;
+  });
+  const existing = S.editingBooking.shareWith || [];
+  conflicts.forEach(c => { if (!existing.includes(c.userName)) existing.push(c.userName); });
+  S.editingBooking.shareWith = existing;
+  S.editingBooking.shareNote = S.data.settings.shareMessage || DEFAULT_SETTINGS.shareMessage;
+  // Re-render dialog if open
+  showToast('Added conflicting users to share list', 'info');
+}
+
+function newBooking() { S.activeTab = 'bookings'; editBooking(null); renderNav(); }
+
+function editBooking(id) {
+  const b = id ? S.data.bookings.find(b => b.id === id) : null;
+  S.editingBooking = b ? JSON.parse(JSON.stringify(b)) : { id: null, vehicleId: '', userName: '', purpose: '', periodStart: '', periodEnd: '', status: S.data.settings.statuses[0] || 'pending', remarks: '', customFields: {}, shareWith: [], shareNote: '' };
+  const vehicles = S.data.vehicles;
+  const statuses = S.data.settings.statuses || DEFAULT_SETTINGS.statuses;
+  const customCols = S.data.settings.customColumns || [];
+  const eb = S.editingBooking;
+
+  const vehicleOptions = vehicles.map(v => `<option value="${v.id}"${eb.vehicleId === v.id ? ' selected' : ''}>${esc(v.name)}</option>`).join('');
+  const statusOptions = statuses.map(s => `<option value="${s}"${eb.status === s ? ' selected' : ''}>${s}</option>`).join('');
+  const shareTags = (eb.shareWith || []).map(name => `<span class="share-tag">${esc(name)}<button onclick="removeShareName(this,'${esc(name)}')">×</button></span>`).join('');
+  const customFieldsHtml = customCols.map(col => {
+    const val = (eb.customFields || {})[col.key] || '';
+    if (col.type === 'select') return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><select class="form-input cf-field" data-key="${esc(col.key)}">${(col.options || []).map(o => `<option value="${esc(o)}"${val === o ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
+    if (col.type === 'number') return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><input class="form-input cf-field" type="number" data-key="${esc(col.key)}" value="${esc(val)}"></div>`;
+    if (col.type === 'date') return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><input class="form-input cf-field" type="date" data-key="${esc(col.key)}" value="${esc(val)}"></div>`;
+    return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><input class="form-input cf-field" data-key="${esc(col.key)}" value="${esc(val)}"></div>`;
+  }).join('');
+
+  openDialog(b ? 'Edit Booking' : 'New Booking', `
+    <div class="form-group"><label class="form-label">Vehicle *</label><select class="form-input" id="b-vehicle"><option value="">Select vehicle...</option>${vehicleOptions}</select></div>
+    <div class="form-group"><label class="form-label">User Name *</label><input class="form-input" id="b-user" value="${esc(eb.userName)}" placeholder="Who is booking?"></div>
+    <div class="form-group"><label class="form-label">Purpose *</label><input class="form-input" id="b-purpose" value="${esc(eb.purpose)}" placeholder="e.g. Client meeting"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Start *</label><input class="form-input" id="b-start" type="datetime-local" value="${eb.periodStart ? eb.periodStart.slice(0, 16) : ''}" onchange="checkConflicts()"></div>
+      <div class="form-group"><label class="form-label">End *</label><input class="form-input" id="b-end" type="datetime-local" value="${eb.periodEnd ? eb.periodEnd.slice(0, 16) : ''}" onchange="checkConflicts()"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Status</label><select class="form-input" id="b-status">${statusOptions}</select></div>
+    <div class="form-group"><label class="form-label">Remarks</label><textarea class="form-input" id="b-remarks" rows="2" placeholder="Optional remarks...">${esc(eb.remarks || '')}</textarea></div>
+    ${customFieldsHtml}
+    <div class="share-panel">
+      <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Share / Carpool</h4>
+      <div class="share-tags" id="share-tags">${shareTags || '<span style="font-size:13px;color:var(--muted)">No co-passengers</span>'}</div>
+      <div style="display:flex;gap:8px">
+        <input class="form-input" id="share-input" placeholder="Add co-passenger name" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addShareName()}">
+        <button class="btn btn-sm" onclick="addShareName()">Add</button>
+      </div>
+      <div class="form-group" style="margin-top:8px;margin-bottom:0"><label class="form-label">Share Note</label><textarea class="form-input" id="share-note" rows="2" placeholder="Optional note for co-passengers...">${esc(eb.shareNote || '')}</textarea></div>
+    </div>
+  `, () => {
+    const vehicleId = document.getElementById('b-vehicle').value;
+    const userName = document.getElementById('b-user').value.trim();
+    const purpose = document.getElementById('b-purpose').value.trim();
+    const periodStart = document.getElementById('b-start').value;
+    const periodEnd = document.getElementById('b-end').value;
+    if (!vehicleId || !userName || !purpose || !periodStart || !periodEnd) { showToast('Please fill all required fields', 'error'); return false; }
+
+    const customFields = {};
+    document.querySelectorAll('.cf-field').forEach(el => { customFields[el.dataset.key] = el.value; });
+
+    const data = {
+      vehicleId, userName, purpose,
+      periodStart: new Date(periodStart).toISOString(),
+      periodEnd: new Date(periodEnd).toISOString(),
+      status: document.getElementById('b-status').value,
+      remarks: document.getElementById('b-remarks').value.trim() || null,
+      customFields,
+      shareWith: [...(S.editingBooking.shareWith || [])],
+      shareNote: document.getElementById('share-note').value.trim() || null,
+      updatedAt: new Date().toISOString()
+    };
+
+    if (b) {
+      Object.assign(b, data);
+      showToast('Booking updated', 'success');
+    } else {
+      S.data.bookings.push({ id: genId(), ...data, createdAt: new Date().toISOString() });
+      showToast('Booking created', 'success');
+    }
+    S.editingBooking = null;
+    markDirty(); render(); return true;
+  });
+}
+
+function checkConflicts() {
+  if (!S.editingBooking) return;
+  S.editingBooking.vehicleId = document.getElementById('b-vehicle')?.value || '';
+  S.editingBooking.periodStart = document.getElementById('b-start')?.value || '';
+  S.editingBooking.periodEnd = document.getElementById('b-end')?.value || '';
+}
+
+function addShareName() {
+  const input = document.getElementById('share-input');
+  const name = input.value.trim();
+  if (!name || !S.editingBooking) return;
+  if (!S.editingBooking.shareWith) S.editingBooking.shareWith = [];
+  if (!S.editingBooking.shareWith.includes(name)) {
+    S.editingBooking.shareWith.push(name);
+    renderShareTags();
+  }
+  input.value = '';
+}
+
+function removeShareName(btn, name) {
+  if (!S.editingBooking) return;
+  S.editingBooking.shareWith = (S.editingBooking.shareWith || []).filter(n => n !== name);
+  renderShareTags();
+}
+
+function renderShareTags() {
+  const el = document.getElementById('share-tags');
+  if (!el || !S.editingBooking) return;
+  const tags = (S.editingBooking.shareWith || []).map(name => `<span class="share-tag">${esc(name)}<button onclick="removeShareName(this,'${esc(name)}')">×</button></span>`).join('');
+  el.innerHTML = tags || '<span style="font-size:13px;color:var(--muted)">No co-passengers</span>';
+}
+
+function openShareDialog(id) {
+  const b = S.data.bookings.find(b => b.id === id);
+  if (b) editBooking(id);
+}
+
+function confirmDeleteBooking(id) {
+  const b = S.data.bookings.find(b => b.id === id);
+  openDialog('Delete Booking', `<p>Are you sure you want to delete the booking by <strong>${esc(b.userName)}</strong> for <strong>${esc(b.purpose)}</strong>?</p>`, () => {
+    S.data.bookings = S.data.bookings.filter(b => b.id !== id);
+    markDirty(); render(); showToast('Booking deleted', 'success'); return true;
+  }, true);
+}
+
+// ===================== SETTINGS =====================
+function renderSettings() {
+  const settings = S.data.settings;
+  const tabs = [
+    { id: 'statuses', label: 'Booking Statuses', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--mustard)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>' },
+    { id: 'vehicleTypes', label: 'Vehicle Types', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--forest)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>' },
+    { id: 'customFields', label: 'Custom Fields', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>' },
+    { id: 'fileInfo', label: 'File Info', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>' },
+  ];
+
+  let content = '';
+  if (S.settingsTab === 'statuses') {
+    const tags = (settings.statuses || []).map(s => `<span class="tag-item">${esc(s)}<button onclick="removeSettingItem('statuses','${esc(s)}')">×</button></span>`).join('');
+    content = `<div class="tag-list">${tags || '<span style="font-size:13px;color:var(--muted)">No statuses defined</span>'}</div>
+      <div class="tag-input-row"><input id="settings-input" placeholder="Add status (e.g. approved)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('statuses')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('statuses')">Add</button></div>`;
+  } else if (S.settingsTab === 'vehicleTypes') {
+    const tags = (settings.vehicleTypes || []).map(t => `<span class="tag-item">${esc(t)}<button onclick="removeSettingItem('vehicleTypes','${esc(t)}')">×</button></span>`).join('');
+    content = `<div class="tag-list">${tags || '<span style="font-size:13px;color:var(--muted)">No vehicle types defined</span>'}</div>
+      <div class="tag-input-row"><input id="settings-input" placeholder="Add type (e.g. truck)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('vehicleTypes')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('vehicleTypes')">Add</button></div>`;
+  } else if (S.settingsTab === 'customFields') {
+    const cols = settings.customColumns || [];
+    content = `<div style="margin-bottom:12px">${cols.length ? `<table class="cf-table"><thead><tr><th>Label</th><th>Key</th><th>Type</th><th>Options</th><th></th></tr></thead><tbody>${cols.map(c => `<tr><td>${esc(c.label)}</td><td style="color:var(--muted)">${esc(c.key)}</td><td>${esc(c.type)}</td><td style="color:var(--muted)">${esc((c.options || []).join(', '))}</td><td><button class="btn-icon btn-sm" onclick="removeCustomField('${esc(c.key)}')" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></td></tr>`).join('')}</tbody></table>` : '<span style="font-size:13px;color:var(--muted)">No custom fields defined</span>'}</div>
+      <div style="padding:12px;border:1px solid var(--hairline);border-radius:var(--radius-sm)">
+        <div class="form-row" style="margin-bottom:8px">
+          <div class="form-group" style="margin-bottom:0"><label class="form-label">Label</label><input class="form-input" id="cf-label" placeholder="e.g. Department"></div>
+          <div class="form-group" style="margin-bottom:0"><label class="form-label">Key</label><input class="form-input" id="cf-key" placeholder="e.g. department"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0"><label class="form-label">Type</label><select class="form-input" id="cf-type"><option value="text">Text</option><option value="number">Number</option><option value="date">Date</option><option value="select">Select</option></select></div>
+          <div class="form-group" style="margin-bottom:0"><label class="form-label">Options (comma-separated, for select)</label><input class="form-input" id="cf-options" placeholder="opt1, opt2, opt3"></div>
+        </div>
+        <button class="btn btn-sm btn-primary" onclick="addCustomField()" style="margin-top:10px">Add Field</button>
+      </div>`;
+  } else if (S.settingsTab === 'fileInfo') {
+    content = `<div class="file-info-card">
+      <div class="file-info-row"><span class="label">File Name</span><span class="value">${esc(S.fileName)}</span></div>
+      <div class="file-info-row"><span class="label">Version</span><span class="value">${esc(S.data.meta.version || '1.0')}</span></div>
+      <div class="file-info-row"><span class="label">Last Modified</span><span class="value">${fmtDateTime(S.data.meta.lastModified)}</span></div>
+      <div class="file-info-row"><span class="label">Vehicles</span><span class="value">${S.data.vehicles.length}</span></div>
+      <div class="file-info-row"><span class="label">Bookings</span><span class="value">${S.data.bookings.length}</span></div>
+      <div class="file-info-row"><span class="label">Locked By</span><span class="value">${esc(S.data.meta.lockedBy || 'None')}</span></div>
+      <div class="file-info-row"><span class="label">Lock Time</span><span class="value">${S.data.meta.lockedAt ? fmtDateTime(S.data.meta.lockedAt) : '—'}</span></div>
+      <div class="file-info-row"><span class="label">Your ID</span><span class="value" style="font-family:monospace;font-size:12px">${esc(S.lockId || '—')}</span></div>
+    </div>`;
+  }
+
+  return `<div class="fade-in">
+    <div class="tab-header"><h2>${TABS[3].icon} Settings</h2></div>
+    <div class="settings-grid">
+      <div>
+        <div style="display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap">${tabs.map(t => `<button class="btn btn-sm${S.settingsTab === t.id ? ' btn-primary' : ''}" onclick="S.settingsTab='${t.id}';render()">${t.icon} ${t.label}</button>`).join('')}</div>
+        <div class="card"><div class="card-body">${content}</div></div>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--link)"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 15 7 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Data Actions
+          </div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:8px">
+            <button class="btn" onclick="exportJSON()" style="width:100%;justify-content:center">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export Fleet Data (JSON)
+            </button>
+            <button class="btn" onclick="importJSON()" style="width:100%;justify-content:center">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 15 7 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Import Fleet Data (JSON)
+            </button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--destructive)"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+            Danger Zone
+          </div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:8px">
+            <button class="btn btn-danger" onclick="confirmClearAll()" style="width:100%;justify-content:center">Clear All Data</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function addSettingItem(key) {
+  const input = document.getElementById('settings-input');
+  const val = input.value.trim();
+  if (!val) return;
+  if (!S.data.settings[key]) S.data.settings[key] = [];
+  if (!S.data.settings[key].includes(val)) {
+    S.data.settings[key].push(val);
+    markDirty(); render(); showToast(`Added "${val}"`, 'success');
+  }
+}
+
+function removeSettingItem(key, val) {
+  S.data.settings[key] = (S.data.settings[key] || []).filter(v => v !== val);
+  markDirty(); render(); showToast(`Removed "${val}"`, 'success');
+}
+
+function addCustomField() {
+  const label = document.getElementById('cf-label').value.trim();
+  const key = document.getElementById('cf-key').value.trim().replace(/[^a-zA-Z0-9_]/g, '');
+  const type = document.getElementById('cf-type').value;
+  const options = document.getElementById('cf-options').value.split(',').map(o => o.trim()).filter(Boolean);
+  if (!label || !key) { showToast('Label and Key are required', 'error'); return; }
+  if (!S.data.settings.customColumns) S.data.settings.customColumns = [];
+  S.data.settings.customColumns.push({ id: genId(), key, label, type, options: type === 'select' ? options : undefined });
+  markDirty(); render(); showToast('Custom field added', 'success');
+}
+
+function removeCustomField(key) {
+  S.data.settings.customColumns = (S.data.settings.customColumns || []).filter(c => c.key !== key);
+  markDirty(); render(); showToast('Custom field removed', 'success');
+}
+
+async function importJSON() {
+  try {
+    const [handle] = await window.showOpenFilePicker({ types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }] });
+    const file = await handle.getFile();
+    const text = await file.text();
+    const imported = JSON.parse(text);
+    if (imported.vehicles) S.data.vehicles = imported.vehicles;
+    if (imported.bookings) S.data.bookings = imported.bookings;
+    if (imported.settings) Object.assign(S.data.settings, imported.settings);
+    markDirty(); render(); showToast('Data imported successfully', 'success');
+  } catch (e) { if (e.name !== 'AbortError') showToast('Import failed: ' + e.message, 'error'); }
+}
+
+function confirmClearAll() {
+  openDialog('Clear All Data', '<p style="color:var(--destructive)">This will permanently delete all vehicles and bookings. This cannot be undone.</p>', () => {
+    S.data.vehicles = [];
+    S.data.bookings = [];
+    markDirty(); render(); showToast('All data cleared', 'success'); return true;
+  }, true);
+}
+
+// ===================== DIALOG =====================
+let dialogCallback = null;
+
+function openDialog(title, bodyHtml, onConfirm, isDanger = false) {
+  document.getElementById('dialog-header').innerHTML = `${esc(title)}<button class="btn-icon" onclick="closeDialog()" style="margin-left:auto"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>`;
+  document.getElementById('dialog-body').innerHTML = bodyHtml;
+  document.getElementById('dialog-footer').innerHTML = `
+    <button class="btn" onclick="closeDialog()">Cancel</button>
+    <button class="btn ${isDanger ? 'btn-danger' : 'btn-primary'}" id="dialog-confirm" onclick="dialogConfirm()">${isDanger ? 'Delete' : 'Save'}</button>
+  `;
+  dialogCallback = onConfirm;
+  document.getElementById('dialog-overlay').classList.add('active');
+  setTimeout(() => document.getElementById('dialog-confirm')?.focus(), 100);
+}
+
+function closeDialog() {
+  document.getElementById('dialog-overlay').classList.remove('active');
+  dialogCallback = null;
+}
+
+function dialogConfirm() {
+  if (dialogCallback) {
+    const result = dialogCallback();
+    if (result !== false) closeDialog();
+  }
+}
+
+function dialogOverlayClick(e) { if (e.target === e.currentTarget) closeDialog(); }
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDialog(); });
+
+// ===================== CHAT =====================
+function renderChat() {
+  const el = document.getElementById('chat-messages');
+  el.innerHTML = S.chatMessages.map(m => {
+    const avatar = m.role === 'assistant' ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>' : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+    return `<div class="chat-msg ${m.role}"><div class="chat-msg-avatar">${avatar}</div><div class="chat-msg-bubble">${esc(m.content)}</div></div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function chatKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+}
+
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text || S.chatLoading) return;
+  S.chatMessages.push({ id: genId(), role: 'user', content: text, timestamp: new Date() });
+  input.value = '';
+  renderChat();
+  S.chatLoading = true;
+
+  // Build context from fleet data
+  const context = `Fleet data: ${S.data.vehicles.length} vehicles, ${S.data.bookings.length} bookings. Vehicles: ${S.data.vehicles.map(v => v.name + ' (' + v.status + ')').join(', ')}. Recent bookings: ${S.data.bookings.slice(0, 10).map(b => b.userName + ' - ' + b.purpose + ' (' + b.status + ')').join('; ')}.`;
+
+  // Try API endpoint if configured
+  const apiEndpoint = localStorage.getItem('fleethub_ai_endpoint');
+  const apiKey = localStorage.getItem('fleethub_ai_key');
+
+  let response;
+  if (apiEndpoint && apiKey) {
+    try {
+      const res = await fetch(apiEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: localStorage.getItem('fleethub_ai_model') || 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: 'You are a fleet management AI assistant. Be concise and helpful. ' + context },
+            ...S.chatMessages.map(m => ({ role: m.role, content: m.content }))
+          ]
+        })
+      });
+      const data = await res.json();
+      response = data.choices?.[0]?.message?.content || 'Sorry, I could not generate a response.';
+    } catch (e) { response = 'Error connecting to AI service. Check your API settings in the Settings panel.'; }
+  } else {
+    response = generateLocalResponse(text);
+  }
+
+  S.chatMessages.push({ id: genId(), role: 'assistant', content: response, timestamp: new Date() });
+  S.chatLoading = false;
+  renderChat();
+}
+
+function generateLocalResponse(query) {
+  const q = query.toLowerCase();
+  const vehicles = S.data.vehicles;
+  const bookings = S.data.bookings;
+  const available = vehicles.filter(v => v.status === 'available');
+  const inUse = vehicles.filter(v => v.status === 'in-use');
+  const pending = bookings.filter(b => b.status === 'pending');
+
+  if (q.includes('available') || q.includes('free')) {
+    return `There are ${available.length} available vehicle(s):\n${available.map(v => '• ' + v.name + (v.licensePlate ? ' (' + v.licensePlate + ')' : '')).join('\n')}`;
+  }
+  if (q.includes('summary') || q.includes('overview') || q.includes('status')) {
+    return `Fleet Summary:\n• Total vehicles: ${vehicles.length}\n• Available: ${available.length}\n• In use: ${inUse.length}\n• Total bookings: ${bookings.length}\n• Pending approval: ${pending.length}`;
+  }
+  if (q.includes('pending')) {
+    return `There are ${pending.length} pending booking(s):\n${pending.map(b => '• ' + b.userName + ' - ' + b.purpose + ' (' + fmtDate(b.periodStart) + ')').join('\n')}`;
+  }
+  if (q.includes('help') || q.includes('what can')) {
+    return 'I can help you with:\n• "Show available vehicles" — list free vehicles\n• "Show pending bookings" — list bookings awaiting approval\n• "Fleet summary" — overview of your fleet\n• "How many vehicles?" — vehicle count\n• Configure an AI API in Settings for intelligent responses.';
+  }
+  return `I see you asked about "${query}". For smarter responses, configure an OpenAI-compatible API endpoint in Settings. For now, try asking about available vehicles, pending bookings, or fleet summary.`;
+}
+
+function clearChat() {
+  S.chatMessages = [{ id: genId(), role: 'assistant', content: 'Chat cleared. How can I help with your fleet?', timestamp: new Date() }];
+  renderChat();
+}
+
+// ===================== TOAST =====================
+function showToast(msg, type = 'info') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = msg;
+  container.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity .3s'; setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+// ===================== KEYBOARD SHORTCUTS =====================
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === 's') { e.preventDefault(); saveFile(); }
+    if (e.key === 'n') { e.preventDefault(); newBooking(); }
+  }
+});
+
+// ===================== INIT =====================
+renderRecentFiles();
+
+// Check File System Access API support
+if (!('showOpenFilePicker' in window)) {
+  document.querySelector('.landing-card').insertAdjacentHTML('beforeend',
+    `<div style="margin-top:20px;padding:12px;background:var(--warning-bg);border:1px solid var(--warning-border);border-radius:var(--radius-sm);font-size:13px;color:var(--warning)">
+      <strong>Note:</strong> Your browser doesn't support the File System Access API. Please use Chrome, Edge, or Opera for full functionality. You can still use the import/export features.
+      <div style="margin-top:10px"><button class="btn btn-sm" onclick="loadFallback()">Load from file input</button></div>
+    </div>`
+  );
+}
+
+async function loadFallback() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    const text = await file.text();
+    S.data = JSON.parse(text);
+    if (!S.data.meta) S.data.meta = { version: '1.0', lastModified: new Date().toISOString(), lockedBy: null, lockedAt: null, lockId: null };
+    if (!S.data.settings) S.data.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+    if (!S.data.vehicles) S.data.vehicles = [];
+    if (!S.data.bookings) S.data.bookings = [];
+    for (const k of Object.keys(DEFAULT_SETTINGS)) { if (!S.data.settings[k]) S.data.settings[k] = JSON.parse(JSON.stringify(DEFAULT_SETTINGS[k])); }
+    S.fileName = file.name;
+    S.fileHandle = null; // No handle in fallback mode
+    saveRecentFile(file.name);
+    enterApp();
+    showToast('File loaded (read-only mode — use Export to save)', 'info');
+  };
+  input.click();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+{
+  "meta": {
+    "version": "1.0",
+    "lastModified": "2026-05-31T00:00:00.000Z",
+    "lockedBy": null,
+    "lockedAt": null,
+    "lockId": null
+  },
+  "vehicles": [
+    {
+      "id": "v001",
+      "name": "Toyota Hilux #1",
+      "type": "pickup",
+      "licensePlate": "XYZ-1234",
+      "status": "available",
+      "notes": "Team lead vehicle, well maintained",
+      "sortOrder": 0,
+      "createdAt": "2026-01-15T08:00:00.000Z",
+      "updatedAt": "2026-05-30T10:00:00.000Z"
+    },
+    {
+      "id": "v002",
+      "name": "Honda CR-V #2",
+      "type": "suv",
+      "licensePlate": "ABC-5678",
+      "status": "available",
+      "notes": null,
+      "sortOrder": 1,
+      "createdAt": "2026-02-01T08:00:00.000Z",
+      "updatedAt": "2026-05-30T10:00:00.000Z"
+    },
+    {
+      "id": "v003",
+      "name": "Toyota Corolla #3",
+      "type": "sedan",
+      "licensePlate": "DEF-9012",
+      "status": "in-use",
+      "notes": "Scheduled for oil change next week",
+      "sortOrder": 2,
+      "createdAt": "2026-03-01T08:00:00.000Z",
+      "updatedAt": "2026-05-31T08:00:00.000Z"
+    },
+    {
+      "id": "v004",
+      "name": "Ford Transit #4",
+      "type": "van",
+      "licensePlate": "GHI-3456",
+      "status": "available",
+      "notes": "Cargo van for equipment transport",
+      "sortOrder": 3,
+      "createdAt": "2026-03-15T08:00:00.000Z",
+      "updatedAt": "2026-05-28T10:00:00.000Z"
+    }
+  ],
+  "bookings": [
+    {
+      "id": "b001",
+      "vehicleId": "v003",
+      "userName": "Alice Johnson",
+      "purpose": "Client site visit — downtown office",
+      "periodStart": "2026-05-31T09:00:00.000Z",
+      "periodEnd": "2026-05-31T17:00:00.000Z",
+      "status": "confirmed",
+      "remarks": "Bring presentation materials",
+      "customFields": {},
+      "shareWith": ["Bob Smith"],
+      "shareNote": "Hi Bob, I'm heading to the client site downtown. Want to ride along?",
+      "createdAt": "2026-05-29T14:00:00.000Z",
+      "updatedAt": "2026-05-30T09:00:00.000Z"
+    },
+    {
+      "id": "b002",
+      "vehicleId": "v001",
+      "userName": "Bob Smith",
+      "purpose": "Field inspection — north campus",
+      "periodStart": "2026-06-02T08:00:00.000Z",
+      "periodEnd": "2026-06-02T12:00:00.000Z",
+      "status": "pending",
+      "remarks": null,
+      "customFields": {},
+      "shareWith": [],
+      "shareNote": null,
+      "createdAt": "2026-05-30T16:00:00.000Z",
+      "updatedAt": "2026-05-30T16:00:00.000Z"
+    },
+    {
+      "id": "b003",
+      "vehicleId": "v002",
+      "userName": "Carol Davis",
+      "purpose": "Airport pickup — VIP guest",
+      "periodStart": "2026-06-01T14:00:00.000Z",
+      "periodEnd": "2026-06-01T16:30:00.000Z",
+      "status": "pending",
+      "remarks": "Guest arriving at Terminal 2",
+      "customFields": {},
+      "shareWith": [],
+      "shareNote": null,
+      "createdAt": "2026-05-31T07:00:00.000Z",
+      "updatedAt": "2026-05-31T07:00:00.000Z"
+    }
+  ],
+  "settings": {
+    "statuses": ["pending", "confirmed", "in-use", "returned", "cancelled"],
+    "vehicleTypes": ["sedan", "suv", "pickup", "van", "bus", "motorcycle", "other"],
+    "customColumns": [],
+    "shareMessage": "Hi, I would like to share this ride with you. Is that possible?"
+  }
+}
