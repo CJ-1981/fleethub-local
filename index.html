@@ -1615,7 +1615,7 @@ function editBooking(id, preselectedVehicleId) {
 
   openDialog(b ? 'Edit Booking' : 'New Booking', `
     <div id="conflict-warning"></div>
-    <div class="form-group"><label class="form-label">Vehicle *</label><select class="form-input" id="b-vehicle"><option value="">Select vehicle...</option>${vehicleOptions}</select></div>
+    <div class="form-group"><label class="form-label">Vehicle *</label><select class="form-input" id="b-vehicle" onchange="checkConflicts()"><option value="">Select vehicle...</option>${vehicleOptions}</select></div>
     ${renderUserNameField(eb.userName)}
     <div class="form-group"><label class="form-label">Purpose *</label><input class="form-input" id="b-purpose" value="${esc(eb.purpose)}" placeholder="e.g. Client meeting"></div>
     <div class="form-row">
