@@ -544,13 +544,13 @@ function initDefaultSettings() {
   setMeta('lockId', null);
 }
 
-function importJSONToSQLite(jsonData) {
+function importJSONToSQLite(jsonData, appendMode = false) {
   if (!jsonData || typeof jsonData !== 'object' || Array.isArray(jsonData)) {
     showToast('Invalid file format — expected a JSON object', 'error');
     return;
   }
-  createDatabase();
-  initDefaultSettings();
+  if (!appendMode) { createDatabase(); }
+  if (!appendMode) { initDefaultSettings(); }
   if (jsonData.vehicles) {
     jsonData.vehicles.forEach((v, i) => {
       if (!v.name) return; // skip malformed vehicle entries
@@ -1020,7 +1020,9 @@ async function openFile() {
     document.getElementById('demo-banner').style.display = 'none';
     if (file.name.endsWith('.json')) {
       const text = await file.text();
-      importJSONToSQLite(JSON.parse(text));
+      const parsed = JSON.parse(text);
+      // Archive JSON imports should merge, not wipe existing data
+      importJSONToSQLite(parsed, !!parsed._fleethubArchive);
       // Prompt save-as to migrate .json to .sqlite — prevents corruption
       try {
         const newHandle = await window.showSaveFilePicker({ suggestedName: file.name.replace(/\.json$/i, '.sqlite'), types: [{ description: 'FleetHub Data', accept: { 'application/sqlite': ['.sqlite'] } }] });
@@ -1125,7 +1127,18 @@ function getDemoData() {
 
 async function saveFile() {
   if (S.demoMode) { showToast('Demo mode — use Export to save a copy', 'info'); return; }
-  if (!S.fileHandle || !db) { showToast('No file open — use File > Save As to export', 'warning'); return; }
+  if (!db) { showToast('No database — cannot save', 'error'); return; }
+  if (!S.fileHandle) {
+    // No file handle — prompt Save As
+    try {
+      const handle = await window.showSaveFilePicker({ suggestedName: S.fileName || 'fleet-data.sqlite', types: [{ description: 'FleetHub Data', accept: { 'application/sqlite': ['.sqlite'] } }] });
+      S.fileHandle = handle;
+      S.fileName = handle.name;
+    } catch(e) {
+      if (e.name !== 'AbortError') showToast('Save As failed: ' + e.message, 'error');
+      return;
+    }
+  }
   S.saving = true;
   updateSaveIndicator();
   try {
