@@ -572,7 +572,11 @@ function importJSONToSQLite(jsonData) {
   }
   if (jsonData.settings) {
     for (const k of Object.keys(jsonData.settings)) {
-      setSetting(k, jsonData.settings[k]);
+      const val = jsonData.settings[k];
+      // Validate critical keys that must be arrays
+      if ((k === 'statuses' || k === 'vehicleTypes') && !Array.isArray(val)) continue;
+      if (k === 'customColumns' && !Array.isArray(val)) continue;
+      setSetting(k, val);
     }
   }
   if (jsonData.archivedBookings) {
@@ -643,7 +647,9 @@ function runAutoArchive() {
   try {
     db.run("BEGIN TRANSACTION;");
     for (const b of toArchive) {
-      const year = new Date(b.period_end).getFullYear();
+      const yearDate = new Date(b.period_end);
+      if (isNaN(yearDate.getTime())) continue; // skip bookings with invalid dates
+      const year = yearDate.getFullYear();
       db.run("INSERT OR REPLACE INTO archived_bookings (id, vehicle_id, vehicle_name, user_name, purpose, period_start, period_end, status, remarks, custom_fields, share_with, share_note, created_at, updated_at, archived_at, archive_year) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         [b.id, b.vehicle_id, b.vehicle_name || '', b.user_name, b.purpose, b.period_start, b.period_end, b.status, b.remarks, b.custom_fields, b.share_with, b.share_note, b.created_at, b.updated_at, archivedAt, year]);
       db.run("DELETE FROM bookings WHERE id = ?", [b.id]);
@@ -2867,12 +2873,18 @@ function executeToolCall(name, args) {
       let ps = args.periodStart, pe = args.periodEnd;
       if (ps && ps.length === 10) ps = ps + 'T00:00:00.000Z';
       if (pe && pe.length === 10) pe = pe + 'T23:59:59.000Z';
+      // Validate dates
+      const psDate = new Date(ps), peDate = new Date(pe);
+      if (isNaN(psDate.getTime()) || isNaN(peDate.getTime())) return 'Error: Invalid date provided for periodStart or periodEnd.';
+      if (psDate > peDate) return 'Error: periodStart must be before periodEnd.';
       db.run("INSERT INTO bookings (id, vehicle_id, user_name, purpose, period_start, period_end, status, remarks, custom_fields, share_with, share_note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         [id, vehicle.id, args.userName||'', args.purpose||'', ps, pe, args.status||'pending', args.remarks||'', JSON.stringify(args.customFields||{}), JSON.stringify(args.shareWith||[]), args.shareNote||'', nowISO, nowISO]);
       markDirty(); render();
       return `Booking created. ID: ${id}, Vehicle: ${vehicle.name}, User: ${args.userName}, ${ps} to ${pe}`;
     }
     case 'update_vehicle_status': {
+      const validStatuses = ['available','in-use','maintenance','reserved'];
+      if (!args.status || !validStatuses.includes(args.status)) return `Error: Invalid status "${args.status}". Must be one of: ${validStatuses.join(', ')}`;
       const vehicles = getVehicles();
       const vehicle = vehicles.find(v => v.name.toLowerCase() === (args.vehicleName||'').toLowerCase());
       if (!vehicle) return `Error: Vehicle "${args.vehicleName}" not found.`;
@@ -2881,6 +2893,8 @@ function executeToolCall(name, args) {
       return `Vehicle "${vehicle.name}" status updated to "${args.status}".`;
     }
     case 'cancel_booking': {
+      const booking = getBookings().find(b => b.id === args.bookingId);
+      if (!booking) return `Error: Booking "${args.bookingId}" not found.`;
       db.run("UPDATE bookings SET status='cancelled', updated_at=? WHERE id=?", [new Date().toISOString(), args.bookingId]);
       markDirty(); render();
       return `Booking ${args.bookingId} cancelled.`;
