@@ -2,6 +2,8 @@
 
 **Zero-backend fleet management.** A single HTML file that stores data in a local SQLite database. No server, no login, no cloud services required.
 
+**Live demo:** [cj-1981.github.io/fleethub-local](https://cj-1981.github.io/fleethub-local/)
+
 ![FleetHub](https://img.shields.io/badge/FleetHub-Local_File_Mode-181d26?style=flat&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMSIgeT0iMyIgd2lkdGg9IjE1IiBoZWlnaHQ9IjEzIiByeD0iMiIvPjxwYXRoIGQ9Ik0xNiA4aDRhMiAyIDAgMCAxIDIgMnY2YTIgMiAwIDAgMS0yIDJoLTIiLz48Y2lyY2xlIGN4PSI1LjUiIGN5PSIxOC41IiByPSIyLjUiLz48Y2lyY2xlIGN4PSIxOC41IiBjeT0iMTguNSIgcj0iMi41Ii8+PC9zdmc+)
 
 ## Features
@@ -177,7 +179,7 @@ FleetHub can import data from the legacy JSON format for seamless migration. The
 1. Push this repo to GitHub
 2. Go to **Settings → Pages**
 3. Set source to the `main` branch
-4. Your app will be available at `https://username.github.io/fleethub-local/`
+4. Your app will be available at [cj-1981.github.io/fleethub-local](https://cj-1981.github.io/fleethub-local/)
 
 > Note: File System Access API requires a **secure context** (HTTPS or localhost). GitHub Pages serves over HTTPS, so it works.
 
