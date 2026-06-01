@@ -549,25 +549,28 @@ function importJSONToSQLite(jsonData, appendMode = false) {
     showToast('Invalid file format — expected a JSON object', 'error');
     return;
   }
-  if (!appendMode) { createDatabase(); }
+  if (!appendMode || !db) { createDatabase(); }
   if (!appendMode) { initDefaultSettings(); }
   if (jsonData.vehicles) {
     jsonData.vehicles.forEach((v, i) => {
       if (!v.name) return; // skip malformed vehicle entries
       db.run("INSERT OR REPLACE INTO vehicles (id, name, type, license_plate, status, notes, sort_order, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
-        [v.id || genId(), v.name, v.type || '', v.licensePlate || '', v.status || 'available', v.notes || '',
-         v.sortOrder != null ? v.sortOrder : i, v.createdAt || '', v.updatedAt || '']);
+        [v.id || genId(), v.name, v.type || '', v.licensePlate || v.license_plate || '', v.status || 'available', v.notes || '',
+         v.sortOrder != null ? v.sortOrder : v.sort_order != null ? v.sort_order : i, v.createdAt || v.created_at || '', v.updatedAt || v.updated_at || '']);
     });
   }
   if (jsonData.bookings) {
     jsonData.bookings.forEach(b => {
       if (!b.id) b.id = genId();
-      if (!b.vehicleId) return; // skip bookings without a vehicle
-      if (!b.periodStart || !b.periodEnd) return; // skip bookings without valid dates
+      const bVehicleId = b.vehicleId || b.vehicle_id;
+      if (!bVehicleId) return; // skip bookings without a vehicle
+      const bStart = b.periodStart || b.period_start || '';
+      const bEnd = b.periodEnd || b.period_end || '';
+      if (!bStart || !bEnd) return; // skip bookings without valid dates
       db.run("INSERT OR REPLACE INTO bookings (id, vehicle_id, period_start, period_end, user_name, purpose, status, remarks, custom_fields, share_with, share_note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        [b.id, b.vehicleId, b.periodStart, b.periodEnd, b.userName || '', b.purpose || '',
-         b.status || 'pending', b.remarks || '', JSON.stringify(b.customFields || {}),
-         JSON.stringify(b.shareWith || []), b.shareNote || '', b.createdAt || '', b.updatedAt || '']);
+        [b.id, bVehicleId, bStart, bEnd, b.userName || b.user_name || '', b.purpose || '',
+         b.status || 'pending', b.remarks || '', JSON.stringify(b.customFields || b.custom_fields || {}),
+         JSON.stringify(b.shareWith || b.share_with || []), b.shareNote || b.share_note || '', b.createdAt || b.created_at || '', b.updatedAt || b.updated_at || '']);
     });
   }
   if (jsonData.settings) {
@@ -576,6 +579,10 @@ function importJSONToSQLite(jsonData, appendMode = false) {
       // Validate critical keys that must be arrays
       if ((k === 'statuses' || k === 'vehicleTypes') && !Array.isArray(val)) continue;
       if (k === 'customColumns' && !Array.isArray(val)) continue;
+      if (k === 'customColumns') {
+        val = val.filter(c => c && typeof c === 'object' && c.label && c.key && c.type);
+        if (!val.length) continue;
+      }
       setSetting(k, val);
     }
   }
@@ -606,9 +613,10 @@ function getVehicles() {
 }
 
 function getBookings() {
-  return dbQuery("SELECT id, vehicle_id AS vehicleId, user_name AS userName, purpose, period_start AS periodStart, period_end AS periodEnd, status, remarks, custom_fields AS customFields, share_with AS shareWith, share_note AS shareNote, created_at AS createdAt, updated_at AS updatedAt FROM bookings ORDER BY period_start DESC").map(b => ({
-    ...b, customFields: JSON.parse(b.customFields || '{}'), shareWith: JSON.parse(b.shareWith || '[]')
-  }));
+  return dbQuery("SELECT id, vehicle_id AS vehicleId, user_name AS userName, purpose, period_start AS periodStart, period_end AS periodEnd, status, remarks, custom_fields AS customFields, share_with AS shareWith, share_note AS shareNote, created_at AS createdAt, updated_at AS updatedAt FROM bookings ORDER BY period_start DESC").map(b => {
+    try { return { ...b, customFields: JSON.parse(b.customFields || '{}'), shareWith: JSON.parse(b.shareWith || '[]') }; }
+    catch(e) { return { ...b, customFields: {}, shareWith: [] }; }
+  });
 }
 
 function getSettings() {
@@ -675,7 +683,10 @@ function getArchivedYears() {
 function getArchivedBookings(year) {
   if (!db) return [];
   return dbQuery("SELECT id, vehicle_id AS vehicleId, vehicle_name AS vehicleName, user_name AS userName, purpose, period_start AS periodStart, period_end AS periodEnd, status, remarks, custom_fields AS customFields, share_with AS shareWith, share_note AS shareNote, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt, archive_year AS archiveYear FROM archived_bookings WHERE archive_year = ? ORDER BY period_start DESC", [year])
-    .map(b => ({ ...b, customFields: JSON.parse(b.customFields || '{}'), shareWith: JSON.parse(b.shareWith || '[]') }));
+    .map(b => {
+      try { return { ...b, customFields: JSON.parse(b.customFields || '{}'), shareWith: JSON.parse(b.shareWith || '[]') }; }
+      catch(e) { return { ...b, customFields: {}, shareWith: [] }; }
+    });
 }
 
 function restoreArchivedBooking(id) {
@@ -1131,7 +1142,7 @@ async function saveFile() {
   if (!S.fileHandle) {
     // No file handle — prompt Save As
     try {
-      const handle = await window.showSaveFilePicker({ suggestedName: S.fileName || 'fleet-data.sqlite', types: [{ description: 'FleetHub Data', accept: { 'application/sqlite': ['.sqlite'] } }] });
+      const handle = await window.showSaveFilePicker({ suggestedName: (S.fileName && !S.fileName.includes('(unsaved)')) ? S.fileName : 'fleet-data.sqlite', types: [{ description: 'FleetHub Data', accept: { 'application/sqlite': ['.sqlite'] } }] });
       S.fileHandle = handle;
       S.fileName = handle.name;
     } catch(e) {
