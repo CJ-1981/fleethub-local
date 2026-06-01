@@ -6,6 +6,8 @@
 <title>FleetHub — Local File Mode</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -68,6 +70,7 @@ body{background:var(--surface-soft)}
 .header-actions{display:flex;align-items:center;gap:4px}
 .lock-badge{display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:500;border:1px solid}
 .lock-badge.locked{color:var(--warning);background:var(--warning-bg);border-color:var(--warning-border)}
+.lock-badge.owned{color:var(--primary);background:var(--primary-bg,#e8f0fe);border-color:var(--primary)}
 .lock-badge.unlocked{color:var(--success);background:var(--success-bg);border-color:var(--success-border)}
 .save-indicator{font-size:12px;color:var(--muted);padding:0 8px}
 .save-indicator.unsaved{color:var(--warning)}
@@ -196,6 +199,20 @@ select.form-input{cursor:pointer}
 .chat-msg-bubble{padding:10px 14px;border-radius:var(--radius-md);font-size:13px;line-height:1.5;white-space:pre-wrap}
 .chat-msg.assistant .chat-msg-bubble{background:var(--surface-soft);border:1px solid var(--hairline);color:var(--body)}
 .chat-msg.user .chat-msg-bubble{background:var(--primary);color:#fff;border:1px solid var(--primary)}
+.chat-msg.assistant .chat-msg-bubble p{margin:0 0 8px}.chat-msg.assistant .chat-msg-bubble p:last-child{margin-bottom:0}
+.chat-msg.assistant .chat-msg-bubble ul,.chat-msg.assistant .chat-msg-bubble ol{margin:4px 0 8px 20px}.chat-msg.assistant .chat-msg-bubble li{margin-bottom:2px}
+.chat-msg.assistant .chat-msg-bubble code{background:var(--surface-strong);padding:1px 4px;border-radius:3px;font-size:12px;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace}
+.chat-msg.assistant .chat-msg-bubble pre{background:var(--surface-strong);padding:8px 12px;border-radius:var(--radius-sm);overflow-x:auto;margin:6px 0}
+.chat-msg.assistant .chat-msg-bubble pre code{background:none;padding:0;font-size:12px}
+.chat-msg.assistant .chat-msg-bubble strong{font-weight:600;color:var(--ink)}
+.chat-msg.assistant .chat-msg-bubble em{font-style:italic}
+.chat-msg.assistant .chat-msg-bubble a{color:var(--link);text-decoration:underline}
+.chat-msg.assistant .chat-msg-bubble blockquote{border-left:3px solid var(--surface-strong);margin:6px 0;padding-left:10px;color:var(--muted)}
+.chat-msg.assistant .chat-msg-bubble h1,.chat-msg.assistant .chat-msg-bubble h2,.chat-msg.assistant .chat-msg-bubble h3{font-size:14px;font-weight:600;margin:10px 0 4px;color:var(--ink)}
+.chat-msg.assistant .chat-msg-bubble hr{border:none;border-top:1px solid var(--hairline);margin:8px 0}
+.chat-msg.assistant .chat-msg-bubble table{border-collapse:collapse;margin:6px 0;font-size:12px}
+.chat-msg.assistant .chat-msg-bubble th,.chat-msg.assistant .chat-msg-bubble td{border:1px solid var(--hairline);padding:4px 8px}
+.chat-msg.assistant .chat-msg-bubble th{background:var(--surface-soft);font-weight:600}
 .chat-input-area{padding:12px 16px;border-top:1px solid var(--hairline);display:flex;gap:8px;align-items:flex-end}
 .chat-input-area textarea{flex:1;padding:8px 12px;border:1px solid var(--hairline);border-radius:var(--radius-sm);resize:none;outline:none;min-height:36px;max-height:120px;font-size:13px}
 .chat-input-area textarea:focus{border-color:var(--ring)}
@@ -308,7 +325,7 @@ select.form-input{cursor:pointer}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
     </div>
     <h1>FleetHub</h1>
-    <p>Fleet Management — Local File Mode<br>No server required. All data stays in your JSON file.</p>
+    <p>Fleet Management — Local File Mode<br>No server required. All data stays in your local database file.</p>
     <div id="landing-actions" style="display:flex;flex-direction:column;gap:10px;align-items:center">
       <button id="btn-open" class="btn btn-primary" onclick="openFile()" style="width:240px;justify-content:center;padding:12px 20px;font-size:15px">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
@@ -355,11 +372,11 @@ select.form-input{cursor:pointer}
       </span>
       FleetHub
     </a>
-    <span class="header-filename" id="header-filename">fleet-data.json</span>
+    <span class="header-filename" id="header-filename">fleet-data.sqlite</span>
     <span class="save-indicator" id="save-indicator">Saved</span>
     <div class="header-spacer"></div>
     <span class="lock-badge unlocked" id="lock-badge">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
       <span id="lock-badge-text">Unlocked</span>
     </span>
     <div class="header-actions">
@@ -407,12 +424,14 @@ select.form-input{cursor:pointer}
 <!-- Gantt Tooltip -->
 <div id="gantt-tooltip" style="position:fixed;display:none;padding:8px 12px;background:var(--ink);color:#fff;font-size:12px;border-radius:4px;pointer-events:none;z-index:10000;max-width:300px;white-space:normal"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/sql-wasm.js"></script>
 <script>
 // ===================== STATE =====================
 const S = {
   fileHandle: null,
   fileName: '',
-  data: null,
+  demoMode: false,
+  // data is now backed by SQLite — use getVehicles()/getBookings() instead of S.data
   dirty: false,
   saving: false,
   activeTab: 'dashboard',
@@ -432,6 +451,8 @@ const S = {
   openSections: ['booking', 'data'],
   calendarView: 'week',
   calendarStart: new Date().toISOString(),
+  settingsTab: 'booking',
+  archiveYear: null,
 };
 
 const DEFAULT_SETTINGS = {
@@ -441,6 +462,425 @@ const DEFAULT_SETTINGS = {
   shareMessage: 'Hi, I would like to share this ride with you. Is that possible?',
   germanState: null
 };
+
+// ===================== SQLITE DATA LAYER =====================
+let db = null;
+let sqlJsModule = null;
+
+async function initSqlJsModule() {
+  if (sqlJsModule) return sqlJsModule;
+  sqlJsModule = await initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/${f}` });
+  return sqlJsModule;
+}
+
+function ensureSchema() {
+  db.run("PRAGMA foreign_keys = ON;");
+  db.run(`
+    CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+    CREATE TABLE IF NOT EXISTS vehicles (id TEXT PRIMARY KEY, name TEXT NOT NULL, type TEXT DEFAULT '', license_plate TEXT DEFAULT '', status TEXT DEFAULT 'available', notes TEXT DEFAULT '', sort_order INTEGER DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS bookings (id TEXT PRIMARY KEY, vehicle_id TEXT NOT NULL, period_start TEXT NOT NULL, period_end TEXT NOT NULL, user_name TEXT NOT NULL DEFAULT '', purpose TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', remarks TEXT DEFAULT '', custom_fields TEXT DEFAULT '{}', share_with TEXT DEFAULT '[]', share_note TEXT DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS archived_bookings (id TEXT PRIMARY KEY, vehicle_id TEXT NOT NULL, vehicle_name TEXT DEFAULT '', user_name TEXT NOT NULL DEFAULT '', purpose TEXT NOT NULL DEFAULT '', period_start TEXT NOT NULL, period_end TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', remarks TEXT DEFAULT '', custom_fields TEXT DEFAULT '{}', share_with TEXT DEFAULT '[]', share_note TEXT DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived_at TEXT NOT NULL, archive_year INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+  `);
+}
+
+function createDatabase() {
+  db = new sqlJsModule.Database();
+  ensureSchema();
+  return db;
+}
+
+function dbQuery(sql, params = []) {
+  if (!db) return [];
+  try {
+    const results = db.exec(sql, params);
+    if (results.length === 0) return [];
+    const cols = results[0].columns;
+    return results[0].values.map(row => { const obj = {}; cols.forEach((c, i) => obj[c] = row[i]); return obj; });
+  } catch(e) { console.error('dbQuery error:', e); return []; }
+}
+
+function dbScalar(sql, params = []) {
+  if (!db) return null;
+  try {
+    const results = db.exec(sql, params);
+    if (results.length === 0 || results[0].values.length === 0) return null;
+    return results[0].values[0][0];
+  } catch(e) { console.error('dbScalar error:', e); return null; }
+}
+
+function getSetting(key, defaultVal) {
+  const val = dbScalar("SELECT value FROM settings WHERE key = ?", [key]);
+  if (val === null || val === undefined) return defaultVal !== undefined ? defaultVal : null;
+  try { return JSON.parse(val); } catch(e) { return val; }
+}
+
+function setSetting(key, value) {
+  db.run("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [key, JSON.stringify(value)]);
+}
+
+function getMeta(key, defaultVal = null) {
+  const val = dbScalar("SELECT value FROM meta WHERE key = ?", [key]);
+  return val !== null ? val : defaultVal;
+}
+
+function setMeta(key, value) {
+  db.run("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", [key, String(value ?? '')]);
+}
+
+function initDefaultSettings() {
+  setSetting('statuses', DEFAULT_SETTINGS.statuses);
+  setSetting('vehicleTypes', DEFAULT_SETTINGS.vehicleTypes);
+  setSetting('customColumns', []);
+  setSetting('shareMessage', DEFAULT_SETTINGS.shareMessage);
+  setSetting('germanState', null);
+  setSetting('userNameConfig', { type: 'text' });
+  setSetting('archiveEnabled', true);
+  setSetting('archiveRetentionMonths', 12);
+  setMeta('version', '1.0');
+  setMeta('lastModified', new Date().toISOString());
+  setMeta('lockedBy', null);
+  setMeta('lockedAt', null);
+  setMeta('lockId', null);
+}
+
+function importJSONToSQLite(jsonData, appendMode = false) {
+  if (!jsonData || typeof jsonData !== 'object' || Array.isArray(jsonData)) {
+    showToast('Invalid file format — expected a JSON object', 'error');
+    return;
+  }
+  if (!appendMode || !db) { createDatabase(); }
+  if (!appendMode) { initDefaultSettings(); }
+  if (jsonData.vehicles) {
+    jsonData.vehicles.forEach((v, i) => {
+      if (!v.name) return; // skip malformed vehicle entries
+      db.run("INSERT OR REPLACE INTO vehicles (id, name, type, license_plate, status, notes, sort_order, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        [v.id || genId(), v.name, v.type || '', v.licensePlate || v.license_plate || '', v.status || 'available', v.notes || '',
+         v.sortOrder != null ? v.sortOrder : v.sort_order != null ? v.sort_order : i, v.createdAt || v.created_at || '', v.updatedAt || v.updated_at || '']);
+    });
+  }
+  if (jsonData.bookings) {
+    jsonData.bookings.forEach(b => {
+      if (!b.id) b.id = genId();
+      const bVehicleId = b.vehicleId || b.vehicle_id;
+      if (!bVehicleId) return; // skip bookings without a vehicle
+      const bStart = b.periodStart || b.period_start || '';
+      const bEnd = b.periodEnd || b.period_end || '';
+      if (!bStart || !bEnd) return; // skip bookings without valid dates
+      db.run("INSERT OR REPLACE INTO bookings (id, vehicle_id, period_start, period_end, user_name, purpose, status, remarks, custom_fields, share_with, share_note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [b.id, bVehicleId, bStart, bEnd, b.userName || b.user_name || '', b.purpose || '',
+         b.status || 'pending', b.remarks || '', JSON.stringify(b.customFields || b.custom_fields || {}),
+         JSON.stringify(b.shareWith || b.share_with || []), b.shareNote || b.share_note || '', b.createdAt || b.created_at || '', b.updatedAt || b.updated_at || '']);
+    });
+  }
+  if (jsonData.settings) {
+    for (const k of Object.keys(jsonData.settings)) {
+      let val = jsonData.settings[k];
+      // Validate critical keys that must be arrays
+      if ((k === 'statuses' || k === 'vehicleTypes') && !Array.isArray(val)) continue;
+      if (k === 'customColumns' && !Array.isArray(val)) continue;
+      if (k === 'customColumns') {
+        val = val.filter(c => c && typeof c === 'object' && c.label && c.key && c.type);
+        if (!val.length) continue;
+      }
+      // Validate boolean and numeric settings
+      if (k === 'archiveEnabled' && typeof val !== 'boolean') val = Boolean(val);
+      if (k === 'archiveRetentionMonths') val = Math.max(1, Math.min(120, parseInt(val) || 12));
+      if (k === 'userNameConfig' && typeof val !== 'object') val = { type: 'text' };
+      setSetting(k, val);
+    }
+  }
+  if (jsonData.archivedBookings) {
+    jsonData.archivedBookings.forEach(b => {
+      if (!b.id) return; // skip entries without id
+      const start = b.periodStart || b.period_start || '';
+      const end = b.periodEnd || b.period_end || '';
+      if (!start || !end) return; // skip archived bookings without valid dates
+      db.run("INSERT OR REPLACE INTO archived_bookings (id, vehicle_id, vehicle_name, user_name, purpose, period_start, period_end, status, remarks, custom_fields, share_with, share_note, created_at, updated_at, archived_at, archive_year) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [b.id, b.vehicleId || b.vehicle_id || '', b.vehicleName || b.vehicle_name || '',
+         b.userName || b.user_name || '', b.purpose || '',
+         start, end,
+         b.status || 'pending', b.remarks || '', JSON.stringify(b.customFields || b.custom_fields || {}),
+         JSON.stringify(b.shareWith || b.share_with || []), b.shareNote || b.share_note || '',
+         b.createdAt || b.created_at || '', b.updatedAt || b.updated_at || '',
+         b.archivedAt || b.archived_at || '', b.archiveYear || b.archive_year || new Date().getFullYear()]);
+    });
+  }
+  if (jsonData.meta) {
+    if (jsonData.meta.version !== undefined) setMeta('version', jsonData.meta.version);
+    if (jsonData.meta.lastModified !== undefined) setMeta('lastModified', jsonData.meta.lastModified);
+  }
+}
+
+function getVehicles() {
+  return dbQuery("SELECT id, name, type, license_plate AS licensePlate, status, notes, sort_order AS sortOrder, created_at AS createdAt, updated_at AS updatedAt FROM vehicles ORDER BY sort_order, created_at");
+}
+
+function getBookings() {
+  return dbQuery("SELECT id, vehicle_id AS vehicleId, user_name AS userName, purpose, period_start AS periodStart, period_end AS periodEnd, status, remarks, custom_fields AS customFields, share_with AS shareWith, share_note AS shareNote, created_at AS createdAt, updated_at AS updatedAt FROM bookings ORDER BY period_start DESC").map(b => {
+    try { return { ...b, customFields: JSON.parse(b.customFields || '{}'), shareWith: JSON.parse(b.shareWith || '[]') }; }
+    catch(e) { return { ...b, customFields: {}, shareWith: [] }; }
+  });
+}
+
+function getSettings() {
+  const rows = dbQuery("SELECT key, value FROM settings");
+  const map = {};
+  rows.forEach(r => { try { map[r.key] = JSON.parse(r.value); } catch(e) { map[r.key] = r.value; } });
+  return {
+    statuses: map.statuses || DEFAULT_SETTINGS.statuses,
+    vehicleTypes: map.vehicleTypes || DEFAULT_SETTINGS.vehicleTypes,
+    customColumns: map.customColumns || [],
+    shareMessage: map.shareMessage || DEFAULT_SETTINGS.shareMessage,
+    germanState: map.germanState || null,
+    userNameConfig: map.userNameConfig || { type: 'text' },
+  };
+}
+
+function getAllSettings() {
+  const rows = dbQuery("SELECT key, value FROM settings");
+  const map = {};
+  rows.forEach(r => { try { map[r.key] = JSON.parse(r.value); } catch(e) { map[r.key] = r.value; } });
+  return map;
+}
+
+function getData() {
+  if (!db) return null;
+  return { meta: { version: getMeta('version','1.0'), lastModified: getMeta('lastModified'), lockedBy: getMeta('lockedBy'), lockedAt: getMeta('lockedAt'), lockId: getMeta('lockId') }, vehicles: getVehicles(), bookings: getBookings(), settings: getAllSettings() };
+}
+
+// ===================== ARCHIVE FUNCTIONS =====================
+function runAutoArchive() {
+  if (!db) return 0;
+  const enabled = getSetting('archiveEnabled', true);
+  if (!enabled) return 0;
+  const retentionMonths = parseInt(getSetting('archiveRetentionMonths', 12)) || 12;
+  const now = new Date();
+  const cutoff = new Date(now);
+  cutoff.setMonth(cutoff.getMonth() - retentionMonths);
+  // Guard against month rollover: if subtracting months overshot, clamp to last day of target month
+  if (cutoff.getDate() !== now.getDate()) {
+    cutoff.setDate(0); // last day of previous month
+  }
+  const cutoffISO = cutoff.toISOString();
+  const toArchive = dbQuery("SELECT b.*, v.name AS vehicle_name FROM bookings b LEFT JOIN vehicles v ON b.vehicle_id = v.id WHERE b.period_end < ?", [cutoffISO]);
+  if (!toArchive.length) return 0;
+  const archivedAt = new Date().toISOString();
+  try {
+    db.run("BEGIN TRANSACTION;");
+    for (const b of toArchive) {
+      const yearDate = new Date(b.period_end);
+      if (isNaN(yearDate.getTime())) continue; // skip bookings with invalid dates
+      const year = yearDate.getFullYear();
+      db.run("INSERT OR REPLACE INTO archived_bookings (id, vehicle_id, vehicle_name, user_name, purpose, period_start, period_end, status, remarks, custom_fields, share_with, share_note, created_at, updated_at, archived_at, archive_year) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [b.id, b.vehicle_id, b.vehicle_name || '', b.user_name, b.purpose, b.period_start, b.period_end, b.status, b.remarks, b.custom_fields, b.share_with, b.share_note, b.created_at, b.updated_at, archivedAt, year]);
+      db.run("DELETE FROM bookings WHERE id = ?", [b.id]);
+    }
+    db.run("COMMIT;");
+    markDirty();
+  } catch(e) {
+    db.run("ROLLBACK;");
+    showToast('Auto-archive failed: ' + e.message, 'error');
+    return 0;
+  }
+  return toArchive.length;
+}
+
+function getArchivedYears() {
+  if (!db) return [];
+  return dbQuery("SELECT DISTINCT archive_year FROM archived_bookings ORDER BY archive_year DESC").map(r => r.archive_year);
+}
+
+function getArchivedBookings(year) {
+  if (!db) return [];
+  return dbQuery("SELECT id, vehicle_id AS vehicleId, vehicle_name AS vehicleName, user_name AS userName, purpose, period_start AS periodStart, period_end AS periodEnd, status, remarks, custom_fields AS customFields, share_with AS shareWith, share_note AS shareNote, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt, archive_year AS archiveYear FROM archived_bookings WHERE archive_year = ? ORDER BY period_start DESC", [year])
+    .map(b => {
+      try { return { ...b, customFields: JSON.parse(b.customFields || '{}'), shareWith: JSON.parse(b.shareWith || '[]') }; }
+      catch(e) { return { ...b, customFields: {}, shareWith: [] }; }
+    });
+}
+
+function restoreArchivedBooking(id) {
+  const rows = dbQuery("SELECT * FROM archived_bookings WHERE id = ?", [id]);
+  if (!rows.length) return;
+  const b = rows[0];
+  db.run("INSERT OR REPLACE INTO bookings (id, vehicle_id, user_name, purpose, period_start, period_end, status, remarks, custom_fields, share_with, share_note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    [b.id, b.vehicle_id, b.user_name, b.purpose, b.period_start, b.period_end, b.status, b.remarks, b.custom_fields, b.share_with, b.share_note, b.created_at, b.updated_at]);
+  db.run("DELETE FROM archived_bookings WHERE id = ?", [id]);
+  markDirty(); render(); showToast('Booking restored', 'success');
+}
+
+function deleteArchivedBooking(id) {
+  db.run("DELETE FROM archived_bookings WHERE id = ?", [id]);
+  markDirty(); render(); showToast('Archived booking deleted', 'success');
+}
+
+function purgeArchiveYear(year) {
+  db.run("DELETE FROM archived_bookings WHERE archive_year = ?", [year]);
+  markDirty(); render(); showToast(`All ${year} archived bookings purged`, 'success');
+}
+
+function exportArchiveYear(year) {
+  const archived = getArchivedBookings(year);
+  if (!archived.length) { showToast('No archived bookings for ' + year, 'warning'); return; }
+  const envelope = {
+    _fleethubArchive: true,
+    version: '1.0',
+    archiveYear: year,
+    exportedAt: new Date().toISOString(),
+    recordCount: archived.length,
+    archivedBookings: archived
+  };
+  const json = JSON.stringify(envelope, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = `fleethub-archive-${year}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function archiveAndExportJSON() {
+  const count = runAutoArchive();
+  const years = getArchivedYears();
+  if (!years.length) {
+    showToast(count > 0 ? 'Archived but no data to export' : 'No archived bookings to export', 'info');
+    return;
+  }
+  showToast(`${count > 0 ? count + ' booking(s) archived. ' : ''}Exporting ${years.length} JSON file(s)...`, 'info');
+  years.forEach((year, i) => {
+    setTimeout(() => exportArchiveYear(year), i * 500);
+  });
+  // After exports finish, ask to purge archived records from DB
+  const totalDelay = years.length * 500 + 600;
+  setTimeout(() => {
+    const yearCounts = years.map(y => `${y} (${getArchivedBookings(y).length})`).join(', ');
+    openDialog('Purge Archived Records?',
+      `<p>JSON files have been exported.</p>` +
+      `<p style="margin-top:12px">Delete <strong>all archived bookings</strong> (${yearCounts}) from this database?</p>` +
+      `<p style="font-size:13px;color:var(--muted);margin-top:8px">This keeps your working database slim. You can always re-import the exported <code>.json</code> files later via Data Actions &rarr; Import. Uses <code>INSERT OR REPLACE</code> so re-importing is safe even if records overlap.</p>`,
+      () => {
+        try {
+          db.run("BEGIN TRANSACTION;");
+          for (const y of years) db.run("DELETE FROM archived_bookings WHERE archive_year = ?", [y]);
+          db.run("COMMIT;");
+        } catch(e) { db.run("ROLLBACK;"); showToast('Purge failed: ' + e.message, 'error'); return false; }
+        markDirty(); render(); showToast('Archived records purged from database', 'success');
+        return true;
+      }, true);
+  }, totalDelay);
+}
+
+function exportArchiveYearSQL(year) {
+  const archived = getArchivedBookings(year);
+  if (!archived.length) { showToast('No archived bookings for ' + year, 'warning'); return; }
+  const now = new Date().toISOString();
+  let sql = `-- FleetHub Local - Archived Bookings Export\n`;
+  sql += `-- Year: ${year}\n`;
+  sql += `-- Exported: ${now}\n`;
+  sql += `-- Total records: ${archived.length}\n\n`;
+  sql += `CREATE TABLE IF NOT EXISTS archived_bookings (\n`;
+  sql += `  id TEXT PRIMARY KEY,\n`;
+  sql += `  vehicle_id TEXT NOT NULL,\n`;
+  sql += `  vehicle_name TEXT DEFAULT '',\n`;
+  sql += `  user_name TEXT NOT NULL DEFAULT '',\n`;
+  sql += `  purpose TEXT NOT NULL DEFAULT '',\n`;
+  sql += `  period_start TEXT NOT NULL,\n`;
+  sql += `  period_end TEXT NOT NULL,\n`;
+  sql += `  status TEXT NOT NULL DEFAULT 'pending',\n`;
+  sql += `  remarks TEXT DEFAULT '',\n`;
+  sql += `  custom_fields TEXT DEFAULT '{}',\n`;
+  sql += `  share_with TEXT DEFAULT '[]',\n`;
+  sql += `  share_note TEXT DEFAULT '',\n`;
+  sql += `  created_at TEXT NOT NULL,\n`;
+  sql += `  updated_at TEXT NOT NULL,\n`;
+  sql += `  archived_at TEXT NOT NULL,\n`;
+  sql += `  archive_year INTEGER NOT NULL\n`;
+  sql += `);\n\n`;
+  for (const b of archived) {
+    const id = sqlEscape(b.id);
+    const vid = sqlEscape(b.vehicleId);
+    const vn = sqlEscape(b.vehicleName || '');
+    const un = sqlEscape(b.userName);
+    const pu = sqlEscape(b.purpose);
+    const ps = sqlEscape(b.periodStart);
+    const pe = sqlEscape(b.periodEnd);
+    const st = sqlEscape(b.status);
+    const re = sqlEscape(b.remarks || '');
+    const cf = sqlEscape(JSON.stringify(b.customFields || {}));
+    const sw = sqlEscape(JSON.stringify(b.shareWith || []));
+    const sn = sqlEscape(b.shareNote || '');
+    const ca = sqlEscape(b.createdAt || '');
+    const ua = sqlEscape(b.updatedAt || '');
+    const aa = sqlEscape(b.archivedAt || '');
+    const yr = b.archiveYear;
+    sql += `INSERT OR REPLACE INTO archived_bookings (id, vehicle_id, vehicle_name, user_name, purpose, period_start, period_end, status, remarks, custom_fields, share_with, share_note, created_at, updated_at, archived_at, archive_year) VALUES ('${id}','${vid}','${vn}','${un}','${pu}','${ps}','${pe}','${st}','${re}','${cf}','${sw}','${sn}','${ca}','${ua}','${aa}',${yr});\n`;
+  }
+  const blob = new Blob([sql], { type: 'application/sql' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = `fleethub-archive-${year}.sql`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function sqlEscape(str) {
+  return String(str).replace(/'/g, "''");
+}
+
+function archiveAndExportSQL() {
+  const count = runAutoArchive();
+  const years = getArchivedYears();
+  if (!years.length) {
+    showToast(count > 0 ? 'Archived but no data to export' : 'No archived bookings to export', 'info');
+    return;
+  }
+  showToast(`${count > 0 ? count + ' booking(s) archived. ' : ''}Exporting ${years.length} SQL file(s)...`, 'info');
+  years.forEach((year, i) => {
+    setTimeout(() => exportArchiveYearSQL(year), i * 500);
+  });
+  // After exports finish, ask to purge archived records from DB
+  const totalDelay = years.length * 500 + 600;
+  setTimeout(() => {
+    const yearCounts = years.map(y => `${y} (${getArchivedBookings(y).length})`).join(', ');
+    openDialog('Purge Archived Records?',
+      `<p>SQL files have been exported.</p>` +
+      `<p style="margin-top:12px">Delete <strong>all archived bookings</strong> (${yearCounts}) from this database?</p>` +
+      `<p style="font-size:13px;color:var(--muted);margin-top:8px">This keeps your working database slim. You can always re-import the exported <code>.sql</code> files later if needed. Uses <code>INSERT OR REPLACE</code> so re-importing is safe even if records overlap.</p>`,
+      () => {
+        try {
+          db.run("BEGIN TRANSACTION;");
+          for (const y of years) db.run("DELETE FROM archived_bookings WHERE archive_year = ?", [y]);
+          db.run("COMMIT;");
+        } catch(e) { db.run("ROLLBACK;"); showToast('Purge failed: ' + e.message, 'error'); return false; }
+        markDirty(); render(); showToast('Archived records purged from database', 'success');
+        return true;
+      }, true);
+  }, totalDelay);
+}
+
+function toggleArchiveEnabled() {
+  const enabled = document.getElementById('archive-enabled').checked;
+  setSetting('archiveEnabled', enabled);
+  const opts = document.getElementById('archive-options');
+  if (opts) { opts.style.opacity = enabled ? '1' : '0.5'; opts.style.pointerEvents = enabled ? 'auto' : 'none'; }
+  markDirty(); showToast(enabled ? 'Auto-archive enabled' : 'Auto-archive disabled', 'success');
+}
+
+function updateArchiveRetention() {
+  const val = parseInt(document.getElementById('archive-retention').value);
+  if (!val || val < 1) { showToast('Retention must be at least 1 month', 'error'); return; }
+  setSetting('archiveRetentionMonths', Math.min(val, 120));
+  markDirty(); showToast(`Retention set to ${Math.min(val, 120)} months`, 'success');
+}
+
+function runAutoArchiveNow() {
+  const count = runAutoArchive();
+  if (count > 0) { showToast(`${count} booking(s) archived`, 'success'); render(); }
+  else { showToast('No bookings to archive', 'info'); }
+}
+
+function confirmPurgeArchiveYear(year) {
+  openDialog('Purge Archived Bookings', `<p>Are you sure you want to permanently delete <strong>all archived bookings from ${year}</strong>? This cannot be undone.</p>`, () => {
+    purgeArchiveYear(year);
+    S.archiveYear = null;
+    return true;
+  }, true);
+}
 
 // ===================== OS DETECTION =====================
 const isMac = (navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || '').toUpperCase().indexOf('MAC') >= 0;
@@ -589,34 +1029,59 @@ function getGermanHolidays(year, state = null) {
 // ===================== FILE I/O =====================
 async function openFile() {
   try {
-    const [handle] = await window.showOpenFilePicker({ types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }], multiple: false });
-    S.fileHandle = handle;
-    S.fileName = handle.name;
+    const [handle] = await window.showOpenFilePicker({
+      types: [{ description: 'FleetHub Data', accept: { 'application/sqlite': ['.sqlite'], 'application/json': ['.json'] } }],
+      multiple: false
+    });
     const file = await handle.getFile();
-    const text = await file.text();
-    S.data = JSON.parse(text);
-    // merge defaults
-    if (!S.data.meta) S.data.meta = { version: '1.0', lastModified: new Date().toISOString(), lockedBy: null, lockedAt: null, lockId: null };
-    if (!S.data.settings) S.data.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-    if (!S.data.vehicles) S.data.vehicles = [];
-    if (!S.data.bookings) S.data.bookings = [];
-    // Ensure sortOrder exists on all vehicles (handles imports/legacy files)
-    S.data.vehicles.forEach((v, i) => { if (v.sortOrder === undefined || v.sortOrder === null) v.sortOrder = i; });
-    for (const k of Object.keys(DEFAULT_SETTINGS)) { if (!S.data.settings[k]) S.data.settings[k] = JSON.parse(JSON.stringify(DEFAULT_SETTINGS[k])); }
-    saveRecentFile(handle.name);
+    await initSqlJsModule();
+    const arrayBuffer = await file.arrayBuffer();
+    S.fileHandle = handle;
+    S.fileName = file.name;
+    S.demoMode = false;
+    document.getElementById('demo-banner').style.display = 'none';
+    if (file.name.endsWith('.json')) {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      // Archive JSON imports should merge, not wipe existing data
+      importJSONToSQLite(parsed, !!parsed._fleethubArchive);
+      // Prompt save-as to migrate .json to .sqlite — prevents corruption
+      try {
+        const newHandle = await window.showSaveFilePicker({ suggestedName: file.name.replace(/\.json$/i, '.sqlite'), types: [{ description: 'FleetHub Data', accept: { 'application/sqlite': ['.sqlite'] } }] });
+        const binaryData = db.export();
+        const writable = await newHandle.createWritable();
+        await writable.write(binaryData);
+        await writable.close();
+        S.fileHandle = newHandle;
+        S.fileName = newHandle.name;
+        showToast('Migrated from JSON to SQLite format.', 'success');
+      } catch(e) {
+        if (e.name !== 'AbortError') showToast('Could not save as SQLite — please use Save As to convert.', 'warning');
+        S.fileHandle = null; S.fileName = 'Imported (unsaved)';
+      }
+    } else {
+      try { db = new sqlJsModule.Database(new Uint8Array(arrayBuffer)); ensureSchema(); }
+      catch(e) { showToast('Could not open database — file may be corrupt or unsupported.', 'error'); S.fileHandle = null; S.fileName = ''; return; }
+    }
+    saveRecentFile(S.fileName);
     enterApp();
   } catch (e) { if (e.name !== 'AbortError') showToast('Failed to open file: ' + e.message, 'error'); }
 }
 
 async function createNewFile() {
   try {
-    const handle = await window.showSaveFilePicker({ suggestedName: 'fleet-data.json', types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }] });
+    const handle = await window.showSaveFilePicker({ suggestedName: 'fleet-data.sqlite', types: [{ description: 'FleetHub Data', accept: { 'application/sqlite': ['.sqlite'] } }] });
+    await initSqlJsModule();
+    createDatabase();
+    initDefaultSettings();
+    const binaryData = db.export();
+    const writable = await handle.createWritable();
+    await writable.write(binaryData);
+    await writable.close();
     S.fileHandle = handle;
     S.fileName = handle.name;
-    S.data = getDefaultData();
-    const writable = await handle.createWritable();
-    await writable.write(JSON.stringify(S.data, null, 2));
-    await writable.close();
+    S.demoMode = false;
+    document.getElementById('demo-banner').style.display = 'none';
     saveRecentFile(handle.name);
     enterApp();
     showToast('New file created!', 'success');
@@ -625,9 +1090,10 @@ async function createNewFile() {
 
 async function startDemo() {
   S.demoMode = true;
-  S.fileName = 'demo-data.json';
+  S.fileName = 'demo-data.sqlite';
   S.fileHandle = null;
-  S.data = getDemoData();
+  await initSqlJsModule();
+  importJSONToSQLite(getDemoData());
   enterApp();
   document.getElementById('demo-banner').style.display = 'flex';
   showToast('Demo mode — explore freely, changes are not saved', 'info');
@@ -683,13 +1149,27 @@ function getDemoData() {
 
 async function saveFile() {
   if (S.demoMode) { showToast('Demo mode — use Export to save a copy', 'info'); return; }
-  if (!S.fileHandle) return;
+  if (!db) { showToast('No database — cannot save', 'error'); return; }
+  if (!S.fileHandle) {
+    // No file handle — prompt Save As
+    try {
+      const handle = await window.showSaveFilePicker({ suggestedName: (S.fileName && !S.fileName.includes('(unsaved)')) ? S.fileName : 'fleet-data.sqlite', types: [{ description: 'FleetHub Data', accept: { 'application/sqlite': ['.sqlite'] } }] });
+      S.fileHandle = handle;
+      S.fileName = handle.name;
+    } catch(e) {
+      if (e.name !== 'AbortError') showToast('Save As failed: ' + e.message, 'error');
+      return;
+    }
+  }
   S.saving = true;
   updateSaveIndicator();
   try {
-    S.data.meta.lastModified = new Date().toISOString();
+    setMeta('lastModified', new Date().toISOString());
+    const archived = runAutoArchive();
+    if (archived > 0) render();
+    const binaryData = db.export();
     const writable = await S.fileHandle.createWritable();
-    await writable.write(JSON.stringify(S.data, null, 2));
+    await writable.write(binaryData);
     await writable.close();
     S.dirty = false;
     showToast('File saved', 'success');
@@ -704,7 +1184,7 @@ function markDirty() {
 }
 
 async function exportJSON() {
-  const blob = new Blob([JSON.stringify(S.data, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify(getData(), null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'fleet-export-' + new Date().toISOString().slice(0, 10) + '.json';
@@ -733,13 +1213,21 @@ function renderRecentFiles() {
 }
 
 // ===================== LOCKING =====================
-function getMyLockId() { return localStorage.getItem('fleethub_lockid') || uid(); }
+function getMyLockId() {
+  if (S._lockId) return S._lockId;
+  // Generate a per-tab UUID — avoids same-browser tabs sharing the same lock ID
+  // which would defeat cross-tab lock detection
+  S._lockId = crypto.randomUUID ? crypto.randomUUID() : uid();
+  return S._lockId;
+}
 
 function initLock() {
+  // Clean up previous interval and channel to prevent leaks on re-open
+  if (S.lockInterval) { clearInterval(S.lockInterval); S.lockInterval = null; }
+  if (S.bc) { try { S.bc.close(); } catch(e) {} S.bc = null; }
   S.lockId = getMyLockId();
-  localStorage.setItem('fleethub_lockid', S.lockId);
   checkLock();
-  setInterval(checkLock, 30000);
+  S.lockInterval = setInterval(checkLock, 30000);
   try {
     const bc = new BroadcastChannel('fleethub-lock');
     bc.onmessage = () => checkLock();
@@ -748,22 +1236,28 @@ function initLock() {
 }
 
 function checkLock() {
-  const meta = S.data.meta;
-  if (meta && meta.lockedBy && meta.lockedBy !== S.lockId && meta.lockedAt) {
-    const elapsed = Date.now() - new Date(meta.lockedAt).getTime();
+  const lockedBy = getMeta('lockedBy');
+  const lockedAt = getMeta('lockedAt');
+  if (lockedBy && lockedBy !== S.lockId && lockedAt) {
+    const elapsed = Date.now() - new Date(lockedAt).getTime();
     if (elapsed < 5 * 60 * 1000) { // 5 min stale threshold
-      S.lockedBy = meta.lockedBy;
-      showLockAlert(meta.lockedBy, elapsed);
+      S.lockedBy = lockedBy;
+      showLockAlert(lockedBy, elapsed);
       return;
     }
   }
-  S.lockedBy = null;
+  // If current user holds the lock, set lockedBy to own ID
+  if (lockedBy === S.lockId) {
+    S.lockedBy = S.lockId;
+  } else {
+    S.lockedBy = null;
+  }
   hideLockAlert();
 }
 
 function acquireLock() {
-  S.data.meta.lockedBy = S.lockId;
-  S.data.meta.lockedAt = new Date().toISOString();
+  setMeta('lockedBy', S.lockId);
+  setMeta('lockedAt', new Date().toISOString());
   S.lockedBy = null;
   hideLockAlert();
   markDirty();
@@ -772,10 +1266,13 @@ function acquireLock() {
 }
 
 function releaseLock() {
-  if (S.data.meta.lockedBy === S.lockId) {
-    S.data.meta.lockedBy = null;
-    S.data.meta.lockedAt = null;
+  if (getMeta('lockedBy') === S.lockId) {
+    setMeta('lockedBy', null);
+    setMeta('lockedAt', null);
   }
+  // Clean up interval and broadcast channel to prevent resource leak
+  if (S.lockInterval) { clearInterval(S.lockInterval); S.lockInterval = null; }
+  if (S.bc) { try { S.bc.close(); } catch(e) {} S.bc = null; }
 }
 
 function showLockAlert(lockedBy, elapsed) {
@@ -794,9 +1291,9 @@ function enterApp() {
   document.getElementById('header-filename').textContent = S.fileName;
   initLock();
   // if no lock, acquire
-  if (!S.data.meta.lockedBy) {
-    S.data.meta.lockedBy = S.lockId;
-    S.data.meta.lockedAt = new Date().toISOString();
+  if (!getMeta('lockedBy')) {
+    setMeta('lockedBy', S.lockId);
+    setMeta('lockedAt', new Date().toISOString());
     markDirty();
   }
   render();
@@ -825,13 +1322,13 @@ const TABS = [
   { id: 'bookings', label: 'Bookings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>', shortcut: '3' },
   { id: 'vehicles', label: 'Vehicles', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M14 10l-2-6"/><path d="M18 10h2"/></svg>', shortcut: '4' },
   { id: 'settings', label: 'Settings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>', shortcut: '5' },
-	  { id: 'chat', label: 'AI Assistant', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>', shortcut: '6' },
+          { id: 'chat', label: 'AI Assistant', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>', shortcut: '6' },
 ];
 
 function setTab(tab) { S.activeTab = tab; S.bookingPage = 1; render(); }
 
 function renderNav() {
-  const pendingCount = S.data.bookings.filter(b => b.status === 'pending').length;
+  const pendingCount = getBookings().filter(b => b.status === 'pending').length;
   const navItems = TABS.map(t => {
     const badge = t.id === 'bookings' && pendingCount ? `<span class="badge">${pendingCount}</span>` : '';
     const shortcut = t.shortcut ? `<span class="nav-shortcut">[${t.shortcut}]</span>` : '';
@@ -858,12 +1355,27 @@ function renderNav() {
 function updateLockBadge() {
   const badge = document.getElementById('lock-badge');
   const text = document.getElementById('lock-badge-text');
-  if (S.lockedBy && S.lockedBy !== S.lockId) {
+  const icon = badge.querySelector('svg');
+  // Closed lock SVG — shackle forms a complete U-shape
+  const closedLock = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+  // Open lock SVG — shackle is raised and disconnected on one side
+  const openLock = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>';
+
+  if (S.lockedBy === S.lockId) {
+    // Current user holds the lock
+    badge.className = 'lock-badge owned';
+    text.textContent = 'Locked';
+    icon.outerHTML = closedLock;
+  } else if (S.lockedBy && S.lockedBy !== S.lockId) {
+    // Someone else holds the lock
     badge.className = 'lock-badge locked';
     text.textContent = 'Locked';
+    icon.outerHTML = closedLock;
   } else {
+    // No lock
     badge.className = 'lock-badge unlocked';
     text.textContent = 'Unlocked';
+    icon.outerHTML = openLock;
   }
 }
 
@@ -916,8 +1428,8 @@ function getFleetIconSvg(vehicles) {
 }
 
 function renderDashboard() {
-  const vehicles = [...S.data.vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-  const bookings = S.data.bookings;
+  const vehicles = [...getVehicles()].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const bookings = getBookings();
   const now = new Date();
   const activeBookings = bookings.filter(isActive);
   const availableNow = vehicles.filter(v => !activeBookings.some(b => b.vehicleId === v.id && (b.status === 'confirmed' || b.status === 'in-use')));
@@ -937,7 +1449,7 @@ function renderDashboard() {
   widgetEndDate.setDate(widgetEndDate.getDate() + widgetDays - 1);
   const widgetEndYear = widgetEndDate.getFullYear();
   const widgetYears = new Set([widgetYear, widgetEndYear]);
-  const widgetHolidays = [...widgetYears].flatMap(y => getGermanHolidays(y, S.data.settings.germanState));
+  const widgetHolidays = [...widgetYears].flatMap(y => getGermanHolidays(y, getSettings().germanState));
   const widgetHolidayMap = {};
   widgetHolidays.forEach(h => {
     widgetHolidayMap[h.date] = h;
@@ -1128,8 +1640,8 @@ function renderDashboard() {
 
 // ===================== CALENDAR =====================
 function renderCalendar() {
-  const vehicles = [...S.data.vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-  const bookings = S.data.bookings;
+  const vehicles = [...getVehicles()].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const bookings = getBookings();
   const viewMode = S.calendarView || 'week';
   const daysToShow = viewMode === 'week' ? 7 : 30; // Mon-Sun for week view
 
@@ -1154,7 +1666,7 @@ function renderCalendar() {
   viewEndDate.setDate(viewEndDate.getDate() + daysToShow - 1);
   const endYear = viewEndDate.getFullYear();
   const yearsToFetch = new Set([currentYear, endYear]);
-  const holidays = [...yearsToFetch].flatMap(y => getGermanHolidays(y, S.data.settings.germanState));
+  const holidays = [...yearsToFetch].flatMap(y => getGermanHolidays(y, getSettings().germanState));
   const holidayMap = {};
   holidays.forEach(h => {
     holidayMap[h.date] = h;
@@ -1330,7 +1842,7 @@ function renderCalendar() {
 
 // ===================== VEHICLES =====================
 function renderVehicles() {
-  const vehicles = [...S.data.vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const vehicles = [...getVehicles()].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   const rows = vehicles.length ? vehicles.map((v, idx) => {
     const isFirst = idx === 0;
     const isLast = idx === vehicles.length - 1;
@@ -1362,10 +1874,10 @@ function renderVehicles() {
 }
 
 function editVehicle(id) {
-  const v = id ? S.data.vehicles.find(v => v.id === id) : null;
+  const v = id ? getVehicles().find(v => v.id === id) : null;
   S.editingVehicle = v;
   const isEdit = !!v;
-  const types = S.data.settings.vehicleTypes || DEFAULT_SETTINGS.vehicleTypes;
+  const types = getSettings().vehicleTypes || DEFAULT_SETTINGS.vehicleTypes;
   const typeOptions = types.map(t => `<option value="${esc(t)}"${v && v.type === t ? ' selected' : ''}>${esc(t)}</option>`).join('');
   const statuses = ['available', 'in-use', 'maintenance', 'reserved'];
 
@@ -1389,10 +1901,13 @@ function editVehicle(id) {
       updatedAt: new Date().toISOString()
     };
     if (isEdit) {
-      Object.assign(v, data);
+      db.run("UPDATE vehicles SET name=?, type=?, status=?, license_plate=?, notes=?, updated_at=? WHERE id=?",
+        [data.name, data.type, data.status, data.licensePlate, data.notes, data.updatedAt, v.id]);
       showToast('Vehicle updated', 'success');
     } else {
-      S.data.vehicles.push({ id: genId(), ...data, sortOrder: S.data.vehicles.length, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      const sortOrder = (dbScalar("SELECT MAX(sort_order) FROM vehicles") ?? -1) + 1;
+      db.run("INSERT INTO vehicles (id, name, type, license_plate, status, notes, sort_order, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        [genId(), data.name, data.type, data.licensePlate, data.status, data.notes, sortOrder, new Date().toISOString(), new Date().toISOString()]);
       showToast('Vehicle added', 'success');
     }
     markDirty(); render(); return true;
@@ -1401,7 +1916,7 @@ function editVehicle(id) {
 
 function moveVehicleUp(idx) {
   if (idx <= 0) return;
-  const vehicles = [...S.data.vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const vehicles = [...getVehicles()].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   vehicles.forEach((v, i) => { v.sortOrder = i; });
   const currentVehicle = vehicles[idx];
   const prevVehicle = vehicles[idx - 1];
@@ -1412,7 +1927,7 @@ function moveVehicleUp(idx) {
 }
 
 function moveVehicleDown(idx) {
-  const vehicles = [...S.data.vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const vehicles = [...getVehicles()].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   if (idx >= vehicles.length - 1) return;
   vehicles.forEach((v, i) => { v.sortOrder = i; });
   const currentVehicle = vehicles[idx];
@@ -1424,22 +1939,23 @@ function moveVehicleDown(idx) {
 }
 
 function confirmDeleteVehicle(id) {
-  const v = S.data.vehicles.find(v => v.id === id);
-  const bookingCount = S.data.bookings.filter(b => b.vehicleId === id).length;
+  const v = getVehicles().find(v => v.id === id);
+  if (!v) { showToast('Vehicle not found', 'error'); return; }
+  const bookingCount = getBookings().filter(b => b.vehicleId === id).length;
   openDialog('Delete Vehicle', `
     <p>Are you sure you want to delete <strong>${esc(v.name)}</strong>?</p>
     ${bookingCount ? `<p style="color:var(--warning);margin-top:8px;font-size:13px">This will also delete ${bookingCount} associated booking(s).</p>` : ''}
   `, () => {
-    S.data.vehicles = S.data.vehicles.filter(v => v.id !== id);
-    S.data.bookings = S.data.bookings.filter(b => b.vehicleId !== id);
+    db.run("DELETE FROM bookings WHERE vehicle_id = ?", [id]);
+    db.run("DELETE FROM vehicles WHERE id = ?", [id]);
     markDirty(); render(); showToast('Vehicle deleted', 'success'); return true;
   }, true);
 }
 
 // ===================== BOOKINGS =====================
 function renderBookings() {
-  const vehicles = S.data.vehicles;
-  const allBookings = S.data.bookings.sort((a, b) => new Date(b.periodStart) - new Date(a.periodStart));
+  const vehicles = getVehicles();
+  const allBookings = getBookings().sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 
   // Filter
   let filtered = allBookings;
@@ -1447,7 +1963,7 @@ function renderBookings() {
     const q = S.bookingSearch.toLowerCase();
     filtered = filtered.filter(b => {
       const v = vehicles.find(v => v.id === b.vehicleId);
-      return (v && v.name.toLowerCase().includes(q)) || b.userName.toLowerCase().includes(q) || b.purpose.toLowerCase().includes(q) || (b.remarks || '').toLowerCase().includes(q);
+      return b.id.toLowerCase().includes(q) || (v && v.name.toLowerCase().includes(q)) || b.userName.toLowerCase().includes(q) || b.purpose.toLowerCase().includes(q) || (b.remarks || '').toLowerCase().includes(q);
     });
   }
   if (S.bookingVehicleFilter) filtered = filtered.filter(b => b.vehicleId === S.bookingVehicleFilter);
@@ -1458,11 +1974,11 @@ function renderBookings() {
   if (S.bookingPage > totalPages) S.bookingPage = totalPages;
   const start = (S.bookingPage - 1) * S.pageSize;
   const pageItems = filtered.slice(start, start + S.pageSize);
-  const statuses = S.data.settings.statuses || DEFAULT_SETTINGS.statuses;
+  const statuses = getSettings().statuses || DEFAULT_SETTINGS.statuses;
 
   const vehicleOptions = vehicles.map(v => `<option value="${v.id}"${S.bookingVehicleFilter === v.id ? ' selected' : ''}>${esc(v.name)}</option>`).join('');
   const statusOptions = statuses.map(s => `<option value="${s}"${S.bookingStatusFilter === s ? ' selected' : ''}>${s}</option>`).join('');
-  const customCols = S.data.settings.customColumns || [];
+  const customCols = getSettings().customColumns || [];
 
   const conflictWarning = S.editingBooking ? renderConflictWarning(S.editingBooking) : '';
 
@@ -1496,14 +2012,14 @@ function renderBookings() {
     <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
       <div class="search-bar" style="flex:1;min-width:200px">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-        <input placeholder="Search bookings..." value="${esc(S.bookingSearch)}" oninput="S.bookingSearch=this.value;S.bookingPage=1;render()">
+        <input id="booking-search-input" placeholder="Search bookings..." value="${esc(S.bookingSearch)}" oninput="S.bookingSearch=this.value;S.bookingPage=1;renderBookingsTable()">
       </div>
       <div class="filters">
         <select onchange="S.bookingVehicleFilter=this.value;S.bookingPage=1;render()"><option value="">All Vehicles</option>${vehicleOptions}</select>
         <select onchange="S.bookingStatusFilter=this.value;S.bookingPage=1;render()"><option value="">All Statuses</option>${statusOptions}</select>
       </div>
     </div>
-    ${pageItems.length ? `<div class="card"><div class="table-wrap"><table><thead><tr><th>Vehicle</th><th>User</th><th>Purpose</th><th>Period</th><th>Status</th>${customCols.map(c => `<th>${esc(c.label)}</th>`).join('')}<th>Share</th><th>Created</th><th>Updated</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div id="bookings-table-area">${pageItems.length ? `<div class="card"><div class="table-wrap"><table><thead><tr><th>Vehicle</th><th>User</th><th>Purpose</th><th>Period</th><th>Status</th>${customCols.map(c => `<th>${esc(c.label)}</th>`).join('')}<th>Share</th><th>Created</th><th>Updated</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="pagination" style="padding:8px 12px">
         <span>Showing ${start + 1}–${Math.min(start + S.pageSize, filtered.length)} of ${filtered.length}</span>
         <div style="display:flex;gap:4px">
@@ -1513,13 +2029,28 @@ function renderBookings() {
         </div>
       </div>
     </div>` :
-      `<div class="card"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg><h3>No bookings yet</h3><p>Create your first booking to get started.</p></div></div>`}
+      `<div class="card"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg><h3>No bookings yet</h3><p>Create your first booking to get started.</p></div></div>`}</div>
   </div>`;
+}
+
+function renderBookingsTable() {
+  const el = document.getElementById('bookings-table-area');
+  if (!el) return;
+  const searchEl = document.getElementById('booking-search-input');
+  const pos = searchEl ? searchEl.selectionStart : null;
+  const main = document.querySelector('.main-content');
+  if (!main) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = renderBookings();
+  const newTableArea = tmp.querySelector('#bookings-table-area');
+  if (newTableArea) el.replaceWith(newTableArea);
+  const newSearch = document.getElementById('booking-search-input');
+  if (newSearch && pos !== null) { newSearch.focus(); newSearch.setSelectionRange(pos, pos); }
 }
 
 function renderConflictWarning(booking) {
   if (!booking.vehicleId || !booking.periodStart || !booking.periodEnd) return '';
-  const conflicts = S.data.bookings.filter(b => {
+  const conflicts = getBookings().filter(b => {
     if (b.id === booking.id) return false;
     if (b.vehicleId !== booking.vehicleId) return false;
     if (b.status === 'cancelled') return false;
@@ -1537,7 +2068,7 @@ function renderConflictWarning(booking) {
 
 function shareWithConflicts() {
   if (!S.editingBooking) return;
-  const conflicts = S.data.bookings.filter(b => {
+  const conflicts = getBookings().filter(b => {
     if (b.id === S.editingBooking.id) return false;
     if (b.vehicleId !== S.editingBooking.vehicleId) return false;
     if (b.status === 'cancelled') return false;
@@ -1548,7 +2079,7 @@ function shareWithConflicts() {
   const existing = S.editingBooking.shareWith || [];
   conflicts.forEach(c => { if (!existing.includes(c.userName)) existing.push(c.userName); });
   S.editingBooking.shareWith = existing;
-  S.editingBooking.shareNote = S.data.settings.shareMessage || DEFAULT_SETTINGS.shareMessage;
+  S.editingBooking.shareNote = getSettings().shareMessage || DEFAULT_SETTINGS.shareMessage;
   // Re-render dialog if open
   showToast('Added conflicting users to share list', 'info');
 }
@@ -1556,7 +2087,7 @@ function shareWithConflicts() {
 function newBooking(preselectedVehicleId) { editBooking(null, preselectedVehicleId); }
 
 function renderUserNameField(value) {
-  const userNameConfig = S.data.settings.userNameConfig || { type: 'text', options: [] };
+  const userNameConfig = getSettings().userNameConfig || { type: 'text', options: [] };
 
   if (userNameConfig.type === 'select') {
     const options = (userNameConfig.options || []).map(o => `<option value="${escAttr(o)}"${value === o ? ' selected' : ''}>${esc(o)}</option>`).join('');
@@ -1577,11 +2108,12 @@ function renderUserNameField(value) {
 }
 
 function editBooking(id, preselectedVehicleId) {
-  const b = id ? S.data.bookings.find(b => b.id === id) : null;
-  S.editingBooking = b ? JSON.parse(JSON.stringify(b)) : { id: null, vehicleId: preselectedVehicleId || '', userName: '', purpose: '', periodStart: '', periodEnd: '', status: S.data.settings.statuses[0] || 'pending', remarks: '', customFields: {}, shareWith: [], shareNote: '' };
-  const vehicles = [...S.data.vehicles].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-  const statuses = S.data.settings.statuses || DEFAULT_SETTINGS.statuses;
-  const customCols = S.data.settings.customColumns || [];
+  const b = id ? getBookings().find(b => b.id === id) : null;
+  S.editingBooking = b ? JSON.parse(JSON.stringify(b)) : { id: null, vehicleId: preselectedVehicleId || '', userName: '', purpose: '', periodStart: '', periodEnd: '', status: getSettings().statuses[0] || 'pending', remarks: '', customFields: {}, shareWith: [], shareNote: '' };
+  const settings = getSettings();
+  const vehicles = [...getVehicles()].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const statuses = settings.statuses || DEFAULT_SETTINGS.statuses;
+  const customCols = settings.customColumns || [];
   const eb = S.editingBooking;
 
   const vehicleOptions = vehicles.map(v => `<option value="${v.id}"${eb.vehicleId === v.id ? ' selected' : ''}>${esc(v.name)}</option>`).join('');
@@ -1601,6 +2133,7 @@ function editBooking(id, preselectedVehicleId) {
 
   openDialog(b ? 'Edit Booking' : 'New Booking', `
     <div id="conflict-warning"></div>
+    ${b ? `<div style="font-size:12px;color:var(--muted);margin-bottom:12px">ID: <code style="background:var(--surface-soft);padding:2px 6px;border-radius:var(--radius-sm);font-family:monospace">${esc(b.id)}</code></div>` : ''}
     <div class="form-group"><label class="form-label">Vehicle *</label><select class="form-input" id="b-vehicle" onchange="checkConflicts()"><option value="">Select vehicle...</option>${vehicleOptions}</select></div>
     ${renderUserNameField(eb.userName)}
     <div class="form-group"><label class="form-label">Purpose *</label><input class="form-input" id="b-purpose" value="${esc(eb.purpose)}" placeholder="e.g. Client meeting"></div>
@@ -1623,7 +2156,7 @@ function editBooking(id, preselectedVehicleId) {
   `, () => {
     const vehicleId = document.getElementById('b-vehicle').value;
     // Handle userName - could be text, select, or multiselect
-    const userNameConfig = S.data.settings.userNameConfig || { type: 'text' };
+    const userNameConfig = getSettings().userNameConfig || { type: 'text' };
     let userName = '';
     if (userNameConfig.type === 'multiselect') {
       const selected = Array.from(document.querySelectorAll('.un-select-field:checked')).map(el => el.value);
@@ -1660,10 +2193,12 @@ function editBooking(id, preselectedVehicleId) {
     };
 
     if (b) {
-      Object.assign(b, data);
+      db.run("UPDATE bookings SET vehicle_id=?, user_name=?, purpose=?, period_start=?, period_end=?, status=?, remarks=?, custom_fields=?, share_with=?, share_note=?, updated_at=? WHERE id=?",
+        [data.vehicleId, data.userName, data.purpose, data.periodStart, data.periodEnd, data.status, data.remarks, JSON.stringify(data.customFields), JSON.stringify(data.shareWith), data.shareNote, new Date().toISOString(), b.id]);
       showToast('Booking updated', 'success');
     } else {
-      S.data.bookings.push({ id: genId(), ...data, createdAt: new Date().toISOString() });
+      db.run("INSERT INTO bookings (id, vehicle_id, user_name, purpose, period_start, period_end, status, remarks, custom_fields, share_with, share_note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [genId(), data.vehicleId, data.userName, data.purpose, data.periodStart, data.periodEnd, data.status, data.remarks, JSON.stringify(data.customFields), JSON.stringify(data.shareWith), data.shareNote, new Date().toISOString(), new Date().toISOString()]);
       showToast('Booking created', 'success');
     }
     S.editingBooking = null;
@@ -1708,21 +2243,59 @@ function renderShareTags() {
 }
 
 function openShareDialog(id) {
-  const b = S.data.bookings.find(b => b.id === id);
-  if (b) editBooking(id);
+  const b = getBookings().find(b => b.id === id);
+  if (!b) return;
+  S.shareDialogBooking = b;
+  const tags = (b.shareWith || []).map(name => `<span class="share-tag">${esc(name)}<button data-name="${escAttr(name)}" onclick="removeShareDialogName(this,this.dataset.name)">×</button></span>`).join('');
+  const html = `<div class="share-panel">
+    <p style="font-size:13px;margin-bottom:8px">${esc(b.userName)} — ${esc(b.purpose)}</p>
+    <div class="share-tags" id="share-dialog-tags">${tags || '<span style="font-size:13px;color:var(--muted)">No co-passengers</span>'}</div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <input class="form-input" id="share-dialog-input" placeholder="Add co-passenger name" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addShareDialogName()}">
+      <button class="btn btn-sm" onclick="addShareDialogName()">Add</button>
+    </div>
+    <div class="form-group" style="margin-top:8px;margin-bottom:0"><label class="form-label">Share Note</label><textarea class="form-input" id="share-dialog-note" rows="2" placeholder="Optional note...">${esc(b.shareNote || '')}</textarea></div>
+  </div>`;
+  openDialog('Share Ride', html, () => {
+    db.run("UPDATE bookings SET share_with=?, share_note=?, updated_at=? WHERE id=?",
+      [JSON.stringify(S.shareDialogBooking.shareWith || []), document.getElementById('share-dialog-note').value.trim() || null, new Date().toISOString(), b.id]);
+    markDirty(); render(); showToast('Share details updated', 'success'); return true;
+  });
 }
 
+function addShareDialogName() {
+  const input = document.getElementById('share-dialog-input');
+  const name = input.value.trim();
+  if (!name || !S.shareDialogBooking) return;
+  if (!S.shareDialogBooking.shareWith) S.shareDialogBooking.shareWith = [];
+  if (!S.shareDialogBooking.shareWith.includes(name)) {
+    S.shareDialogBooking.shareWith.push(name);
+    const tagsEl = document.getElementById('share-dialog-tags');
+    if (tagsEl) tagsEl.innerHTML = (S.shareDialogBooking.shareWith || []).map(n => `<span class="share-tag">${esc(n)}<button data-name="${escAttr(n)}" onclick="removeShareDialogName(this,this.dataset.name)">×</button></span>`).join('');
+  }
+  input.value = '';
+}
+
+function removeShareDialogName(btn, name) {
+  if (!S.shareDialogBooking) return;
+  S.shareDialogBooking.shareWith = (S.shareDialogBooking.shareWith || []).filter(n => n !== name);
+  const tagsEl = document.getElementById('share-dialog-tags');
+  if (tagsEl) tagsEl.innerHTML = (S.shareDialogBooking.shareWith || []).map(n => `<span class="share-tag">${esc(n)}<button data-name="${escAttr(n)}" onclick="removeShareDialogName(this,this.dataset.name)">×</button></span>`).join('') || '<span style="font-size:13px;color:var(--muted)">No co-passengers</span>';
+}
+
+// Legacy reference
 function confirmDeleteBooking(id) {
-  const b = S.data.bookings.find(b => b.id === id);
+  const b = getBookings().find(b => b.id === id);
+  if (!b) { showToast('Booking not found', 'error'); return; }
   openDialog('Delete Booking', `<p>Are you sure you want to delete the booking by <strong>${esc(b.userName)}</strong> for <strong>${esc(b.purpose)}</strong>?</p>`, () => {
-    S.data.bookings = S.data.bookings.filter(b => b.id !== id);
+    db.run("DELETE FROM bookings WHERE id = ?", [id]);
     markDirty(); render(); showToast('Booking deleted', 'success'); return true;
   }, true);
 }
 
 // ===================== SETTINGS =====================
 function renderSettings() {
-  const settings = S.data.settings;
+  const settings = getSettings();
   const isOpen = (id) => (S.openSections || []).includes(id);
   const toggleSection = (id) => {
     S.openSections = (S.openSections || []).includes(id)
@@ -1803,7 +2376,7 @@ function renderSettings() {
   const curModel = localStorage.getItem('fleethub_ai_model') || '';
   const maskedKey = curKey ? curKey.slice(0, 6) + '...' + curKey.slice(-4) : '';
   const apiContent = `<div style="margin-bottom:14px">
-    <div class="form-group"><label class="form-label">API Endpoint URL</label><input class="form-input" id="api-endpoint" placeholder="https://api.openai.com/v1/chat/completions" value="${esc(curEndpoint)}"><div class="form-hint">Full URL to the chat completions endpoint</div></div>
+    <div class="form-group"><label class="form-label">API Endpoint URL</label><input class="form-input" id="api-endpoint" placeholder="https://api.openai.com/v1" value="${esc(curEndpoint)}"><div class="form-hint">Base URL or full path (auto-appends /chat/completions)</div></div>
     <div class="form-group"><label class="form-label">API Key</label><div style="position:relative"><input class="form-input" id="api-key" type="password" placeholder="sk-... or your API key" value="${esc(curKey)}" style="padding-right:40px"><button class="btn-icon" onclick="toggleApiKeyVisibility()" style="position:absolute;right:4px;top:50%;transform:translateY(-50%)"><svg id="api-key-eye" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>${maskedKey ? '<div class="form-hint">Current: ' + esc(maskedKey) + '</div>' : ''}</div>
     <div class="form-group"><label class="form-label">Model Name</label><input class="form-input" id="api-model" placeholder="gpt-4o-mini" value="${esc(curModel)}"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
@@ -1821,12 +2394,96 @@ function renderSettings() {
   <div id="api-test-result" style="margin-top:12px"></div>`;
 
   // File Info Section
+  const archivedCount = dbQuery("SELECT COUNT(*) as cnt FROM archived_bookings");
   const fileInfoContent = `<div class="file-info-card">
     <div class="file-info-row"><span class="label">File Name</span><span class="value">${esc(S.fileName)}</span></div>
-    <div class="file-info-row"><span class="label">Vehicles</span><span class="value">${S.data.vehicles.length}</span></div>
-    <div class="file-info-row"><span class="label">Bookings</span><span class="value">${S.data.bookings.length}</span></div>
-    <div class="file-info-row"><span class="label">Last Modified</span><span class="value">${fmtDateTime(S.data.meta.lastModified)}</span></div>
-    <div class="file-info-row"><span class="label">Locked By</span><span class="value">${esc(S.data.meta.lockedBy || 'None')}</span></div>
+    <div class="file-info-row"><span class="label">Vehicles</span><span class="value">${getVehicles().length}</span></div>
+    <div class="file-info-row"><span class="label">Bookings</span><span class="value">${getBookings().length}</span></div>
+    <div class="file-info-row"><span class="label">Archived Bookings</span><span class="value">${archivedCount.length ? archivedCount[0].cnt : 0}</span></div>
+    <div class="file-info-row"><span class="label">Last Modified</span><span class="value">${fmtDateTime(getMeta('lastModified'))}</span></div>
+    <div class="file-info-row"><span class="label">Locked By</span><span class="value">${esc(getMeta('lockedBy') || 'None')}</span></div>
+  </div>`;
+
+  // Archive Settings Section
+  const archiveEnabled = getSetting('archiveEnabled', true);
+  const archiveRetentionMonths = getSetting('archiveRetentionMonths', 12);
+  const archiveYears = getArchivedYears();
+  if (archiveYears.length && S.archiveYear == null) { S.archiveYear = archiveYears[0]; }
+  const selectedArchiveYear = S.archiveYear;
+  let archiveBrowseHtml = '';
+  if (archiveYears.length) {
+    const yearOptions = archiveYears.map(y => `<option value="${y}"${selectedArchiveYear == y ? ' selected' : ''}>${y} (${getArchivedBookings(y).length} bookings)</option>`).join('');
+    archiveBrowseHtml = `
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--hairline)">
+        <div class="form-group"><label class="form-label">Browse Archived Bookings</label><select class="form-input" onchange="S.archiveYear=parseInt(this.value);render()">${yearOptions}</select></div>`;
+    if (selectedArchiveYear) {
+      const archived = getArchivedBookings(selectedArchiveYear);
+      if (archived.length) {
+        archiveBrowseHtml += `<div class="table-wrap" style="max-height:300px;overflow-y:auto"><table><thead><tr><th>User</th><th>Purpose</th><th>Vehicle</th><th>Period</th><th>Status</th><th></th></tr></thead><tbody>`;
+        archived.forEach(b => {
+          archiveBrowseHtml += `<tr>
+            <td>${esc(b.userName)}</td>
+            <td>${esc(b.purpose)}</td>
+            <td style="color:var(--muted)">${esc(b.vehicleName || b.vehicleId)}</td>
+            <td style="white-space:nowrap">${fmtDate(b.periodStart)}</td>
+            <td><span class="badge badge-${b.status}">${esc(b.status)}</span></td>
+            <td style="white-space:nowrap">
+              <button class="btn-icon btn-sm" onclick="restoreArchivedBooking('${b.id}')" data-tooltip="Restore" style="color:var(--link)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+              <button class="btn-icon btn-sm" onclick="deleteArchivedBooking('${b.id}')" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+            </td></tr>`;
+        });
+        archiveBrowseHtml += `</tbody></table></div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn btn-sm" onclick="exportArchiveYear(${selectedArchiveYear})">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export ${selectedArchiveYear} (JSON)
+            </button>
+            <button class="btn btn-sm" onclick="exportArchiveYearSQL(${selectedArchiveYear})">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export ${selectedArchiveYear} (SQL)
+            </button>
+            <button class="btn btn-sm btn-danger" onclick="confirmPurgeArchiveYear(${selectedArchiveYear})">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+              Purge ${selectedArchiveYear}
+            </button>
+          </div>`;
+      }
+    }
+    archiveBrowseHtml += `</div>`;
+  } else {
+    archiveBrowseHtml = `<p style="font-size:13px;color:var(--muted);margin-top:8px">No archived bookings yet. Bookings older than the retention period will be automatically archived on save.</p>`;
+  }
+  const archiveContent = `<div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;font-size:14px">
+        <input type="checkbox" id="archive-enabled" ${archiveEnabled ? 'checked' : ''} onchange="toggleArchiveEnabled()" style="width:16px;height:16px;cursor:pointer">
+        Auto-archive old bookings
+      </label>
+    </div>
+    <div id="archive-options" style="${archiveEnabled ? 'block' : 'opacity:0.5;pointer-events:none'}">
+      <div class="form-group"><label class="form-label">Retention Period (months)</label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input class="form-input" id="archive-retention" type="number" min="1" max="120" value="${archiveRetentionMonths}" style="width:80px" onchange="updateArchiveRetention()">
+          <span style="font-size:13px;color:var(--muted)">Bookings ending more than this many months ago will be archived on save.</span>
+        </div>
+        <div class="form-hint">Archived bookings are moved out of the active list and can be restored later.</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-sm" onclick="runAutoArchiveNow()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          Run Archive Now
+        </button>
+        <button class="btn btn-sm btn-primary" onclick="archiveAndExportSQL()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Archive & Export SQL
+        </button>
+        <button class="btn btn-sm" onclick="archiveAndExportJSON()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Archive & Export JSON
+        </button>
+      </div>
+    </div>
+    ${archiveBrowseHtml}
   </div>`;
 
   // Accordion section renderer
@@ -1850,6 +2507,7 @@ function renderSettings() {
       ${section('calendar', '<svg viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>', 'Calendar Settings', calendarContent)}
       ${section('api', '<svg viewBox="0 0 24 24" fill="none" stroke="var(--coral)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>', 'AI API Configuration', apiContent)}
       ${section('file', '<svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>', 'File Information', fileInfoContent)}
+      ${section('archive', '<svg viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>', 'Archive', archiveContent)}
       ${section('data', '<svg viewBox="0 0 24 24" fill="none" stroke="var(--link)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 15 7 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>', 'Data Actions', `
         <div style="display:flex;flex-direction:column;gap:8px">
           <button class="btn" onclick="exportJSON()" style="width:100%;justify-content:center">
@@ -1887,21 +2545,23 @@ function addSettingItem(key) {
   const input = document.getElementById('settings-input-' + (key === 'statuses' ? 'statuses' : 'types'));
   const val = input.value.trim();
   if (!val) return;
-  if (!S.data.settings[key]) S.data.settings[key] = [];
-  if (!S.data.settings[key].includes(val)) {
-    S.data.settings[key].push(val);
+  const current = getSetting(key, []);
+  if (!current.includes(val)) {
+    current.push(val);
+    setSetting(key, current);
     markDirty(); render(); showToast(`Added "${val}"`, 'success');
   }
 }
 
 function removeSettingItem(key, val) {
-  S.data.settings[key] = (S.data.settings[key] || []).filter(v => v !== val);
+  const current = getSetting(key, []).filter(v => v !== val);
+  setSetting(key, current);
   markDirty(); render(); showToast(`Removed "${val}"`, 'success');
 }
 
 function saveGermanState() {
   const state = document.getElementById('german-state').value;
-  S.data.settings.germanState = state || null;
+  setSetting('germanState', state || null);
   markDirty(); render(); showToast(`German state updated`, 'success');
 }
 
@@ -1914,7 +2574,7 @@ function toggleCfOptions() {
 }
 
 function editUserNameConfig() {
-  const config = S.data.settings.userNameConfig || { type: 'text', options: [] };
+  const config = getSettings().userNameConfig || { type: 'text', options: [] };
   const dialogHtml = `
     <div class="form-group"><label class="form-label">User Name Field Type</label>
     <select class="form-input" id="un-type" onchange="toggleUnOptions()">
@@ -1935,7 +2595,7 @@ function editUserNameConfig() {
     const options = optionsStr.split(',').map(o => o.trim()).filter(Boolean);
 
     if ((type === 'select' || type === 'multiselect') && !options.length) { showToast('At least one option is required for select/multiselect types', 'error'); return false; }
-    S.data.settings.userNameConfig = { type, options: options.length ? options : undefined };
+    setSetting('userNameConfig', { type, options: options.length ? options : undefined });
     markDirty(); render(); showToast('User Name field configured', 'success');
     return true;
   });
@@ -1957,11 +2617,12 @@ function addCustomField() {
   const type = document.getElementById('cf-type').value;
   const options = document.getElementById('cf-options').value.split(',').map(o => o.trim()).filter(Boolean);
   if (!label || !key) { showToast('Label and Key are required', 'error'); return; }
-  if (!S.data.settings.customColumns) S.data.settings.customColumns = [];
-  if (S.data.settings.customColumns.some(c => c.key === key)) { showToast(`A custom field with key "${key}" already exists`, 'error'); return; }
+  const customColumns = getSetting('customColumns', []);
+  if (customColumns.some(c => c.key === key)) { showToast(`A custom field with key "${key}" already exists`, 'error'); return; }
   if ((type === 'select' || type === 'multiselect') && !options.length) { showToast('At least one option is required for select/multiselect types', 'error'); return; }
   const optionsField = (type === 'select' || type === 'multiselect') ? options : undefined;
-  S.data.settings.customColumns.push({ id: genId(), key, label, type, options: optionsField });
+  customColumns.push({ id: genId(), key, label, type, options: optionsField });
+  setSetting('customColumns', customColumns);
   document.getElementById('cf-label').value = '';
   document.getElementById('cf-key').value = '';
   document.getElementById('cf-type').value = 'text';
@@ -1971,14 +2632,16 @@ function addCustomField() {
 }
 
 function removeCustomField(key) {
-  S.data.settings.customColumns = (S.data.settings.customColumns || []).filter(c => c.key !== key);
+  const customColumns = getSetting('customColumns', []).filter(c => c.key !== key);
+  setSetting('customColumns', customColumns);
   markDirty(); render(); showToast('Custom field removed', 'success');
 }
 
 let editingCustomFieldKey = null;
 
 function editCustomField(key) {
-  const col = S.data.settings.customColumns.find(c => c.key === key);
+  const customColumns = getSetting('customColumns', []);
+  const col = customColumns.find(c => c.key === key);
   if (!col) return;
   editingCustomFieldKey = key;
   document.getElementById('cf-label').value = col.label;
@@ -2001,9 +2664,11 @@ function updateCustomField() {
   if (!label || !newKey) { showToast('Label and Key are required', 'error'); return; }
   if ((type === 'select' || type === 'multiselect') && !options.length) { showToast('At least one option is required for select/multiselect types', 'error'); return; }
   const optionsField = (type === 'select' || type === 'multiselect') ? options : undefined;
-  const idx = S.data.settings.customColumns.findIndex(c => c.key === editingCustomFieldKey);
+  const customColumns = getSetting('customColumns', []);
+  const idx = customColumns.findIndex(c => c.key === editingCustomFieldKey);
   if (idx !== -1) {
-    S.data.settings.customColumns[idx] = { ...S.data.settings.customColumns[idx], key: newKey, label, type, options: optionsField };
+    customColumns[idx] = { ...customColumns[idx], key: newKey, label, type, options: optionsField };
+    setSetting('customColumns', customColumns);
     markDirty(); render(); showToast('Custom field updated', 'success');
   }
   cancelEditCustomField();
@@ -2027,14 +2692,7 @@ async function importJSON() {
     const [handle] = await window.showOpenFilePicker({ types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }] });
     const file = await handle.getFile();
     const text = await file.text();
-    const imported = JSON.parse(text);
-    if (imported.vehicles) {
-      S.data.vehicles = imported.vehicles;
-      // Ensure sortOrder exists on all imported vehicles
-      S.data.vehicles.forEach((v, i) => { if (v.sortOrder === undefined || v.sortOrder === null) v.sortOrder = i; });
-    }
-    if (imported.bookings) S.data.bookings = imported.bookings;
-    if (imported.settings) Object.assign(S.data.settings, imported.settings);
+    importJSONToSQLite(JSON.parse(text));
     markDirty(); render(); showToast('Data imported successfully', 'success');
   } catch (e) { if (e.name !== 'AbortError') showToast('Import failed: ' + e.message, 'error'); }
 }
@@ -2084,7 +2742,7 @@ function applyApiPreset(preset) {
 }
 
 async function testApiConfig() {
-  const endpoint = document.getElementById('api-endpoint').value.trim();
+  const endpoint = normalizeApiEndpoint(document.getElementById('api-endpoint').value.trim());
   const key = document.getElementById('api-key').value.trim();
   const model = document.getElementById('api-model').value.trim();
   const resultEl = document.getElementById('api-test-result');
@@ -2113,8 +2771,8 @@ async function testApiConfig() {
 
 function confirmClearAll() {
   openDialog('Clear All Data', '<p style="color:var(--destructive)">This will permanently delete all vehicles and bookings. This cannot be undone.</p>', () => {
-    S.data.vehicles = [];
-    S.data.bookings = [];
+    db.run("DELETE FROM vehicles");
+    db.run("DELETE FROM bookings");
     markDirty(); render(); showToast('All data cleared', 'success'); return true;
   }, true);
 }
@@ -2196,7 +2854,9 @@ function renderChatMessages() {
   if (!el) return;
   el.innerHTML = S.chatMessages.map(m => {
     const avatar = m.role === 'assistant' ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>' : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
-    return `<div class="chat-msg ${m.role}"><div class="chat-msg-avatar">${avatar}</div><div class="chat-msg-bubble">${esc(m.content)}</div></div>`;
+    const raw = m.role === 'assistant' ? (m.content || '') : null;
+    const html = raw && typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(marked.parse(raw)) : esc(m.content);
+    return `<div class="chat-msg ${m.role}"><div class="chat-msg-avatar">${avatar}</div><div class="chat-msg-bubble">${html}</div></div>`;
   }).join('');
   el.scrollTop = el.scrollHeight;
 }
@@ -2210,6 +2870,14 @@ function chatKeydown(e) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
 }
 
+function normalizeApiEndpoint(url) {
+  url = url.trim();
+  if (!url) return url;
+  if (url.endsWith('/chat/completions')) return url;
+  if (!url.endsWith('/')) url += '/';
+  return url + 'chat/completions';
+}
+
 async function sendChat() {
   const input = document.getElementById('chat-input');
   const text = input.value.trim();
@@ -2219,30 +2887,13 @@ async function sendChat() {
   renderChat();
   S.chatLoading = true;
 
-  // Build context from fleet data
-  const context = `Fleet data: ${S.data.vehicles.length} vehicles, ${S.data.bookings.length} bookings. Vehicles: ${S.data.vehicles.map(v => v.name + ' (' + v.status + ')').join(', ')}. Recent bookings: ${S.data.bookings.slice(0, 10).map(b => b.userName + ' - ' + b.purpose + ' (' + b.status + ')').join('; ')}.`;
-
-  // Try API endpoint if configured
-  const apiEndpoint = localStorage.getItem('fleethub_ai_endpoint');
+  const apiEndpoint = normalizeApiEndpoint(localStorage.getItem('fleethub_ai_endpoint') || '');
   const apiKey = localStorage.getItem('fleethub_ai_key');
 
   let response;
   if (apiEndpoint && apiKey) {
-    try {
-      const res = await fetch(apiEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model: localStorage.getItem('fleethub_ai_model') || 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: 'You are a fleet management AI assistant. Be concise and helpful. ' + context },
-            ...S.chatMessages.map(m => ({ role: m.role, content: m.content }))
-          ]
-        })
-      });
-      const data = await res.json();
-      response = data.choices?.[0]?.message?.content || 'Sorry, I could not generate a response.';
-    } catch (e) { response = 'Error connecting to AI service. Check your API settings in the Settings panel.'; }
+    try { response = await callAIWithTools(apiEndpoint, apiKey, text); }
+    catch (e) { response = 'Error: ' + e.message; }
   } else {
     response = generateLocalResponse(text);
   }
@@ -2252,10 +2903,119 @@ async function sendChat() {
   renderChat();
 }
 
+function getAITools() {
+  const statuses = getSetting('statuses', ['pending','confirmed','in-use','returned','cancelled']);
+  const vehicleStatuses = ['available','in-use','maintenance','reserved'];
+  return [
+    { type: 'function', function: { name: 'create_booking', description: 'Create a new vehicle booking.', parameters: { type: 'object', properties: { vehicleName: { type: 'string', description: 'Vehicle name' }, userName: { type: 'string', description: 'Name of the person' }, purpose: { type: 'string', description: 'Purpose' }, periodStart: { type: 'string', description: 'YYYY-MM-DD' }, periodEnd: { type: 'string', description: 'YYYY-MM-DD' }, status: { type: 'string', enum: statuses } }, required: ['vehicleName','userName','purpose','periodStart','periodEnd'] } } },
+    { type: 'function', function: { name: 'update_vehicle_status', description: 'Change a vehicle status.', parameters: { type: 'object', properties: { vehicleName: { type: 'string' }, status: { type: 'string', enum: vehicleStatuses } }, required: ['vehicleName','status'] } } },
+    { type: 'function', function: { name: 'cancel_booking', description: 'Cancel a booking by ID.', parameters: { type: 'object', properties: { bookingId: { type: 'string' } }, required: ['bookingId'] } } },
+    { type: 'function', function: { name: 'list_vehicles', description: 'List all vehicles.', parameters: { type: 'object', properties: {} } } },
+    { type: 'function', function: { name: 'list_bookings', description: 'List bookings.', parameters: { type: 'object', properties: { status: { type: 'string' } } } } }
+  ];
+}
+
+// Keep AI_TOOLS as fallback for legacy references
+const AI_TOOLS = getAITools();
+
+function executeToolCall(name, args) {
+  switch (name) {
+    case 'create_booking': {
+      const vehicles = getVehicles();
+      const vehicle = vehicles.find(v => v.name.toLowerCase() === (args.vehicleName||'').toLowerCase());
+      if (!vehicle) return `Error: Vehicle "${args.vehicleName}" not found. Available: ${vehicles.map(v=>v.name).join(', ')}`;
+      const nowISO = new Date().toISOString();
+      const id = genId();
+      // Normalize bare dates (YYYY-MM-DD) to ISO datetime for datetime-local compatibility
+      let ps = args.periodStart, pe = args.periodEnd;
+      if (ps && ps.length === 10) ps = ps + 'T00:00:00.000Z';
+      if (pe && pe.length === 10) pe = pe + 'T23:59:59.000Z';
+      // Validate dates
+      const psDate = new Date(ps), peDate = new Date(pe);
+      if (isNaN(psDate.getTime()) || isNaN(peDate.getTime())) return 'Error: Invalid date provided for periodStart or periodEnd.';
+      if (psDate > peDate) return 'Error: periodStart must be before periodEnd.';
+      const validStatuses = getSetting('statuses', ['pending','confirmed','in-use','returned','cancelled']);
+      const status = args.status || validStatuses[0] || 'pending';
+      if (!validStatuses.includes(status)) return `Error: Invalid status "${status}". Must be one of: ${validStatuses.join(', ')}`;
+      db.run("INSERT INTO bookings (id, vehicle_id, user_name, purpose, period_start, period_end, status, remarks, custom_fields, share_with, share_note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [id, vehicle.id, args.userName||'', args.purpose||'', ps, pe, status, args.remarks||'', JSON.stringify(args.customFields||{}), JSON.stringify(args.shareWith||[]), args.shareNote||'', nowISO, nowISO]);
+      markDirty(); render();
+      return `Booking created. ID: ${id}, Vehicle: ${vehicle.name}, User: ${args.userName}, ${ps} to ${pe}`;
+    }
+    case 'update_vehicle_status': {
+      const validStatuses = ['available','in-use','maintenance','reserved'];
+      if (!args.status || !validStatuses.includes(args.status)) return `Error: Invalid status "${args.status}". Must be one of: ${validStatuses.join(', ')}`;
+      const vehicles = getVehicles();
+      const vehicle = vehicles.find(v => v.name.toLowerCase() === (args.vehicleName||'').toLowerCase());
+      if (!vehicle) return `Error: Vehicle "${args.vehicleName}" not found.`;
+      db.run("UPDATE vehicles SET status=? WHERE id=?", [args.status, vehicle.id]);
+      markDirty(); render();
+      return `Vehicle "${vehicle.name}" status updated to "${args.status}".`;
+    }
+    case 'cancel_booking': {
+      const booking = getBookings().find(b => b.id === args.bookingId);
+      if (!booking) return `Error: Booking "${args.bookingId}" not found.`;
+      db.run("UPDATE bookings SET status='cancelled', updated_at=? WHERE id=?", [new Date().toISOString(), args.bookingId]);
+      markDirty(); render();
+      return `Booking ${args.bookingId} cancelled.`;
+    }
+    case 'list_vehicles': return getVehicles().map(v => `• ${v.name} — ${v.status}`).join('\n') || 'No vehicles.';
+    case 'list_bookings': {
+      let bookings = getBookings();
+      if (args.status) bookings = bookings.filter(b => b.status === args.status);
+      return bookings.slice(0,20).map(b => `• [${b.id.slice(0,8)}] ${b.userName} - ${b.purpose} (${b.periodStart} to ${b.periodEnd}) [${b.status}]`).join('\n') || 'No bookings.';
+    }
+    default: return `Error: Unknown tool "${name}".`;
+  }
+}
+
+async function callAIWithTools(apiEndpoint, apiKey, userText) {
+  const model = localStorage.getItem('fleethub_ai_model') || 'gpt-4o-mini';
+  const vehicles = getVehicles();
+  const bookings = getBookings();
+  const context = `Fleet data: ${vehicles.length} vehicles, ${bookings.length} bookings. Vehicles: ${vehicles.map(v=>v.name+' ('+v.status+')').join(', ')}. Recent bookings: ${bookings.slice(0,10).map(b=>b.userName+' - '+b.purpose+' ('+b.status+')').join(';')}. Today is ${new Date().toISOString().split('T')[0]}.`;
+  const messages = [
+    { role: 'system', content: `You are a fleet management AI assistant embedded in FleetHub. You can answer questions AND take actions using the available tools.\n\nIMPORTANT: Before calling create_booking, you MUST have ALL required fields (vehicleName, userName, purpose, periodStart, periodEnd). If ANY is missing, ASK the user. After collecting all fields, confirm briefly before creating. Always confirm what you did.\n\nBe concise. ${context}` },
+    ...S.chatMessages.map(m => ({ role: m.role, content: m.content }))
+  ];
+  const res = await fetch(apiEndpoint, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({ model, messages, tools: getAITools(), tool_choice: 'auto' })
+  });
+  if (!res.ok) {
+    const res2 = await fetch(apiEndpoint, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, messages })
+    });
+    if (!res2.ok) throw new Error(`API error ${res2.status}`);
+    const d2 = await res2.json();
+    return d2.choices?.[0]?.message?.content || 'No response.';
+  }
+  const data = await res.json();
+  const msg = data.choices?.[0]?.message;
+  if (!msg.tool_calls?.length) return msg.content || 'No response.';
+  messages.push(msg);
+  let results = [];
+  for (const tc of msg.tool_calls) {
+    let fnArgs = {};
+    try { fnArgs = JSON.parse(tc.function.arguments || '{}'); } catch { fnArgs = {}; }
+    const result = executeToolCall(tc.function.name, fnArgs);
+    messages.push({ role: 'tool', tool_call_id: tc.id, content: result });
+    results.push(result);
+  }
+  const res2 = await fetch(apiEndpoint, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({ model, messages, tools: getAITools() })
+  });
+  if (!res2.ok) throw new Error(`API error ${res2.status}`);
+  const d2 = await res2.json();
+  return d2.choices?.[0]?.message?.content || results.join('\n');
+}
+
 function generateLocalResponse(query) {
   const q = query.toLowerCase();
-  const vehicles = S.data.vehicles;
-  const bookings = S.data.bookings;
+  const vehicles = getVehicles();
+  const bookings = getBookings();
   const available = vehicles.filter(v => v.status === 'available');
   const inUse = vehicles.filter(v => v.status === 'in-use');
   const pending = bookings.filter(b => b.status === 'pending');
@@ -2370,16 +3130,10 @@ function loadFromInput(input) {
   const file = input.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     try {
-      S.data = JSON.parse(reader.result);
-      if (!S.data.meta) S.data.meta = { version: '1.0', lastModified: new Date().toISOString(), lockedBy: null, lockedAt: null, lockId: null };
-      if (!S.data.settings) S.data.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-      if (!S.data.vehicles) S.data.vehicles = [];
-      if (!S.data.bookings) S.data.bookings = [];
-      // Ensure sortOrder exists on all vehicles (handles imports/legacy files)
-      S.data.vehicles.forEach((v, i) => { if (v.sortOrder === undefined || v.sortOrder === null) v.sortOrder = i; });
-      for (const k of Object.keys(DEFAULT_SETTINGS)) { if (!S.data.settings[k]) S.data.settings[k] = JSON.parse(JSON.stringify(DEFAULT_SETTINGS[k])); }
+      await initSqlJsModule();
+      importJSONToSQLite(JSON.parse(reader.result));
       S.fileName = file.name;
       S.fileHandle = null;
       saveRecentFile(file.name);
