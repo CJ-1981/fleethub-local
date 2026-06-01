@@ -582,10 +582,13 @@ function importJSONToSQLite(jsonData) {
   if (jsonData.archivedBookings) {
     jsonData.archivedBookings.forEach(b => {
       if (!b.id) return; // skip entries without id
+      const start = b.periodStart || b.period_start || '';
+      const end = b.periodEnd || b.period_end || '';
+      if (!start || !end) return; // skip archived bookings without valid dates
       db.run("INSERT OR REPLACE INTO archived_bookings (id, vehicle_id, vehicle_name, user_name, purpose, period_start, period_end, status, remarks, custom_fields, share_with, share_note, created_at, updated_at, archived_at, archive_year) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         [b.id, b.vehicleId || b.vehicle_id || '', b.vehicleName || b.vehicle_name || '',
          b.userName || b.user_name || '', b.purpose || '',
-         b.periodStart || b.period_start || '', b.periodEnd || b.period_end || '',
+         start, end,
          b.status || 'pending', b.remarks || '', JSON.stringify(b.customFields || b.custom_fields || {}),
          JSON.stringify(b.shareWith || b.share_with || []), b.shareNote || b.share_note || '',
          b.createdAt || b.created_at || '', b.updatedAt || b.updated_at || '',
@@ -655,6 +658,7 @@ function runAutoArchive() {
       db.run("DELETE FROM bookings WHERE id = ?", [b.id]);
     }
     db.run("COMMIT;");
+    markDirty();
   } catch(e) {
     db.run("ROLLBACK;");
     showToast('Auto-archive failed: ' + e.message, 'error');
@@ -781,9 +785,9 @@ function exportArchiveYearSQL(year) {
     const cf = sqlEscape(JSON.stringify(b.customFields || {}));
     const sw = sqlEscape(JSON.stringify(b.shareWith || []));
     const sn = sqlEscape(b.shareNote || '');
-    const ca = sqlEscape(b.createdAt);
-    const ua = sqlEscape(b.updatedAt);
-    const aa = sqlEscape(b.archivedAt);
+    const ca = sqlEscape(b.createdAt || '');
+    const ua = sqlEscape(b.updatedAt || '');
+    const aa = sqlEscape(b.archivedAt || '');
     const yr = b.archiveYear;
     sql += `INSERT OR REPLACE INTO archived_bookings (id, vehicle_id, vehicle_name, user_name, purpose, period_start, period_end, status, remarks, custom_fields, share_with, share_note, created_at, updated_at, archived_at, archive_year) VALUES ('${id}','${vid}','${vn}','${un}','${pu}','${ps}','${pe}','${st}','${re}','${cf}','${sw}','${sn}','${ca}','${ua}','${aa}',${yr});\n`;
   }
@@ -1017,6 +1021,20 @@ async function openFile() {
     if (file.name.endsWith('.json')) {
       const text = await file.text();
       importJSONToSQLite(JSON.parse(text));
+      // Prompt save-as to migrate .json to .sqlite — prevents corruption
+      try {
+        const newHandle = await window.showSaveFilePicker({ suggestedName: file.name.replace(/\.json$/i, '.sqlite'), types: [{ description: 'FleetHub Data', accept: { 'application/sqlite': ['.sqlite'] } }] });
+        const binaryData = db.export();
+        const writable = await newHandle.createWritable();
+        await writable.write(binaryData);
+        await writable.close();
+        S.fileHandle = newHandle;
+        S.fileName = newHandle.name;
+        showToast('Migrated from JSON to SQLite format.', 'success');
+      } catch(e) {
+        if (e.name !== 'AbortError') showToast('Could not save as SQLite — please use Save As to convert.', 'warning');
+        S.fileHandle = null; S.fileName = 'Imported (unsaved)';
+      }
     } else {
       try { db = new sqlJsModule.Database(new Uint8Array(arrayBuffer)); ensureSchema(); }
       catch(e) { showToast('Could not open database — file may be corrupt or unsupported.', 'error'); S.fileHandle = null; S.fileName = ''; return; }
