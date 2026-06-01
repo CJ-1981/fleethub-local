@@ -1655,7 +1655,7 @@ function confirmDeleteVehicle(id) {
 // ===================== BOOKINGS =====================
 function renderBookings() {
   const vehicles = getVehicles();
-  const allBookings = getBookings().sort((a, b) => new Date(b.periodStart) - new Date(a.periodStart));
+  const allBookings = getBookings().sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 
   // Filter
   let filtered = allBookings;
