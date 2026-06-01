@@ -492,17 +492,21 @@ function createDatabase() {
 
 function dbQuery(sql, params = []) {
   if (!db) return [];
-  const results = db.exec(sql, params);
-  if (results.length === 0) return [];
-  const cols = results[0].columns;
-  return results[0].values.map(row => { const obj = {}; cols.forEach((c, i) => obj[c] = row[i]); return obj; });
+  try {
+    const results = db.exec(sql, params);
+    if (results.length === 0) return [];
+    const cols = results[0].columns;
+    return results[0].values.map(row => { const obj = {}; cols.forEach((c, i) => obj[c] = row[i]); return obj; });
+  } catch(e) { console.error('dbQuery error:', e); return []; }
 }
 
 function dbScalar(sql, params = []) {
   if (!db) return null;
-  const results = db.exec(sql, params);
-  if (results.length === 0 || results[0].values.length === 0) return null;
-  return results[0].values[0][0];
+  try {
+    const results = db.exec(sql, params);
+    if (results.length === 0 || results[0].values.length === 0) return null;
+    return results[0].values[0][0];
+  } catch(e) { console.error('dbScalar error:', e); return null; }
 }
 
 function getSetting(key, defaultVal) {
@@ -550,7 +554,7 @@ function importJSONToSQLite(jsonData) {
   if (jsonData.vehicles) {
     jsonData.vehicles.forEach((v, i) => {
       if (!v.name) return; // skip malformed vehicle entries
-      db.run("INSERT OR REPLACE INTO vehicles VALUES (?,?,?,?,?,?,?,?,?)",
+      db.run("INSERT OR REPLACE INTO vehicles (id, name, type, license_plate, status, notes, sort_order, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
         [v.id || genId(), v.name, v.type || '', v.licensePlate || '', v.status || 'available', v.notes || '',
          v.sortOrder != null ? v.sortOrder : i, v.createdAt || '', v.updatedAt || '']);
     });
@@ -559,8 +563,9 @@ function importJSONToSQLite(jsonData) {
     jsonData.bookings.forEach(b => {
       if (!b.id) b.id = genId();
       if (!b.vehicleId) return; // skip bookings without a vehicle
-      db.run("INSERT OR REPLACE INTO bookings VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        [b.id, b.vehicleId, b.periodStart || '', b.periodEnd || '', b.userName || '', b.purpose || '',
+      if (!b.periodStart || !b.periodEnd) return; // skip bookings without valid dates
+      db.run("INSERT OR REPLACE INTO bookings (id, vehicle_id, period_start, period_end, user_name, purpose, status, remarks, custom_fields, share_with, share_note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [b.id, b.vehicleId, b.periodStart, b.periodEnd, b.userName || '', b.purpose || '',
          b.status || 'pending', b.remarks || '', JSON.stringify(b.customFields || {}),
          JSON.stringify(b.shareWith || []), b.shareNote || '', b.createdAt || '', b.updatedAt || '']);
     });
@@ -2587,7 +2592,7 @@ async function sendChat() {
 
 function getAITools() {
   const statuses = getSetting('statuses', ['pending','confirmed','in-use','returned','cancelled']);
-  const vehicleStatuses = ['available','in-use','maintenance','out-of-service'];
+  const vehicleStatuses = ['available','in-use','maintenance','reserved'];
   return [
     { type: 'function', function: { name: 'create_booking', description: 'Create a new vehicle booking.', parameters: { type: 'object', properties: { vehicleName: { type: 'string', description: 'Vehicle name' }, userName: { type: 'string', description: 'Name of the person' }, purpose: { type: 'string', description: 'Purpose' }, periodStart: { type: 'string', description: 'YYYY-MM-DD' }, periodEnd: { type: 'string', description: 'YYYY-MM-DD' }, status: { type: 'string', enum: statuses } }, required: ['vehicleName','userName','purpose','periodStart','periodEnd'] } } },
     { type: 'function', function: { name: 'update_vehicle_status', description: 'Change a vehicle status.', parameters: { type: 'object', properties: { vehicleName: { type: 'string' }, status: { type: 'string', enum: vehicleStatuses } }, required: ['vehicleName','status'] } } },
