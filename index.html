@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -537,6 +538,10 @@ function initDefaultSettings() {
 }
 
 function importJSONToSQLite(jsonData) {
+  if (!jsonData || typeof jsonData !== 'object' || Array.isArray(jsonData)) {
+    showToast('Invalid file format — expected a JSON object', 'error');
+    return;
+  }
   createDatabase();
   if (jsonData.vehicles) {
     jsonData.vehicles.forEach((v, i) => {
@@ -578,13 +583,16 @@ function getBookings() {
 }
 
 function getSettings() {
+  const rows = dbQuery("SELECT key, value FROM settings");
+  const map = {};
+  rows.forEach(r => { try { map[r.key] = JSON.parse(r.value); } catch(e) { map[r.key] = r.value; } });
   return {
-    statuses: getSetting('statuses', DEFAULT_SETTINGS.statuses),
-    vehicleTypes: getSetting('vehicleTypes', DEFAULT_SETTINGS.vehicleTypes),
-    customColumns: getSetting('customColumns', []),
-    shareMessage: getSetting('shareMessage', DEFAULT_SETTINGS.shareMessage),
-    germanState: getSetting('germanState', null),
-    userNameConfig: getSetting('userNameConfig', { type: 'text' }),
+    statuses: map.statuses || DEFAULT_SETTINGS.statuses,
+    vehicleTypes: map.vehicleTypes || DEFAULT_SETTINGS.vehicleTypes,
+    customColumns: map.customColumns || [],
+    shareMessage: map.shareMessage || DEFAULT_SETTINGS.shareMessage,
+    germanState: map.germanState || null,
+    userNameConfig: map.userNameConfig || { type: 'text' },
   };
 }
 
@@ -599,21 +607,30 @@ function runAutoArchive() {
   const enabled = getSetting('archiveEnabled', true);
   if (!enabled) return 0;
   const retentionMonths = getSetting('archiveRetentionMonths', 12);
-  const cutoff = new Date();
+  const now = new Date();
+  const cutoff = new Date(now);
   cutoff.setMonth(cutoff.getMonth() - retentionMonths);
   // Guard against month rollover: if subtracting months overshot, clamp to last day of target month
-  if (cutoff.getDate() !== new Date().getDate()) {
+  if (cutoff.getDate() !== now.getDate()) {
     cutoff.setDate(0); // last day of previous month
   }
   const cutoffISO = cutoff.toISOString();
   const toArchive = dbQuery("SELECT b.*, v.name AS vehicle_name FROM bookings b LEFT JOIN vehicles v ON b.vehicle_id = v.id WHERE b.period_end < ?", [cutoffISO]);
   if (!toArchive.length) return 0;
   const archivedAt = new Date().toISOString();
-  for (const b of toArchive) {
-    const year = new Date(b.period_end).getFullYear();
-    db.run("INSERT OR REPLACE INTO archived_bookings (id, vehicle_id, vehicle_name, user_name, purpose, period_start, period_end, status, remarks, custom_fields, share_with, share_note, created_at, updated_at, archived_at, archive_year) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-      [b.id, b.vehicle_id, b.vehicle_name || '', b.user_name, b.purpose, b.period_start, b.period_end, b.status, b.remarks, b.custom_fields, b.share_with, b.share_note, b.created_at, b.updated_at, archivedAt, year]);
-    db.run("DELETE FROM bookings WHERE id = ?", [b.id]);
+ db.run("BEGIN TRANSACTION;");
+  try {
+    for (const b of toArchive) {
+      const year = new Date(b.period_end).getFullYear();
+      db.run("INSERT OR REPLACE INTO archived_bookings (id, vehicle_id, vehicle_name, user_name, purpose, period_start, period_end, status, remarks, custom_fields, share_with, share_note, created_at, updated_at, archived_at, archive_year) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [b.id, b.vehicle_id, b.vehicle_name || '', b.user_name, b.purpose, b.period_start, b.period_end, b.status, b.remarks, b.custom_fields, b.share_with, b.share_note, b.created_at, b.updated_at, archivedAt, year]);
+      db.run("DELETE FROM bookings WHERE id = ?", [b.id]);
+    }
+    db.run("COMMIT;");
+  } catch(e) {
+    db.run("ROLLBACK;");
+    showToast('Auto-archive failed: ' + e.message, 'error');
+    return 0;
   }
   return toArchive.length;
 }
@@ -821,7 +838,7 @@ async function openFile() {
       importJSONToSQLite(JSON.parse(text));
     } else {
       try { db = new sqlJsModule.Database(new Uint8Array(arrayBuffer)); }
-      catch(e) { showToast('Could not open database — file may be corrupt or unsupported. Opening in read-only mode; use Save As to export.', 'warning'); S.fileHandle = null; S.fileName = file.name + ' (read-only)'; createDatabase(); initDefaultSettings(); }
+      catch(e) { showToast('Could not open database — file may be corrupt or unsupported.', 'error'); S.fileHandle = null; S.fileName = ''; return; }
     }
     saveRecentFile(handle.name);
     enterApp();
@@ -909,7 +926,7 @@ function getDemoData() {
 
 async function saveFile() {
   if (S.demoMode) { showToast('Demo mode — use Export to save a copy', 'info'); return; }
-  if (!S.fileHandle || !db) return;
+  if (!S.fileHandle || !db) { showToast('No file open — use File > Save As to export', 'warning'); return; }
   S.saving = true;
   updateSaveIndicator();
   try {
@@ -969,10 +986,13 @@ function getMyLockId() {
 }
 
 function initLock() {
+  // Clean up previous interval and channel to prevent leaks on re-open
+  if (S.lockInterval) { clearInterval(S.lockInterval); S.lockInterval = null; }
+  if (S.bc) { try { S.bc.close(); } catch(e) {} S.bc = null; }
   S.lockId = getMyLockId();
   localStorage.setItem('fleethub_lockid', S.lockId);
   checkLock();
-  setInterval(checkLock, 30000);
+  S.lockInterval = setInterval(checkLock, 30000);
   try {
     const bc = new BroadcastChannel('fleethub-lock');
     bc.onmessage = () => checkLock();
@@ -1850,9 +1870,10 @@ function renderUserNameField(value) {
 function editBooking(id, preselectedVehicleId) {
   const b = id ? getBookings().find(b => b.id === id) : null;
   S.editingBooking = b ? JSON.parse(JSON.stringify(b)) : { id: null, vehicleId: preselectedVehicleId || '', userName: '', purpose: '', periodStart: '', periodEnd: '', status: getSettings().statuses[0] || 'pending', remarks: '', customFields: {}, shareWith: [], shareNote: '' };
+  const settings = getSettings();
   const vehicles = [...getVehicles()].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-  const statuses = getSettings().statuses || DEFAULT_SETTINGS.statuses;
-  const customCols = getSettings().customColumns || [];
+  const statuses = settings.statuses || DEFAULT_SETTINGS.statuses;
+  const customCols = settings.customColumns || [];
   const eb = S.editingBooking;
 
   const vehicleOptions = vehicles.map(v => `<option value="${v.id}"${eb.vehicleId === v.id ? ' selected' : ''}>${esc(v.name)}</option>`).join('');
@@ -2506,7 +2527,8 @@ function renderChatMessages() {
   if (!el) return;
   el.innerHTML = S.chatMessages.map(m => {
     const avatar = m.role === 'assistant' ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>' : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
-    const html = m.role === 'assistant' && typeof marked !== 'undefined' ? marked.parse(m.content || '') : esc(m.content);
+    const raw = m.role === 'assistant' ? (m.content || '') : null;
+    const html = raw && typeof marked !== 'undefined' ? (typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(marked.parse(raw)) : marked.parse(raw)) : esc(m.content);
     return `<div class="chat-msg ${m.role}"><div class="chat-msg-avatar">${avatar}</div><div class="chat-msg-bubble">${html}</div></div>`;
   }).join('');
   el.scrollTop = el.scrollHeight;
