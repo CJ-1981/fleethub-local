@@ -684,6 +684,73 @@ function exportArchiveYear(year) {
   const a = document.createElement('a'); a.href = url; a.download = `fleethub-archive-${year}.json`; a.click(); URL.revokeObjectURL(url);
 }
 
+function exportArchiveYearSQL(year) {
+  const archived = getArchivedBookings(year);
+  if (!archived.length) { showToast('No archived bookings for ' + year, 'warning'); return; }
+  const now = new Date().toISOString();
+  let sql = `-- FleetHub Local - Archived Bookings Export\n`;
+  sql += `-- Year: ${year}\n`;
+  sql += `-- Exported: ${now}\n`;
+  sql += `-- Total records: ${archived.length}\n\n`;
+  sql += `CREATE TABLE IF NOT EXISTS archived_bookings (\n`;
+  sql += `  id TEXT PRIMARY KEY,\n`;
+  sql += `  vehicle_id TEXT NOT NULL,\n`;
+  sql += `  vehicle_name TEXT DEFAULT '',\n`;
+  sql += `  user_name TEXT NOT NULL DEFAULT '',\n`;
+  sql += `  purpose TEXT NOT NULL DEFAULT '',\n`;
+  sql += `  period_start TEXT NOT NULL,\n`;
+  sql += `  period_end TEXT NOT NULL,\n`;
+  sql += `  status TEXT NOT NULL DEFAULT 'pending',\n`;
+  sql += `  remarks TEXT DEFAULT '',\n`;
+  sql += `  custom_fields TEXT DEFAULT '{}',\n`;
+  sql += `  share_with TEXT DEFAULT '[]',\n`;
+  sql += `  share_note TEXT DEFAULT '',\n`;
+  sql += `  created_at TEXT NOT NULL,\n`;
+  sql += `  updated_at TEXT NOT NULL,\n`;
+  sql += `  archived_at TEXT NOT NULL,\n`;
+  sql += `  archive_year INTEGER NOT NULL\n`;
+  sql += `);\n\n`;
+  for (const b of archived) {
+    const id = sqlEscape(b.id);
+    const vid = sqlEscape(b.vehicleId);
+    const vn = sqlEscape(b.vehicleName || '');
+    const un = sqlEscape(b.userName);
+    const pu = sqlEscape(b.purpose);
+    const ps = sqlEscape(b.periodStart);
+    const pe = sqlEscape(b.periodEnd);
+    const st = sqlEscape(b.status);
+    const re = sqlEscape(b.remarks || '');
+    const cf = sqlEscape(JSON.stringify(b.customFields || {}));
+    const sw = sqlEscape(JSON.stringify(b.shareWith || []));
+    const sn = sqlEscape(b.shareNote || '');
+    const ca = sqlEscape(b.createdAt);
+    const ua = sqlEscape(b.updatedAt);
+    const aa = sqlEscape(b.archivedAt);
+    const yr = b.archiveYear;
+    sql += `INSERT INTO archived_bookings (id, vehicle_id, vehicle_name, user_name, purpose, period_start, period_end, status, remarks, custom_fields, share_with, share_note, created_at, updated_at, archived_at, archive_year) VALUES ('${id}','${vid}','${vn}','${un}','${pu}','${ps}','${pe}','${st}','${re}','${cf}','${sw}','${sn}','${ca}','${ua}','${aa}',${yr});\n`;
+  }
+  const blob = new Blob([sql], { type: 'application/sql' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = `fleethub-archive-${year}.sql`; a.click(); URL.revokeObjectURL(url);
+}
+
+function sqlEscape(str) {
+  return String(str).replace(/'/g, "''");
+}
+
+function archiveAndExportSQL() {
+  const count = runAutoArchive();
+  const years = getArchivedYears();
+  if (!years.length) {
+    showToast(count > 0 ? 'Archived but no data to export' : 'No archived bookings to export', 'info');
+    return;
+  }
+  showToast(`${count > 0 ? count + ' booking(s) archived. ' : ''}Exporting ${years.length} SQL file(s)...`, 'info');
+  years.forEach((year, i) => {
+    setTimeout(() => exportArchiveYearSQL(year), i * 500);
+  });
+}
+
 function toggleArchiveEnabled() {
   const enabled = document.getElementById('archive-enabled').checked;
   setSetting('archiveEnabled', enabled);
@@ -2237,7 +2304,11 @@ function renderSettings() {
           <div style="display:flex;gap:8px;margin-top:8px">
             <button class="btn btn-sm" onclick="exportArchiveYear(${selectedArchiveYear})">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Export ${selectedArchiveYear}
+              Export ${selectedArchiveYear} (JSON)
+            </button>
+            <button class="btn btn-sm" onclick="exportArchiveYearSQL(${selectedArchiveYear})">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export ${selectedArchiveYear} (SQL)
             </button>
             <button class="btn btn-sm btn-danger" onclick="confirmPurgeArchiveYear(${selectedArchiveYear})">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
@@ -2265,10 +2336,16 @@ function renderSettings() {
         </div>
         <div class="form-hint">Archived bookings are moved out of the active list and can be restored later.</div>
       </div>
-      <button class="btn btn-sm" onclick="runAutoArchiveNow()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-        Run Archive Now
-      </button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-sm" onclick="runAutoArchiveNow()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          Run Archive Now
+        </button>
+        <button class="btn btn-sm btn-primary" onclick="archiveAndExportSQL()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Archive & Export SQL
+        </button>
+      </div>
     </div>
     ${archiveBrowseHtml}
   </div>`;
