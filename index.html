@@ -531,7 +531,7 @@ function importJSONToSQLite(jsonData) {
   if (jsonData.bookings) {
     jsonData.bookings.forEach(b => {
       db.run("INSERT OR REPLACE INTO bookings VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        [b.id, b.vehicleId, b.userName || '', b.purpose || '', b.periodStart || '', b.periodEnd || '',
+        [b.id, b.vehicleId, b.periodStart || '', b.periodEnd || '', b.userName || '', b.purpose || '',
          b.status || 'pending', b.remarks || '', JSON.stringify(b.customFields || {}),
          JSON.stringify(b.shareWith || []), b.shareNote || '', b.createdAt || '', b.updatedAt || '']);
     });
@@ -806,6 +806,10 @@ async function createNewFile() {
     await initSqlJsModule();
     createDatabase();
     initDefaultSettings();
+    const binaryData = db.export();
+    const writable = await handle.createWritable();
+    await writable.write(binaryData);
+    await writable.close();
     S.fileHandle = handle;
     S.fileName = handle.name;
     saveRecentFile(handle.name);
@@ -819,7 +823,7 @@ async function startDemo() {
   S.fileName = 'demo-data.sqlite';
   S.fileHandle = null;
   await initSqlJsModule();
-  importJSONToSQLite(getDefaultData());
+  importJSONToSQLite(getDemoData());
   enterApp();
   document.getElementById('demo-banner').style.display = 'flex';
   showToast('Demo mode — explore freely, changes are not saved', 'info');
@@ -898,7 +902,7 @@ function markDirty() {
 }
 
 async function exportJSON() {
-  const blob = new Blob([JSON.stringify(S.data, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify(getData(), null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'fleet-export-' + new Date().toISOString().slice(0, 10) + '.json';
@@ -942,12 +946,13 @@ function initLock() {
 }
 
 function checkLock() {
-  const meta = data.meta;
-  if (meta && meta.lockedBy && meta.lockedBy !== S.lockId && meta.lockedAt) {
-    const elapsed = Date.now() - new Date(meta.lockedAt).getTime();
+  const lockedBy = getMeta('lockedBy');
+  const lockedAt = getMeta('lockedAt');
+  if (lockedBy && lockedBy !== S.lockId && lockedAt) {
+    const elapsed = Date.now() - new Date(lockedAt).getTime();
     if (elapsed < 5 * 60 * 1000) { // 5 min stale threshold
-      S.lockedBy = meta.lockedBy;
-      showLockAlert(meta.lockedBy, elapsed);
+      S.lockedBy = lockedBy;
+      showLockAlert(lockedBy, elapsed);
       return;
     }
   }
@@ -956,8 +961,8 @@ function checkLock() {
 }
 
 function acquireLock() {
-  data.meta.lockedBy = S.lockId;
-  data.meta.lockedAt = new Date().toISOString();
+  setMeta('lockedBy', S.lockId);
+  setMeta('lockedAt', new Date().toISOString());
   S.lockedBy = null;
   hideLockAlert();
   markDirty();
@@ -966,9 +971,9 @@ function acquireLock() {
 }
 
 function releaseLock() {
-  if (data.meta.lockedBy === S.lockId) {
-    data.meta.lockedBy = null;
-    data.meta.lockedAt = null;
+  if (getMeta('lockedBy') === S.lockId) {
+    setMeta('lockedBy', null);
+    setMeta('lockedAt', null);
   }
 }
 
@@ -988,9 +993,9 @@ function enterApp() {
   document.getElementById('header-filename').textContent = S.fileName;
   initLock();
   // if no lock, acquire
-  if (!data.meta.lockedBy) {
-    data.meta.lockedBy = S.lockId;
-    data.meta.lockedAt = new Date().toISOString();
+  if (!getMeta('lockedBy')) {
+    setMeta('lockedBy', S.lockId);
+    setMeta('lockedAt', new Date().toISOString());
     markDirty();
   }
   render();
@@ -2038,8 +2043,8 @@ function renderSettings() {
     <div class="file-info-row"><span class="label">File Name</span><span class="value">${esc(S.fileName)}</span></div>
     <div class="file-info-row"><span class="label">Vehicles</span><span class="value">${getVehicles().length}</span></div>
     <div class="file-info-row"><span class="label">Bookings</span><span class="value">${getBookings().length}</span></div>
-    <div class="file-info-row"><span class="label">Last Modified</span><span class="value">${fmtDateTime(data.meta.lastModified)}</span></div>
-    <div class="file-info-row"><span class="label">Locked By</span><span class="value">${esc(data.meta.lockedBy || 'None')}</span></div>
+    <div class="file-info-row"><span class="label">Last Modified</span><span class="value">${fmtDateTime(getMeta('lastModified'))}</span></div>
+    <div class="file-info-row"><span class="label">Locked By</span><span class="value">${esc(getMeta('lockedBy') || 'None')}</span></div>
   </div>`;
 
   // Accordion section renderer
@@ -2100,21 +2105,23 @@ function addSettingItem(key) {
   const input = document.getElementById('settings-input-' + (key === 'statuses' ? 'statuses' : 'types'));
   const val = input.value.trim();
   if (!val) return;
-  if (!getSettings()[key]) getSettings()[key] = [];
-  if (!getSettings()[key].includes(val)) {
-    getSettings()[key].push(val);
+  const current = getSetting(key, []);
+  if (!current.includes(val)) {
+    current.push(val);
+    setSetting(key, current);
     markDirty(); render(); showToast(`Added "${val}"`, 'success');
   }
 }
 
 function removeSettingItem(key, val) {
-  getSettings()[key] = (getSettings()[key] || []).filter(v => v !== val);
+  const current = getSetting(key, []).filter(v => v !== val);
+  setSetting(key, current);
   markDirty(); render(); showToast(`Removed "${val}"`, 'success');
 }
 
 function saveGermanState() {
   const state = document.getElementById('german-state').value;
-  getSettings().germanState = state || null;
+  setSetting('germanState', state || null);
   markDirty(); render(); showToast(`German state updated`, 'success');
 }
 
@@ -2148,7 +2155,7 @@ function editUserNameConfig() {
     const options = optionsStr.split(',').map(o => o.trim()).filter(Boolean);
 
     if ((type === 'select' || type === 'multiselect') && !options.length) { showToast('At least one option is required for select/multiselect types', 'error'); return false; }
-    getSettings().userNameConfig = { type, options: options.length ? options : undefined };
+    setSetting('userNameConfig', { type, options: options.length ? options : undefined });
     markDirty(); render(); showToast('User Name field configured', 'success');
     return true;
   });
@@ -2170,11 +2177,12 @@ function addCustomField() {
   const type = document.getElementById('cf-type').value;
   const options = document.getElementById('cf-options').value.split(',').map(o => o.trim()).filter(Boolean);
   if (!label || !key) { showToast('Label and Key are required', 'error'); return; }
-  if (!getSettings().customColumns) getSettings().customColumns = [];
-  if (getSettings().customColumns.some(c => c.key === key)) { showToast(`A custom field with key "${key}" already exists`, 'error'); return; }
+  const customColumns = getSetting('customColumns', []);
+  if (customColumns.some(c => c.key === key)) { showToast(`A custom field with key "${key}" already exists`, 'error'); return; }
   if ((type === 'select' || type === 'multiselect') && !options.length) { showToast('At least one option is required for select/multiselect types', 'error'); return; }
   const optionsField = (type === 'select' || type === 'multiselect') ? options : undefined;
-  getSettings().customColumns.push({ id: genId(), key, label, type, options: optionsField });
+  customColumns.push({ id: genId(), key, label, type, options: optionsField });
+  setSetting('customColumns', customColumns);
   document.getElementById('cf-label').value = '';
   document.getElementById('cf-key').value = '';
   document.getElementById('cf-type').value = 'text';
@@ -2184,7 +2192,8 @@ function addCustomField() {
 }
 
 function removeCustomField(key) {
-  getSettings().customColumns = (getSettings().customColumns || []).filter(c => c.key !== key);
+  const customColumns = getSetting('customColumns', []).filter(c => c.key !== key);
+  setSetting('customColumns', customColumns);
   markDirty(); render(); showToast('Custom field removed', 'success');
 }
 
@@ -2214,9 +2223,11 @@ function updateCustomField() {
   if (!label || !newKey) { showToast('Label and Key are required', 'error'); return; }
   if ((type === 'select' || type === 'multiselect') && !options.length) { showToast('At least one option is required for select/multiselect types', 'error'); return; }
   const optionsField = (type === 'select' || type === 'multiselect') ? options : undefined;
-  const idx = getSettings().customColumns.findIndex(c => c.key === editingCustomFieldKey);
+  const customColumns = getSetting('customColumns', []);
+  const idx = customColumns.findIndex(c => c.key === editingCustomFieldKey);
   if (idx !== -1) {
-    getSettings().customColumns[idx] = { ...getSettings().customColumns[idx], key: newKey, label, type, options: optionsField };
+    customColumns[idx] = { ...customColumns[idx], key: newKey, label, type, options: optionsField };
+    setSetting('customColumns', customColumns);
     markDirty(); render(); showToast('Custom field updated', 'success');
   }
   cancelEditCustomField();
