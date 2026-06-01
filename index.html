@@ -583,6 +583,10 @@ function importJSONToSQLite(jsonData, appendMode = false) {
         val = val.filter(c => c && typeof c === 'object' && c.label && c.key && c.type);
         if (!val.length) continue;
       }
+      // Validate boolean and numeric settings
+      if (k === 'archiveEnabled' && typeof val !== 'boolean') val = Boolean(val);
+      if (k === 'archiveRetentionMonths') val = Math.max(1, Math.min(120, parseInt(val) || 12));
+      if (k === 'userNameConfig' && typeof val !== 'object') val = { type: 'text' };
       setSetting(k, val);
     }
   }
@@ -633,9 +637,16 @@ function getSettings() {
   };
 }
 
+function getAllSettings() {
+  const rows = dbQuery("SELECT key, value FROM settings");
+  const map = {};
+  rows.forEach(r => { try { map[r.key] = JSON.parse(r.value); } catch(e) { map[r.key] = r.value; } });
+  return map;
+}
+
 function getData() {
   if (!db) return null;
-  return { meta: { version: getMeta('version','1.0'), lastModified: getMeta('lastModified'), lockedBy: getMeta('lockedBy'), lockedAt: getMeta('lockedAt'), lockId: getMeta('lockId') }, vehicles: getVehicles(), bookings: getBookings(), settings: getSettings() };
+  return { meta: { version: getMeta('version','1.0'), lastModified: getMeta('lastModified'), lockedBy: getMeta('lockedBy'), lockedAt: getMeta('lockedAt'), lockId: getMeta('lockId') }, vehicles: getVehicles(), bookings: getBookings(), settings: getAllSettings() };
 }
 
 // ===================== ARCHIVE FUNCTIONS =====================
@@ -1204,7 +1215,9 @@ function renderRecentFiles() {
 // ===================== LOCKING =====================
 function getMyLockId() {
   if (S._lockId) return S._lockId;
-  S._lockId = localStorage.getItem('fleethub_lockid') || uid();
+  // Generate a per-tab UUID — avoids same-browser tabs sharing the same lock ID
+  // which would defeat cross-tab lock detection
+  S._lockId = crypto.randomUUID ? crypto.randomUUID() : uid();
   return S._lockId;
 }
 
@@ -1213,7 +1226,6 @@ function initLock() {
   if (S.lockInterval) { clearInterval(S.lockInterval); S.lockInterval = null; }
   if (S.bc) { try { S.bc.close(); } catch(e) {} S.bc = null; }
   S.lockId = getMyLockId();
-  localStorage.setItem('fleethub_lockid', S.lockId);
   checkLock();
   S.lockInterval = setInterval(checkLock, 30000);
   try {
@@ -2628,7 +2640,8 @@ function removeCustomField(key) {
 let editingCustomFieldKey = null;
 
 function editCustomField(key) {
-  const col = getSettings().customColumns.find(c => c.key === key);
+  const customColumns = getSetting('customColumns', []);
+  const col = customColumns.find(c => c.key === key);
   if (!col) return;
   editingCustomFieldKey = key;
   document.getElementById('cf-label').value = col.label;
