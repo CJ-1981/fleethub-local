@@ -428,6 +428,7 @@ select.form-input{cursor:pointer}
 const S = {
   fileHandle: null,
   fileName: '',
+  demoMode: false,
   // data is now backed by SQLite — use getVehicles()/getBookings() instead of S.data
   dirty: false,
   saving: false,
@@ -807,6 +808,8 @@ async function openFile() {
     const arrayBuffer = await file.arrayBuffer();
     S.fileHandle = handle;
     S.fileName = file.name;
+    S.demoMode = false;
+    document.getElementById('demo-banner').style.display = 'none';
     if (file.name.endsWith('.json')) {
       const text = await file.text();
       importJSONToSQLite(JSON.parse(text));
@@ -831,6 +834,8 @@ async function createNewFile() {
     await writable.close();
     S.fileHandle = handle;
     S.fileName = handle.name;
+    S.demoMode = false;
+    document.getElementById('demo-banner').style.display = 'none';
     saveRecentFile(handle.name);
     enterApp();
     showToast('New file created!', 'success');
