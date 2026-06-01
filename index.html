@@ -1663,7 +1663,7 @@ function renderBookings() {
     const q = S.bookingSearch.toLowerCase();
     filtered = filtered.filter(b => {
       const v = vehicles.find(v => v.id === b.vehicleId);
-      return (v && v.name.toLowerCase().includes(q)) || b.userName.toLowerCase().includes(q) || b.purpose.toLowerCase().includes(q) || (b.remarks || '').toLowerCase().includes(q);
+      return b.id.toLowerCase().includes(q) || (v && v.name.toLowerCase().includes(q)) || b.userName.toLowerCase().includes(q) || b.purpose.toLowerCase().includes(q) || (b.remarks || '').toLowerCase().includes(q);
     });
   }
   if (S.bookingVehicleFilter) filtered = filtered.filter(b => b.vehicleId === S.bookingVehicleFilter);
