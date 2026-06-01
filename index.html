@@ -599,7 +599,12 @@ function runAutoArchive() {
   const enabled = getSetting('archiveEnabled', true);
   if (!enabled) return 0;
   const retentionMonths = getSetting('archiveRetentionMonths', 12);
-  const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - retentionMonths);
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - retentionMonths);
+  // Guard against month rollover: if subtracting months overshot, clamp to last day of target month
+  if (cutoff.getDate() !== new Date().getDate()) {
+    cutoff.setDate(0); // last day of previous month
+  }
   const cutoffISO = cutoff.toISOString();
   const toArchive = dbQuery("SELECT b.*, v.name AS vehicle_name FROM bookings b LEFT JOIN vehicles v ON b.vehicle_id = v.id WHERE b.period_end < ?", [cutoffISO]);
   if (!toArchive.length) return 0;
@@ -816,7 +821,7 @@ async function openFile() {
       importJSONToSQLite(JSON.parse(text));
     } else {
       try { db = new sqlJsModule.Database(new Uint8Array(arrayBuffer)); }
-      catch(e) { showToast('Could not open database — file may be corrupt or unsupported. Starting with a blank database.', 'warning'); createDatabase(); initDefaultSettings(); }
+      catch(e) { showToast('Could not open database — file may be corrupt or unsupported. Opening in read-only mode; use Save As to export.', 'warning'); S.fileHandle = null; S.fileName = file.name + ' (read-only)'; createDatabase(); initDefaultSettings(); }
     }
     saveRecentFile(handle.name);
     enterApp();
@@ -909,7 +914,8 @@ async function saveFile() {
   updateSaveIndicator();
   try {
     setMeta('lastModified', new Date().toISOString());
-    runAutoArchive();
+    const archived = runAutoArchive();
+    if (archived > 0) render();
     const binaryData = db.export();
     const writable = await S.fileHandle.createWritable();
     await writable.write(binaryData);
