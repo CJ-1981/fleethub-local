@@ -230,14 +230,15 @@ Modify CSS custom properties in `:root` within the `<style>` section.
 - **Single state object**: All mutations go through `S`
 - **Re-render everything**: No fine-grained DOM updates — `render()` rebuilds the current tab from scratch
 
-## 하네스: FleetHub Frontend
+## 하네스: FleetHub Code Review
 
-**목표:** FleetHub의 캘린더 뷰 등 UI/UX 문제를 체계적으로 해결
+**목표:** 코드 변경 사항의 정확성, 보안, 프론트엔드 품질을 체계적으로 리뷰
 
-**트리거:** UI 문제 해결, 캘린더 수정, 색상 표시 문제, 레이아웃 버그 등 프론트엔드 관련 작업 요청 시 `fleethub-orchestrator` 스킬을 사용하라. 단순 질문은 직접 응답 가능.
+**트리거:** 코드 리뷰, diff 확인, 버그 찾기, PR 리뷰, 변경 사항 감사, 보안 검토 요청 시 `code-review-orchestrator` 스킬을 사용하라. 단순 질문은 직접 응답 가능.
 
 **변경 이력:**
 
 | 날짜 | 변경 내용 | 대상 | 사유 |
 |------|----------|------|------|
 | 2026-05-31 | 초기 구성 | 전체 | 캘린더 뷰 컬러 셀 문제 해결을 위해 프론트엔드 전문가 팀 구성 |
+| 2026-06-01 | 코드 리뷰 하네스 추가 | agents/fleethub-code-reviewer.md, agents/fleethub-security-reviewer.md, skills/code-review-orchestrator | 코드 변경 사항의 정확성·보안·프론트엔드 품질을 체계적으로 리뷰하기 위해 2인 리뷰어 팀 구성 |
