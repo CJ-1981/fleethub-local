@@ -575,6 +575,19 @@ function importJSONToSQLite(jsonData) {
       setSetting(k, jsonData.settings[k]);
     }
   }
+  if (jsonData.archivedBookings) {
+    jsonData.archivedBookings.forEach(b => {
+      if (!b.id) return; // skip entries without id
+      db.run("INSERT OR REPLACE INTO archived_bookings (id, vehicle_id, vehicle_name, user_name, purpose, period_start, period_end, status, remarks, custom_fields, share_with, share_note, created_at, updated_at, archived_at, archive_year) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [b.id, b.vehicleId || b.vehicle_id || '', b.vehicleName || b.vehicle_name || '',
+         b.userName || b.user_name || '', b.purpose || '',
+         b.periodStart || b.period_start || '', b.periodEnd || b.period_end || '',
+         b.status || 'pending', b.remarks || '', JSON.stringify(b.customFields || b.custom_fields || {}),
+         JSON.stringify(b.shareWith || b.share_with || []), b.shareNote || b.share_note || '',
+         b.createdAt || b.created_at || '', b.updatedAt || b.updated_at || '',
+         b.archivedAt || b.archived_at || '', b.archiveYear || b.archive_year || new Date().getFullYear()]);
+    });
+  }
   if (jsonData.meta) {
     if (jsonData.meta.version !== undefined) setMeta('version', jsonData.meta.version);
     if (jsonData.meta.lastModified !== undefined) setMeta('lastModified', jsonData.meta.lastModified);
@@ -678,10 +691,49 @@ function purgeArchiveYear(year) {
 function exportArchiveYear(year) {
   const archived = getArchivedBookings(year);
   if (!archived.length) { showToast('No archived bookings for ' + year, 'warning'); return; }
-  const json = JSON.stringify(archived, null, 2);
+  const envelope = {
+    _fleethubArchive: true,
+    version: '1.0',
+    archiveYear: year,
+    exportedAt: new Date().toISOString(),
+    recordCount: archived.length,
+    archivedBookings: archived
+  };
+  const json = JSON.stringify(envelope, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = `fleethub-archive-${year}.json`; a.click(); URL.revokeObjectURL(url);
+}
+
+function archiveAndExportJSON() {
+  const count = runAutoArchive();
+  const years = getArchivedYears();
+  if (!years.length) {
+    showToast(count > 0 ? 'Archived but no data to export' : 'No archived bookings to export', 'info');
+    return;
+  }
+  showToast(`${count > 0 ? count + ' booking(s) archived. ' : ''}Exporting ${years.length} JSON file(s)...`, 'info');
+  years.forEach((year, i) => {
+    setTimeout(() => exportArchiveYear(year), i * 500);
+  });
+  // After exports finish, ask to purge archived records from DB
+  const totalDelay = years.length * 500 + 600;
+  setTimeout(() => {
+    const yearCounts = years.map(y => `${y} (${getArchivedBookings(y).length})`).join(', ');
+    openDialog('Purge Archived Records?',
+      `<p>JSON files have been exported.</p>` +
+      `<p style="margin-top:12px">Delete <strong>all archived bookings</strong> (${yearCounts}) from this database?</p>` +
+      `<p style="font-size:13px;color:var(--muted);margin-top:8px">This keeps your working database slim. You can always re-import the exported <code>.json</code> files later via Data Actions &rarr; Import. Uses <code>INSERT OR REPLACE</code> so re-importing is safe even if records overlap.</p>`,
+      () => {
+        try {
+          db.run("BEGIN TRANSACTION;");
+          for (const y of years) db.run("DELETE FROM archived_bookings WHERE archive_year = ?", [y]);
+          db.run("COMMIT;");
+        } catch(e) { db.run("ROLLBACK;"); showToast('Purge failed: ' + e.message, 'error'); return false; }
+        markDirty(); render(); showToast('Archived records purged from database', 'success');
+        return true;
+      }, true);
+  }, totalDelay);
 }
 
 function exportArchiveYearSQL(year) {
@@ -2362,6 +2414,10 @@ function renderSettings() {
         <button class="btn btn-sm btn-primary" onclick="archiveAndExportSQL()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Archive & Export SQL
+        </button>
+        <button class="btn btn-sm" onclick="archiveAndExportJSON()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Archive & Export JSON
         </button>
       </div>
     </div>
