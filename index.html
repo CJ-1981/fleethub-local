@@ -950,7 +950,11 @@ function renderRecentFiles() {
 }
 
 // ===================== LOCKING =====================
-function getMyLockId() { return S._lockId || (S._lockId = uid()); }
+function getMyLockId() {
+  if (S._lockId) return S._lockId;
+  S._lockId = localStorage.getItem('fleethub_lockid') || uid();
+  return S._lockId;
+}
 
 function initLock() {
   S.lockId = getMyLockId();
@@ -2520,10 +2524,10 @@ async function sendChat() {
 
 function getAITools() {
   const statuses = getSetting('statuses', ['pending','confirmed','in-use','returned','cancelled']);
-  const vehicleTypes = getSetting('vehicleTypes', ['sedan','suv','pickup','van','bus','motorcycle','other']);
+  const vehicleStatuses = ['available','in-use','maintenance','out-of-service'];
   return [
     { type: 'function', function: { name: 'create_booking', description: 'Create a new vehicle booking.', parameters: { type: 'object', properties: { vehicleName: { type: 'string', description: 'Vehicle name' }, userName: { type: 'string', description: 'Name of the person' }, purpose: { type: 'string', description: 'Purpose' }, periodStart: { type: 'string', description: 'YYYY-MM-DD' }, periodEnd: { type: 'string', description: 'YYYY-MM-DD' }, status: { type: 'string', enum: statuses } }, required: ['vehicleName','userName','purpose','periodStart','periodEnd'] } } },
-    { type: 'function', function: { name: 'update_vehicle_status', description: 'Change a vehicle status.', parameters: { type: 'object', properties: { vehicleName: { type: 'string' }, status: { type: 'string', enum: vehicleTypes } }, required: ['vehicleName','status'] } } },
+    { type: 'function', function: { name: 'update_vehicle_status', description: 'Change a vehicle status.', parameters: { type: 'object', properties: { vehicleName: { type: 'string' }, status: { type: 'string', enum: vehicleStatuses } }, required: ['vehicleName','status'] } } },
     { type: 'function', function: { name: 'cancel_booking', description: 'Cancel a booking by ID.', parameters: { type: 'object', properties: { bookingId: { type: 'string' } }, required: ['bookingId'] } } },
     { type: 'function', function: { name: 'list_vehicles', description: 'List all vehicles.', parameters: { type: 'object', properties: {} } } },
     { type: 'function', function: { name: 'list_bookings', description: 'List bookings.', parameters: { type: 'object', properties: { status: { type: 'string' } } } } }
