@@ -632,7 +632,7 @@ function runAutoArchive() {
   if (!db) return 0;
   const enabled = getSetting('archiveEnabled', true);
   if (!enabled) return 0;
-  const retentionMonths = getSetting('archiveRetentionMonths', 12);
+  const retentionMonths = parseInt(getSetting('archiveRetentionMonths', 12)) || 12;
   const now = new Date();
   const cutoff = new Date(now);
   cutoff.setMonth(cutoff.getMonth() - retentionMonths);
@@ -708,7 +708,7 @@ function exportArchiveYear(year) {
   const json = JSON.stringify(envelope, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = `fleethub-archive-${year}.json`; a.click(); URL.revokeObjectURL(url);
+  const a = document.createElement('a'); a.href = url; a.download = `fleethub-archive-${year}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 function archiveAndExportJSON() {
@@ -789,7 +789,7 @@ function exportArchiveYearSQL(year) {
   }
   const blob = new Blob([sql], { type: 'application/sql' });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = `fleethub-archive-${year}.sql`; a.click(); URL.revokeObjectURL(url);
+  const a = document.createElement('a'); a.href = url; a.download = `fleethub-archive-${year}.sql`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 function sqlEscape(str) {
@@ -2877,8 +2877,11 @@ function executeToolCall(name, args) {
       const psDate = new Date(ps), peDate = new Date(pe);
       if (isNaN(psDate.getTime()) || isNaN(peDate.getTime())) return 'Error: Invalid date provided for periodStart or periodEnd.';
       if (psDate > peDate) return 'Error: periodStart must be before periodEnd.';
+      const validStatuses = getSetting('statuses', ['pending','confirmed','in-use','returned','cancelled']);
+      const status = args.status || 'pending';
+      if (!validStatuses.includes(status)) return `Error: Invalid status "${status}". Must be one of: ${validStatuses.join(', ')}`;
       db.run("INSERT INTO bookings (id, vehicle_id, user_name, purpose, period_start, period_end, status, remarks, custom_fields, share_with, share_note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        [id, vehicle.id, args.userName||'', args.purpose||'', ps, pe, args.status||'pending', args.remarks||'', JSON.stringify(args.customFields||{}), JSON.stringify(args.shareWith||[]), args.shareNote||'', nowISO, nowISO]);
+        [id, vehicle.id, args.userName||'', args.purpose||'', ps, pe, status, args.remarks||'', JSON.stringify(args.customFields||{}), JSON.stringify(args.shareWith||[]), args.shareNote||'', nowISO, nowISO]);
       markDirty(); render();
       return `Booking created. ID: ${id}, Vehicle: ${vehicle.name}, User: ${args.userName}, ${ps} to ${pe}`;
     }
