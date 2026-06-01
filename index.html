@@ -6,6 +6,7 @@
 <title>FleetHub — Local File Mode</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -196,6 +197,20 @@ select.form-input{cursor:pointer}
 .chat-msg-bubble{padding:10px 14px;border-radius:var(--radius-md);font-size:13px;line-height:1.5;white-space:pre-wrap}
 .chat-msg.assistant .chat-msg-bubble{background:var(--surface-soft);border:1px solid var(--hairline);color:var(--body)}
 .chat-msg.user .chat-msg-bubble{background:var(--primary);color:#fff;border:1px solid var(--primary)}
+.chat-msg.assistant .chat-msg-bubble p{margin:0 0 8px}.chat-msg.assistant .chat-msg-bubble p:last-child{margin-bottom:0}
+.chat-msg.assistant .chat-msg-bubble ul,.chat-msg.assistant .chat-msg-bubble ol{margin:4px 0 8px 20px}.chat-msg.assistant .chat-msg-bubble li{margin-bottom:2px}
+.chat-msg.assistant .chat-msg-bubble code{background:var(--surface-strong);padding:1px 4px;border-radius:3px;font-size:12px;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace}
+.chat-msg.assistant .chat-msg-bubble pre{background:var(--surface-strong);padding:8px 12px;border-radius:var(--radius-sm);overflow-x:auto;margin:6px 0}
+.chat-msg.assistant .chat-msg-bubble pre code{background:none;padding:0;font-size:12px}
+.chat-msg.assistant .chat-msg-bubble strong{font-weight:600;color:var(--ink)}
+.chat-msg.assistant .chat-msg-bubble em{font-style:italic}
+.chat-msg.assistant .chat-msg-bubble a{color:var(--link);text-decoration:underline}
+.chat-msg.assistant .chat-msg-bubble blockquote{border-left:3px solid var(--surface-strong);margin:6px 0;padding-left:10px;color:var(--muted)}
+.chat-msg.assistant .chat-msg-bubble h1,.chat-msg.assistant .chat-msg-bubble h2,.chat-msg.assistant .chat-msg-bubble h3{font-size:14px;font-weight:600;margin:10px 0 4px;color:var(--ink)}
+.chat-msg.assistant .chat-msg-bubble hr{border:none;border-top:1px solid var(--hairline);margin:8px 0}
+.chat-msg.assistant .chat-msg-bubble table{border-collapse:collapse;margin:6px 0;font-size:12px}
+.chat-msg.assistant .chat-msg-bubble th,.chat-msg.assistant .chat-msg-bubble td{border:1px solid var(--hairline);padding:4px 8px}
+.chat-msg.assistant .chat-msg-bubble th{background:var(--surface-soft);font-weight:600}
 .chat-input-area{padding:12px 16px;border-top:1px solid var(--hairline);display:flex;gap:8px;align-items:flex-end}
 .chat-input-area textarea{flex:1;padding:8px 12px;border:1px solid var(--hairline);border-radius:var(--radius-sm);resize:none;outline:none;min-height:36px;max-height:120px;font-size:13px}
 .chat-input-area textarea:focus{border-color:var(--ring)}
@@ -2415,7 +2430,8 @@ function renderChatMessages() {
   if (!el) return;
   el.innerHTML = S.chatMessages.map(m => {
     const avatar = m.role === 'assistant' ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>' : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
-    return `<div class="chat-msg ${m.role}"><div class="chat-msg-avatar">${avatar}</div><div class="chat-msg-bubble">${esc(m.content)}</div></div>`;
+    const html = m.role === 'assistant' && typeof marked !== 'undefined' ? marked.parse(m.content || '') : esc(m.content);
+    return `<div class="chat-msg ${m.role}"><div class="chat-msg-avatar">${avatar}</div><div class="chat-msg-bubble">${html}</div></div>`;
   }).join('');
   el.scrollTop = el.scrollHeight;
 }
