@@ -1889,7 +1889,8 @@ function editVehicle(id) {
       updatedAt: new Date().toISOString()
     };
     if (isEdit) {
-      Object.assign(v, data);
+      db.run("UPDATE vehicles SET name=?, type=?, status=?, license_plate=?, notes=?, updated_at=? WHERE id=?",
+        [data.name, data.type, data.status, data.licensePlate, data.notes, data.updatedAt, v.id]);
       showToast('Vehicle updated', 'success');
     } else {
       const sortOrder = (dbScalar("SELECT MAX(sort_order) FROM vehicles") ?? -1) + 1;
