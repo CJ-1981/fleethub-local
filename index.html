@@ -139,6 +139,7 @@ tbody tr:last-child td{border-bottom:none}
 .badge-in-use{color:var(--info);background:var(--info-bg);border-color:var(--info-border)}
 .badge-maintenance{color:var(--warning);background:var(--warning-bg);border-color:var(--warning-border)}
 .badge-reserved{color:var(--coral);background:#fff1e6;border-color:#e8744f}
+.badge-deregistered{color:#6b7280;background:#f3f4f6;border-color:#d1d5db}
 .badge-pending{color:var(--mustard);background:#fef9e7;border-color:#e8c84a}
 .badge-confirmed{color:var(--info);background:var(--info-bg);border-color:var(--info-border)}
 .badge-returned{color:var(--success);background:var(--success-bg);border-color:var(--success-border)}
@@ -1938,10 +1939,11 @@ function renderVehicles() {
     const isFirst = idx === 0;
     const isLast = idx === vehicles.length - 1;
     return `<tr style="cursor:pointer" onclick="editVehicle('${v.id}')">
-      <td style="font-weight:500;color:var(--ink)">${esc(v.name)}</td>
-      <td>${esc(v.type)}</td>
+      <td style="font-weight:500;color:var(--ink)" title="${escAttr(v.name)}">${esc(v.name)}</td>
+      <td title="${escAttr(v.type)}">${esc(v.type)}</td>
+      <td><span class="badge badge-${v.status}">${esc(v.status)}</span></td>
       <td>${esc(v.licensePlate || '—')}</td>
-      <td style="color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.notes || '')}</td>
+      <td style="color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escAttr(v.notes || '')}">${esc(v.notes || '')}</td>
       <td style="white-space:nowrap">
         <button class="btn-icon btn-sm" onclick="event.stopPropagation();moveVehicleUp(${idx})" data-tooltip="Move up" ${isFirst ? 'disabled' : ''}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg></button>
         <button class="btn-icon btn-sm" onclick="event.stopPropagation();moveVehicleDown(${idx})" data-tooltip="Move down" ${isLast ? 'disabled' : ''}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
@@ -1959,7 +1961,7 @@ function renderVehicles() {
         </button>
       </div>
     </div>
-    ${vehicles.length ? `<div class="card"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>License Plate</th><th>Notes</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div></div>` :
+    ${vehicles.length ? `<div class="card"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>Status</th><th>License Plate</th><th>Notes</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div></div>` :
       `<div class="card"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg><h3>No vehicles yet</h3><p>Add your first vehicle to get started.</p></div></div>`}
   </div>`;
 }
@@ -1970,7 +1972,7 @@ function editVehicle(id) {
   const isEdit = !!v;
   const types = getSettings().vehicleTypes || DEFAULT_SETTINGS.vehicleTypes;
   const typeOptions = types.map(t => `<option value="${esc(t)}"${v && v.type === t ? ' selected' : ''}>${esc(t)}</option>`).join('');
-  const statuses = ['available', 'in-use', 'maintenance', 'reserved'];
+  const statuses = ['available', 'in-use', 'maintenance', 'reserved', 'deregistered'];
 
   openDialog(isEdit ? 'Edit Vehicle' : 'Add Vehicle', `
     <div class="form-group"><label class="form-label">Name *</label><input class="form-input" id="v-name" value="${esc(v ? v.name : '')}" placeholder="e.g. Toyota Hilux #1"></div>
@@ -2082,9 +2084,9 @@ function renderBookings() {
       return `<td style="font-size:13px">${esc(val != null ? String(val) : '—')}</td>`;
     }).join('');
     return `<tr style="cursor:pointer" onclick="editBooking(this.dataset.id)" data-id="${escAttr(b.id)}">
-      <td style="font-weight:500;color:var(--ink)">${esc(v ? v.name : 'Unknown')}</td>
-      <td>${esc(b.userName)}</td>
-      <td>${esc(b.purpose)}</td>
+      <td style="font-weight:500;color:var(--ink)" title="${escAttr(v ? v.name : 'Unknown')}">${esc(v ? v.name : 'Unknown')}</td>
+      <td title="${escAttr(b.userName)}">${esc(b.userName)}</td>
+      <td title="${escAttr(b.purpose)}">${esc(b.purpose)}</td>
       <td style="white-space:nowrap;font-size:13px">${fmtDate(b.periodStart)}<br>${fmtDate(b.periodEnd)}</td>
       <td><span class="badge badge-${esc(b.status)}">${esc(b.status)}</span></td>
       ${cfHtml}
@@ -2997,7 +2999,7 @@ async function sendChat() {
 
 function getAITools() {
   const statuses = getSetting('statuses', ['pending','confirmed','in-use','returned','cancelled']);
-  const vehicleStatuses = ['available','in-use','maintenance','reserved'];
+  const vehicleStatuses = ['available','in-use','maintenance','reserved','deregistered'];
   return [
     { type: 'function', function: { name: 'create_booking', description: 'Create a new vehicle booking.', parameters: { type: 'object', properties: { vehicleName: { type: 'string', description: 'Vehicle name' }, userName: { type: 'string', description: 'Name of the person' }, purpose: { type: 'string', description: 'Purpose' }, periodStart: { type: 'string', description: 'YYYY-MM-DD' }, periodEnd: { type: 'string', description: 'YYYY-MM-DD' }, status: { type: 'string', enum: statuses } }, required: ['vehicleName','userName','purpose','periodStart','periodEnd'] } } },
     { type: 'function', function: { name: 'update_vehicle_status', description: 'Change a vehicle status.', parameters: { type: 'object', properties: { vehicleName: { type: 'string' }, status: { type: 'string', enum: vehicleStatuses } }, required: ['vehicleName','status'] } } },
@@ -3035,7 +3037,7 @@ function executeToolCall(name, args) {
       return `Booking created. ID: ${id}, Vehicle: ${vehicle.name}, User: ${args.userName}, ${ps} to ${pe}`;
     }
     case 'update_vehicle_status': {
-      const validStatuses = ['available','in-use','maintenance','reserved'];
+      const validStatuses = ['available','in-use','maintenance','reserved','deregistered'];
       if (!args.status || !validStatuses.includes(args.status)) return `Error: Invalid status "${args.status}". Must be one of: ${validStatuses.join(', ')}`;
       const vehicles = getVehicles();
       const vehicle = vehicles.find(v => v.name.toLowerCase() === (args.vehicleName||'').toLowerCase());
