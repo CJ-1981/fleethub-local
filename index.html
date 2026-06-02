@@ -6,7 +6,7 @@
 <title>FleetHub — Local File Mode</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -490,23 +490,26 @@ function createDatabase() {
   return db;
 }
 
+let lastDbError = null;
 function dbQuery(sql, params = []) {
   if (!db) return [];
   try {
+    lastDbError = null;
     const results = db.exec(sql, params);
     if (results.length === 0) return [];
     const cols = results[0].columns;
     return results[0].values.map(row => { const obj = {}; cols.forEach((c, i) => obj[c] = row[i]); return obj; });
-  } catch(e) { console.error('dbQuery error:', e); return []; }
+  } catch(e) { lastDbError = e.message; console.error('dbQuery error:', e); return []; }
 }
 
 function dbScalar(sql, params = []) {
   if (!db) return null;
   try {
+    lastDbError = null;
     const results = db.exec(sql, params);
     if (results.length === 0 || results[0].values.length === 0) return null;
     return results[0].values[0][0];
-  } catch(e) { console.error('dbScalar error:', e); return null; }
+  } catch(e) { lastDbError = e.message; console.error('dbScalar error:', e); return null; }
 }
 
 function getSetting(key, defaultVal) {
@@ -2428,8 +2431,8 @@ function renderSettings() {
             <td style="white-space:nowrap">${fmtDate(b.periodStart)}</td>
             <td><span class="badge badge-${b.status}">${esc(b.status)}</span></td>
             <td style="white-space:nowrap">
-              <button class="btn-icon btn-sm" onclick="restoreArchivedBooking('${b.id}')" data-tooltip="Restore" style="color:var(--link)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
-              <button class="btn-icon btn-sm" onclick="deleteArchivedBooking('${b.id}')" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+              <button class="btn-icon btn-sm" onclick="restoreArchivedBooking('${escAttr(b.id)}')" data-tooltip="Restore" style="color:var(--link)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+              <button class="btn-icon btn-sm" onclick="deleteArchivedBooking('${escAttr(b.id)}')" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
             </td></tr>`;
         });
         archiveBrowseHtml += `</tbody></table></div>
@@ -2963,8 +2966,13 @@ function executeToolCall(name, args) {
     case 'list_vehicles': return getVehicles().map(v => `• ${v.name} — ${v.status}`).join('\n') || 'No vehicles.';
     case 'list_bookings': {
       let bookings = getBookings();
+      const vehicles = getVehicles();
       if (args.status) bookings = bookings.filter(b => b.status === args.status);
-      return bookings.slice(0,20).map(b => `• [${b.id.slice(0,8)}] ${b.userName} - ${b.purpose} (${b.periodStart} to ${b.periodEnd}) [${b.status}]`).join('\n') || 'No bookings.';
+      return bookings.slice(0,20).map(b => {
+        const vehicle = vehicles.find(v => v.id === b.vehicleId);
+        const vehicleName = vehicle ? vehicle.name : 'Unknown';
+        return `• [${b.id.slice(0,8)}] ${b.userName} - ${vehicleName} - ${b.purpose} (${b.periodStart} to ${b.periodEnd}) [${b.status}]`;
+      }).join('\n') || 'No bookings.';
     }
     default: return `Error: Unknown tool "${name}".`;
   }
@@ -2974,7 +2982,7 @@ async function callAIWithTools(apiEndpoint, apiKey, userText) {
   const model = localStorage.getItem('fleethub_ai_model') || 'gpt-4o-mini';
   const vehicles = getVehicles();
   const bookings = getBookings();
-  const context = `Fleet data: ${vehicles.length} vehicles, ${bookings.length} bookings. Vehicles: ${vehicles.map(v=>v.name+' ('+v.status+')').join(', ')}. Recent bookings: ${bookings.slice(0,10).map(b=>b.userName+' - '+b.purpose+' ('+b.status+')').join(';')}. Today is ${new Date().toISOString().split('T')[0]}.`;
+  const context = `Fleet data: ${vehicles.length} vehicles, ${bookings.length} bookings. Vehicles: ${vehicles.map(v=>v.name+' ('+v.status+')').join(', ')}. Recent bookings: ${bookings.slice(0,10).map(b=>{const v=vehicles.find(x=>x.id===b.vehicleId);return b.userName+' - '+(v?v.name:'Unknown')+' - '+b.purpose+' ('+b.status+')'}).join(';')}. Today is ${new Date().toISOString().split('T')[0]}.`;
   const messages = [
     { role: 'system', content: `You are a fleet management AI assistant embedded in FleetHub. You can answer questions AND take actions using the available tools.\n\nIMPORTANT: Before calling create_booking, you MUST have ALL required fields (vehicleName, userName, purpose, periodStart, periodEnd). If ANY is missing, ASK the user. After collecting all fields, confirm briefly before creating. Always confirm what you did.\n\nBe concise. ${context}` },
     ...S.chatMessages.map(m => ({ role: m.role, content: m.content }))
