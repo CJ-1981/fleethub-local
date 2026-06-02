@@ -2366,20 +2366,37 @@ function toggleWholeDay() {
   const endInput = document.getElementById('b-end');
 
   if (isWholeDay) {
+    // Save current values before changing type
+    const startVal = startInput.value;
+    const endVal = endInput.value;
     // Change to date-only inputs
     startInput.type = 'date';
     endInput.type = 'date';
-    // If there's already a datetime value, keep just the date part
-    if (startInput.value && startInput.value.length > 10) {
-      startInput.value = startInput.value.slice(0, 10);
+    // Set values in date format (YYYY-MM-DD)
+    if (startVal) {
+      startInput.value = startVal.slice(0, 10);
     }
-    if (endInput.value && endInput.value.length > 10) {
-      endInput.value = endInput.value.slice(0, 10);
+    if (endVal) {
+      endInput.value = endVal.slice(0, 10);
     }
   } else {
+    // Save current values before changing type
+    const startVal = startInput.value;
+    const endVal = endInput.value;
     // Change back to datetime-local inputs
     startInput.type = 'datetime-local';
     endInput.type = 'datetime-local';
+    // Restore values with default time if they were date-only
+    if (startVal && startVal.length === 10) {
+      startInput.value = startVal + 'T00:00';
+    } else if (startVal) {
+      startInput.value = startVal;
+    }
+    if (endVal && endVal.length === 10) {
+      endInput.value = endVal + 'T23:59';
+    } else if (endVal) {
+      endInput.value = endVal;
+    }
   }
 }
 
