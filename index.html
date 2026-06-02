@@ -1368,6 +1368,7 @@ function acquireLock() {
   S.lockedBy = S.lockId;
   hideLockAlert();
   markDirty();
+  saveFile(); // Must persist immediately so other tabs/users can see the lock
   updateLockBadge();
   showToast('Lock acquired', 'success');
 }
@@ -1376,6 +1377,8 @@ function releaseLock() {
   if (getMeta('lockedBy') === S.lockId) {
     setMeta('lockedBy', null);
     setMeta('lockedAt', null);
+    markDirty();
+    saveFile(); // Must persist immediately so other tabs/users see the release
   }
   // Clean up interval and broadcast channel to prevent resource leak
   if (S.lockInterval) { clearInterval(S.lockInterval); S.lockInterval = null; }
