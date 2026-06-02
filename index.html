@@ -1350,6 +1350,19 @@ function checkLock() {
 }
 
 function acquireLock() {
+  // Check database to see if someone else holds the lock
+  const currentLock = getMeta('lockedBy');
+  const currentLockAt = getMeta('lockedAt');
+
+  // If someone else holds a fresh lock (< 5 minutes), don't acquire
+  if (currentLock && currentLock !== S.lockId && currentLockAt) {
+    const elapsed = Date.now() - new Date(currentLockAt).getTime();
+    if (elapsed < 5 * 60 * 1000) {
+      showToast('Cannot acquire lock: another user holds the lock', 'warning');
+      return;
+    }
+  }
+
   setMeta('lockedBy', S.lockId);
   setMeta('lockedAt', new Date().toISOString());
   S.lockedBy = S.lockId;
