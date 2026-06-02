@@ -65,7 +65,7 @@ body{background:var(--surface-soft)}
 .header-logo{display:flex;align-items:center;gap:8px;font-weight:700;color:var(--ink);font-size:16px;text-decoration:none}
 .header-logo .logo-icon{width:32px;height:32px;background:var(--primary);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;color:#fff}
 .header-logo .logo-icon svg{width:18px;height:18px}
-.header-filename{color:var(--muted);font-size:13px;padding:4px 10px;background:var(--surface-soft);border-radius:var(--radius-sm);border:1px solid var(--hairline);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.header-filename{color:var(--muted);font-size:13px;padding:4px 10px;background:var(--surface-soft);border-radius:var(--radius-sm);border:1px solid var(--hairline);max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:help}
 .header-spacer{flex:1}
 .header-actions{display:flex;align-items:center;gap:4px}
 .lock-badge{display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:500;border:1px solid}
@@ -373,7 +373,7 @@ select.form-input{cursor:pointer}
       </span>
       FleetHub
     </a>
-    <span class="header-filename" id="header-filename">fleet-data.sqlite</span>
+    <span class="header-filename" id="header-filename" title="">fleet-data.sqlite</span>
     <span class="save-indicator" id="save-indicator">Saved</span>
     <div class="header-spacer"></div>
     <span class="lock-badge unlocked" id="lock-badge">
@@ -499,6 +499,7 @@ const S = {
   fileHandle: null,
   lockFileHandle: null, // Separate handle for .lock file
   fileName: '',
+  filePath: '', // Full path of loaded file
   demoMode: false,
   // data is now backed by SQLite — use getVehicles()/getBookings() instead of S.data
   dirty: false,
@@ -1128,16 +1129,18 @@ async function openFile() {
         S.fileHandle = newHandle;
         S.lockFileHandle = null; // Reset lock file handle for new file
         S.fileName = newHandle.name;
+        S.filePath = '';
         showToast('Migrated from JSON to SQLite format.', 'success');
       } catch(e) {
         if (e.name !== 'AbortError') showToast('Could not save as SQLite — please use Save As to convert.', 'warning');
-        S.fileHandle = null; S.fileName = 'Imported (unsaved)';
+        S.fileHandle = null; S.fileName = 'Imported (unsaved)'; S.filePath = '';
       }
     } else {
       try { db = new sqlJsModule.Database(new Uint8Array(arrayBuffer)); ensureSchema(); }
-      catch(e) { showToast('Could not open database — file may be corrupt or unsupported.', 'error'); S.fileHandle = null; S.fileName = ''; return; }
+      catch(e) { showToast('Could not open database — file may be corrupt or unsupported.', 'error'); S.fileHandle = null; S.fileName = ''; S.filePath = ''; return; }
     }
-    saveRecentHandle(S.fileName, S.fileHandle);
+    S.filePath = ''; // FileSystemFileHandle doesn't expose full path for security
+    await saveRecentHandle(S.fileName, S.fileHandle, S.filePath);
     enterApp();
   } catch (e) { if (e.name !== 'AbortError') showToast('Failed to open file: ' + e.message, 'error'); }
 }
@@ -1155,9 +1158,10 @@ async function createNewFile() {
     S.fileHandle = handle;
     S.lockFileHandle = null; // Reset lock file handle for new file
     S.fileName = handle.name;
+    S.filePath = ''; // FileSystemFileHandle doesn't expose full path for security
     S.demoMode = false;
     document.getElementById('demo-banner').style.display = 'none';
-    await saveRecentHandle(handle.name, handle);
+    await saveRecentHandle(handle.name, handle, S.filePath);
     enterApp();
     showToast('New file created!', 'success');
   } catch (e) { if (e.name !== 'AbortError') showToast('Failed to create file: ' + e.message, 'error'); }
@@ -1232,6 +1236,8 @@ async function saveFile() {
       S.fileHandle = handle;
       S.lockFileHandle = null; // Reset lock file handle for new file
       S.fileName = handle.name;
+      S.filePath = ''; // FileSystemFileHandle doesn't expose full path for security
+      await saveRecentHandle(S.fileName, S.fileHandle, S.filePath);
     } catch(e) {
       if (e.name !== 'AbortError') showToast('Save As failed: ' + e.message, 'error');
       return;
@@ -1281,19 +1287,19 @@ function openRecentDB() {
   });
 }
 
-async function saveRecentHandle(name, handle) {
+async function saveRecentHandle(name, handle, path = '') {
   try {
     const idb = await openRecentDB();
     const tx = idb.transaction(RECENT_DB_STORE, 'readwrite');
     await new Promise((res, rej) => {
       tx.oncomplete = res; tx.onerror = rej;
-      tx.objectStore(RECENT_DB_STORE).put(handle, name);
+      tx.objectStore(RECENT_DB_STORE).put({ handle, path }, name);
     });
   } catch(e) { console.warn('Could not save handle to IndexedDB:', e); }
-  // Also save name to localStorage for display
+  // Also save name and path to localStorage for display
   let recent = JSON.parse(localStorage.getItem('fleethub_recent') || '[]');
-  recent = recent.filter(r => r !== name);
-  recent.unshift(name);
+  recent = recent.filter(r => r.name !== name);
+  recent.unshift({ name, path, timestamp: Date.now() });
   recent = recent.slice(0, 5);
   localStorage.setItem('fleethub_recent', JSON.stringify(recent));
 }
@@ -1304,7 +1310,17 @@ async function getRecentHandle(name) {
     const tx = idb.transaction(RECENT_DB_STORE, 'readonly');
     return await new Promise((resolve, reject) => {
       const req = tx.objectStore(RECENT_DB_STORE).get(name);
-      req.onsuccess = () => resolve(req.result || null);
+      req.onsuccess = () => {
+        const result = req.result;
+        if (result && result.handle) {
+          resolve(result);
+        } else if (result) {
+          // Legacy format - just the handle
+          resolve({ handle: result, path: '' });
+        } else {
+          resolve(null);
+        }
+      };
       req.onerror = () => resolve(null);
     });
   } catch(e) { return null; }
@@ -1313,8 +1329,12 @@ async function getRecentHandle(name) {
 function saveRecentFile(name) {
   // Legacy sync fallback — saves name only (no handle)
   let recent = JSON.parse(localStorage.getItem('fleethub_recent') || '[]');
-  recent = recent.filter(r => r !== name);
-  recent.unshift(name);
+  // Handle both old format (string) and new format (object)
+  recent = recent.filter(r => {
+    const rName = typeof r === 'string' ? r : r.name;
+    return rName !== name;
+  });
+  recent.unshift({ name, path: '', timestamp: Date.now() });
   recent = recent.slice(0, 5);
   localStorage.setItem('fleethub_recent', JSON.stringify(recent));
 }
@@ -1324,18 +1344,29 @@ function renderRecentFiles() {
   const recent = JSON.parse(localStorage.getItem('fleethub_recent') || '[]');
   if (!recent.length) { el.innerHTML = ''; return; }
   el.innerHTML = '<p style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:500">RECENT FILES</p>' +
-    recent.map(r => `<button class="btn btn-ghost" style="width:100%;justify-content:flex-start;padding:6px 10px;font-size:13px" onclick="openRecentFile('${escAttr(r)}')">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
-      ${esc(r)}
-    </button>`).join('');
+    recent.map(r => {
+      // Handle both old format (string) and new format (object with name/path)
+      const name = typeof r === 'string' ? r : r.name;
+      const path = typeof r === 'string' ? '' : (r.path || '');
+      const pathDisplay = path ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(path)}</div>` : '';
+      return `<button class="btn btn-ghost" style="width:100%;justify-content:flex-start;padding:6px 10px;font-size:13px;flex-direction:column;align-items:flex-start" onclick="openRecentFile('${escAttr(name)}')">
+        <div style="display:flex;align-items:center;gap:6px;width:100%">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
+          <span style="overflow:hidden;text-overflow:ellipsis">${esc(name)}</span>
+        </div>
+        ${pathDisplay}
+      </button>`;
+    }).join('');
 }
 
 async function openRecentFile(name) {
-  const handle = await getRecentHandle(name);
-  if (!handle) {
+  const recentData = await getRecentHandle(name);
+  if (!recentData) {
     showToast('File handle expired. Please use the Open button to select the file again.', 'warning');
     return;
   }
+  const handle = recentData.handle;
+  const storedPath = recentData.path || '';
   try {
     const perm = await handle.queryPermission({ mode: 'read' });
     if (perm !== 'granted') {
@@ -1347,6 +1378,7 @@ async function openRecentFile(name) {
     const arrayBuffer = await file.arrayBuffer();
     S.fileHandle = handle;
     S.fileName = file.name;
+    S.filePath = storedPath;
     S.demoMode = false;
     document.getElementById('demo-banner').style.display = 'none';
     if (file.name.endsWith('.json')) {
@@ -1361,15 +1393,16 @@ async function openRecentFile(name) {
         S.fileHandle = newHandle;
         S.lockFileHandle = null; // Reset lock file handle for new file
         S.fileName = newHandle.name;
-        await saveRecentHandle(S.fileName, S.fileHandle);
+        S.filePath = storedPath;
+        await saveRecentHandle(S.fileName, S.fileHandle, S.filePath);
         showToast('Migrated from JSON to SQLite format.', 'success');
       } catch(e) {
         if (e.name !== 'AbortError') showToast('Could not save as SQLite — please use Save As to convert.', 'warning');
-        S.fileHandle = null; S.lockFileHandle = null; S.fileName = 'Imported (unsaved)';
+        S.fileHandle = null; S.lockFileHandle = null; S.fileName = 'Imported (unsaved)'; S.filePath = '';
       }
     } else {
       try { db = new sqlJsModule.Database(new Uint8Array(arrayBuffer)); ensureSchema(); }
-      catch(e) { showToast('Could not open database — file may be corrupt or unsupported.', 'error'); S.fileHandle = null; S.fileName = ''; return; }
+      catch(e) { showToast('Could not open database — file may be corrupt or unsupported.', 'error'); S.fileHandle = null; S.fileName = ''; S.filePath = ''; return; }
     }
     enterApp();
   } catch(e) {
@@ -1466,7 +1499,7 @@ async function releaseLock() {
 
   S.lockedBy = null;
   hideLockAlert();
-  updateLockBadge();
+  updateLockBadge(); // Now updates with lockedBy = null
 }
 
 function showLockAlert(lockedBy, elapsed) {
@@ -1482,7 +1515,14 @@ function hideLockAlert() { document.getElementById('lock-alert').style.display =
 function enterApp() {
   document.getElementById('landing').style.display = 'none';
   document.getElementById('app').classList.add('active');
-  document.getElementById('header-filename').textContent = S.fileName;
+  const headerFilename = document.getElementById('header-filename');
+  headerFilename.textContent = S.fileName;
+  // Set tooltip with file path if available
+  if (S.filePath) {
+    headerFilename.title = S.filePath;
+  } else {
+    headerFilename.title = S.fileName;
+  }
   initLock();
   render();
   if (!S.chatMessages.length) {
@@ -1497,6 +1537,7 @@ async function closeApp() {
   S.fileHandle = null;
   S.lockFileHandle = null;
   S.fileName = '';
+  S.filePath = '';
   document.getElementById('app').classList.remove('active');
   document.getElementById('landing').style.display = 'flex';
   renderRecentFiles();
@@ -1555,7 +1596,6 @@ function renderNav() {
 function updateLockBadge() {
   const badge = document.getElementById('lock-badge');
   const text = document.getElementById('lock-badge-text');
-  const icon = badge.querySelector('svg');
   // Closed lock SVG — shackle forms a complete U-shape
   const closedLock = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
   // Open lock SVG — shackle is raised and disconnected on one side
@@ -1564,21 +1604,25 @@ function updateLockBadge() {
   badge.style.cursor = 'pointer';
   badge.onclick = toggleLock;
 
+  // Remove existing SVG first
+  const existingSvg = badge.querySelector('svg');
+  if (existingSvg) existingSvg.remove();
+
   if (S.lockedBy === S.lockId) {
     // Current user holds the lock
     badge.className = 'lock-badge owned';
     text.textContent = 'Locked';
-    icon.outerHTML = closedLock;
+    badge.insertAdjacentHTML('afterbegin', closedLock);
   } else if (S.lockedBy && S.lockedBy !== S.lockId) {
     // Someone else holds the lock
     badge.className = 'lock-badge locked';
     text.textContent = 'Locked';
-    icon.outerHTML = closedLock;
+    badge.insertAdjacentHTML('afterbegin', closedLock);
   } else {
     // No lock
     badge.className = 'lock-badge unlocked';
     text.textContent = 'Unlocked';
-    icon.outerHTML = openLock;
+    badge.insertAdjacentHTML('afterbegin', openLock);
   }
 }
 
@@ -1587,16 +1631,14 @@ async function toggleLock() {
     // User holds the lock - unlock it
     await releaseLock();
     showToast('File unlocked', 'info');
-    checkLock();
-    updateLockBadge();
+    await checkLock();
   } else if (S.lockedBy && S.lockedBy !== S.lockId) {
     // Someone else holds the lock - warn
     showToast('Cannot unlock: another user holds the lock', 'warning');
   } else {
     // No lock - acquire it
     await acquireLock();
-    checkLock();
-    updateLockBadge();
+    await checkLock();
   }
 }
 
