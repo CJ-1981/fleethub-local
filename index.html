@@ -344,7 +344,7 @@ select.form-input{cursor:pointer}
         Try Demo
       </button>
     </div>
-    <input type="file" id="landing-file-input" accept="application/json,text/plain,*/*" style="position:absolute;opacity:0;pointer-events:none" onchange="loadFromInput(this)">
+    <input type="file" id="landing-file-input" accept=".sqlite,.json,application/sqlite,application/json,text/plain" style="position:absolute;opacity:0;pointer-events:none" onchange="loadFromInput(this)">
     <div id="recent-files" style="margin-top:24px;text-align:left"></div>
   </div>
 </div>
@@ -1066,7 +1066,7 @@ async function openFile() {
       try { db = new sqlJsModule.Database(new Uint8Array(arrayBuffer)); ensureSchema(); }
       catch(e) { showToast('Could not open database — file may be corrupt or unsupported.', 'error'); S.fileHandle = null; S.fileName = ''; return; }
     }
-    saveRecentFile(S.fileName);
+    saveRecentHandle(S.fileName, S.fileHandle);
     enterApp();
   } catch (e) { if (e.name !== 'AbortError') showToast('Failed to open file: ' + e.message, 'error'); }
 }
@@ -1085,7 +1085,7 @@ async function createNewFile() {
     S.fileName = handle.name;
     S.demoMode = false;
     document.getElementById('demo-banner').style.display = 'none';
-    saveRecentFile(handle.name);
+    await saveRecentHandle(handle.name, handle);
     enterApp();
     showToast('New file created!', 'success');
   } catch (e) { if (e.name !== 'AbortError') showToast('Failed to create file: ' + e.message, 'error'); }
@@ -1195,8 +1195,50 @@ async function exportJSON() {
   URL.revokeObjectURL(a.href);
 }
 
-// ===================== RECENT FILES =====================
+// ===================== RECENT FILES (IndexedDB for handle storage) =====================
+const RECENT_DB_NAME = 'fleethub_handles';
+const RECENT_DB_STORE = 'files';
+
+function openRecentDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(RECENT_DB_NAME, 1);
+    req.onupgradeneeded = (e) => { e.target.result.createObjectStore(RECENT_DB_STORE); };
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+
+async function saveRecentHandle(name, handle) {
+  try {
+    const idb = await openRecentDB();
+    const tx = idb.transaction(RECENT_DB_STORE, 'readwrite');
+    await new Promise((res, rej) => {
+      tx.oncomplete = res; tx.onerror = rej;
+      tx.objectStore(RECENT_DB_STORE).put(handle, name);
+    });
+  } catch(e) { console.warn('Could not save handle to IndexedDB:', e); }
+  // Also save name to localStorage for display
+  let recent = JSON.parse(localStorage.getItem('fleethub_recent') || '[]');
+  recent = recent.filter(r => r !== name);
+  recent.unshift(name);
+  recent = recent.slice(0, 5);
+  localStorage.setItem('fleethub_recent', JSON.stringify(recent));
+}
+
+async function getRecentHandle(name) {
+  try {
+    const idb = await openRecentDB();
+    const tx = idb.transaction(RECENT_DB_STORE, 'readonly');
+    return await new Promise((resolve, reject) => {
+      const req = tx.objectStore(RECENT_DB_STORE).get(name);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch(e) { return null; }
+}
+
 function saveRecentFile(name) {
+  // Legacy sync fallback — saves name only (no handle)
   let recent = JSON.parse(localStorage.getItem('fleethub_recent') || '[]');
   recent = recent.filter(r => r !== name);
   recent.unshift(name);
@@ -1209,10 +1251,56 @@ function renderRecentFiles() {
   const recent = JSON.parse(localStorage.getItem('fleethub_recent') || '[]');
   if (!recent.length) { el.innerHTML = ''; return; }
   el.innerHTML = '<p style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:500">RECENT FILES</p>' +
-    recent.map(r => `<button class="btn btn-ghost" style="width:100%;justify-content:flex-start;padding:6px 10px;font-size:13px" onclick="document.getElementById('landing-file-input').click()">
+    recent.map(r => `<button class="btn btn-ghost" style="width:100%;justify-content:flex-start;padding:6px 10px;font-size:13px" onclick="openRecentFile('${escAttr(r)}')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
       ${esc(r)}
     </button>`).join('');
+}
+
+async function openRecentFile(name) {
+  const handle = await getRecentHandle(name);
+  if (!handle) {
+    showToast('File handle expired. Please use the Open button to select the file again.', 'warning');
+    return;
+  }
+  try {
+    const perm = await handle.queryPermission({ mode: 'read' });
+    if (perm !== 'granted') {
+      const reqPerm = await handle.requestPermission({ mode: 'readwrite' });
+      if (reqPerm !== 'granted') { showToast('Permission denied.', 'error'); return; }
+    }
+    const file = await handle.getFile();
+    await initSqlJsModule();
+    const arrayBuffer = await file.arrayBuffer();
+    S.fileHandle = handle;
+    S.fileName = file.name;
+    S.demoMode = false;
+    document.getElementById('demo-banner').style.display = 'none';
+    if (file.name.endsWith('.json')) {
+      const text = await file.text();
+      importJSONToSQLite(JSON.parse(text), !!JSON.parse(text)._fleethubArchive);
+      try {
+        const newHandle = await window.showSaveFilePicker({ suggestedName: file.name.replace(/\.json$/i, '.sqlite'), types: [{ description: 'FleetHub Data', accept: { 'application/sqlite': ['.sqlite'] } }] });
+        const binaryData = db.export();
+        const writable = await newHandle.createWritable();
+        await writable.write(binaryData);
+        await writable.close();
+        S.fileHandle = newHandle;
+        S.fileName = newHandle.name;
+        await saveRecentHandle(S.fileName, S.fileHandle);
+        showToast('Migrated from JSON to SQLite format.', 'success');
+      } catch(e) {
+        if (e.name !== 'AbortError') showToast('Could not save as SQLite — please use Save As to convert.', 'warning');
+        S.fileHandle = null; S.fileName = 'Imported (unsaved)';
+      }
+    } else {
+      try { db = new sqlJsModule.Database(new Uint8Array(arrayBuffer)); ensureSchema(); }
+      catch(e) { showToast('Could not open database — file may be corrupt or unsupported.', 'error'); S.fileHandle = null; S.fileName = ''; return; }
+    }
+    enterApp();
+  } catch(e) {
+    if (e.name !== 'AbortError') showToast('Could not open file: ' + e.message, 'error');
+  }
 }
 
 // ===================== LOCKING =====================
