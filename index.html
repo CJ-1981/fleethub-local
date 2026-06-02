@@ -1355,7 +1355,6 @@ function acquireLock() {
   S.lockedBy = S.lockId;
   hideLockAlert();
   markDirty();
-  saveFile();
   updateLockBadge();
   showToast('Lock acquired', 'success');
 }
@@ -1475,7 +1474,7 @@ function toggleLock() {
   if (S.lockedBy === S.lockId) {
     // User holds the lock - unlock it
     releaseLock();
-    saveFile();
+    markDirty();
     showToast('File unlocked', 'info');
     checkLock();
     updateLockBadge();
