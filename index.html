@@ -1921,8 +1921,8 @@ function moveVehicleUp(idx) {
   const currentVehicle = vehicles[idx];
   const prevVehicle = vehicles[idx - 1];
   const tempOrder = currentVehicle.sortOrder;
-  currentVehicle.sortOrder = prevVehicle.sortOrder;
-  prevVehicle.sortOrder = tempOrder;
+  db.run('UPDATE vehicles SET sort_order=? WHERE id=?', [prevVehicle.sortOrder, currentVehicle.id]);
+  db.run('UPDATE vehicles SET sort_order=? WHERE id=?', [tempOrder, prevVehicle.id]);
   markDirty(); render();
 }
 
@@ -1933,8 +1933,8 @@ function moveVehicleDown(idx) {
   const currentVehicle = vehicles[idx];
   const nextVehicle = vehicles[idx + 1];
   const tempOrder = currentVehicle.sortOrder;
-  currentVehicle.sortOrder = nextVehicle.sortOrder;
-  nextVehicle.sortOrder = tempOrder;
+  db.run('UPDATE vehicles SET sort_order=? WHERE id=?', [nextVehicle.sortOrder, currentVehicle.id]);
+  db.run('UPDATE vehicles SET sort_order=? WHERE id=?', [tempOrder, nextVehicle.id]);
   markDirty(); render();
 }
 
@@ -2377,7 +2377,7 @@ function renderSettings() {
   const maskedKey = curKey ? curKey.slice(0, 6) + '...' + curKey.slice(-4) : '';
   const apiContent = `<div style="margin-bottom:14px">
     <div class="form-group"><label class="form-label">API Endpoint URL</label><input class="form-input" id="api-endpoint" placeholder="https://api.openai.com/v1" value="${esc(curEndpoint)}"><div class="form-hint">Base URL or full path (auto-appends /chat/completions)</div></div>
-    <div class="form-group"><label class="form-label">API Key</label><div style="position:relative"><input class="form-input" id="api-key" type="password" placeholder="sk-... or your API key" value="${esc(curKey)}" style="padding-right:40px"><button class="btn-icon" onclick="toggleApiKeyVisibility()" style="position:absolute;right:4px;top:50%;transform:translateY(-50%)"><svg id="api-key-eye" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>${maskedKey ? '<div class="form-hint">Current: ' + esc(maskedKey) + '</div>' : ''}</div>
+    <div class="form-group"><label class="form-label">API Key</label><div style="position:relative"><input class="form-input" id="api-key" type="password" placeholder="sk-... or your API key" value="${esc(curKey)}" style="padding-right:40px"><button class="btn-icon" onclick="toggleApiKeyVisibility()" style="position:absolute;right:4px;top:50%;transform:translateY(-50%)"><svg id="api-key-eye" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>${maskedKey ? '<div class="form-hint">Current: ' + esc(maskedKey) + '</div>' : ''}<div class="form-hint" style="color:var(--warning)">Stored in browser localStorage (plaintext). Visible to browser extensions.</div></div>
     <div class="form-group"><label class="form-label">Model Name</label><input class="form-input" id="api-model" placeholder="gpt-4o-mini" value="${esc(curModel)}"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-primary btn-sm" onclick="saveApiConfig()">Save</button>
@@ -2692,6 +2692,7 @@ async function importJSON() {
     const [handle] = await window.showOpenFilePicker({ types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }] });
     const file = await handle.getFile();
     const text = await file.text();
+    if (!confirm('Importing JSON will REPLACE all current data (vehicles, bookings, settings). Continue?')) return;
     importJSONToSQLite(JSON.parse(text));
     markDirty(); render(); showToast('Data imported successfully', 'success');
   } catch (e) { if (e.name !== 'AbortError') showToast('Import failed: ' + e.message, 'error'); }
@@ -2874,8 +2875,8 @@ function normalizeApiEndpoint(url) {
   url = url.trim();
   if (!url) return url;
   if (url.endsWith('/chat/completions')) return url;
-  if (!url.endsWith('/')) url += '/';
-  return url + 'chat/completions';
+  url = url.replace(/\/+$/, '');
+  return url + '/chat/completions';
 }
 
 async function sendChat() {
