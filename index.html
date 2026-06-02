@@ -1413,7 +1413,14 @@ function closeApp() {
 }
 
 window.addEventListener('beforeunload', (e) => {
-  if (S.dirty) { releaseLock(); saveFile(); e.preventDefault(); e.returnValue = ''; }
+  // Always release lock on tab close, then save if dirty
+  if (S.lockedBy === S.lockId) {
+    releaseLock();
+    saveFile();
+  } else if (S.dirty) {
+    saveFile();
+  }
+  if (S.dirty) { e.preventDefault(); e.returnValue = ''; }
 });
 
 // ===================== NAVIGATION =====================
