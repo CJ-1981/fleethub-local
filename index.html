@@ -427,9 +427,77 @@ select.form-input{cursor:pointer}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/sql-wasm.js"></script>
 <script>
-// ===================== STATE =====================
+// ===================== LOCK FILE (Sidecar) =====================
+// Lock metadata is stored in a separate .lock file to avoid forcing data saves
+// when lock state changes. This allows other tabs/users to see lock state
+// immediately without requiring the user to save their work.
+
+async function writeLockFile(lockData) {
+  if (S.demoMode) return;
+  if (!S.fileHandle) return;
+
+  try {
+    // Get or create lock file handle
+    if (!S.lockFileHandle) {
+      const dir = await S.fileHandle.getParent();
+      if (!dir) return;
+      const lockFileName = S.fileHandle.name + '.lock';
+      S.lockFileHandle = await dir.getFileHandle(lockFileName, { create: true });
+    }
+
+    const json = JSON.stringify(lockData, null, 2);
+    const writable = await S.lockFileHandle.createWritable();
+    await writable.write(json);
+    await writable.close();
+  } catch (e) {
+    console.warn('Failed to write lock file:', e);
+  }
+}
+
+async function readLockFile() {
+  if (!S.fileHandle) return null;
+
+  try {
+    // Get lock file handle
+    if (!S.lockFileHandle) {
+      const dir = await S.fileHandle.getParent();
+      if (!dir) return null;
+      const lockFileName = S.fileHandle.name + '.lock';
+      try {
+        S.lockFileHandle = await dir.getFileHandle(lockFileName, { create: false });
+      } catch (e) {
+        // Lock file doesn't exist
+        return null;
+      }
+    }
+
+    const file = await S.lockFileHandle.getFile();
+    const text = await file.text();
+    return JSON.parse(text);
+  } catch (e) {
+    // Lock file doesn't exist or is invalid
+    return null;
+  }
+}
+
+async function deleteLockFile() {
+  if (S.demoMode) return;
+  if (!S.fileHandle) return;
+
+  try {
+    const dir = await S.fileHandle.getParent();
+    if (!dir) return;
+    const lockFileName = S.fileHandle.name + '.lock';
+    await dir.removeEntry(lockFileName);
+    S.lockFileHandle = null;
+  } catch (e) {
+    // Lock file doesn't exist or couldn't be deleted
+    console.warn('Failed to delete lock file:', e);
+  }
+}
 const S = {
   fileHandle: null,
+  lockFileHandle: null, // Separate handle for .lock file
   fileName: '',
   demoMode: false,
   // data is now backed by SQLite — use getVehicles()/getBookings() instead of S.data
@@ -1041,6 +1109,7 @@ async function openFile() {
     await initSqlJsModule();
     const arrayBuffer = await file.arrayBuffer();
     S.fileHandle = handle;
+    S.lockFileHandle = null; // Reset lock file handle for new file
     S.fileName = file.name;
     S.demoMode = false;
     document.getElementById('demo-banner').style.display = 'none';
@@ -1057,6 +1126,7 @@ async function openFile() {
         await writable.write(binaryData);
         await writable.close();
         S.fileHandle = newHandle;
+        S.lockFileHandle = null; // Reset lock file handle for new file
         S.fileName = newHandle.name;
         showToast('Migrated from JSON to SQLite format.', 'success');
       } catch(e) {
@@ -1083,6 +1153,7 @@ async function createNewFile() {
     await writable.write(binaryData);
     await writable.close();
     S.fileHandle = handle;
+    S.lockFileHandle = null; // Reset lock file handle for new file
     S.fileName = handle.name;
     S.demoMode = false;
     document.getElementById('demo-banner').style.display = 'none';
@@ -1159,6 +1230,7 @@ async function saveFile() {
     try {
       const handle = await window.showSaveFilePicker({ suggestedName: (S.fileName && !S.fileName.includes('(unsaved)')) ? S.fileName : 'fleet-data.sqlite', types: [{ description: 'FleetHub Data', accept: { 'application/sqlite': ['.sqlite'] } }] });
       S.fileHandle = handle;
+      S.lockFileHandle = null; // Reset lock file handle for new file
       S.fileName = handle.name;
     } catch(e) {
       if (e.name !== 'AbortError') showToast('Save As failed: ' + e.message, 'error');
@@ -1287,12 +1359,13 @@ async function openRecentFile(name) {
         await writable.write(binaryData);
         await writable.close();
         S.fileHandle = newHandle;
+        S.lockFileHandle = null; // Reset lock file handle for new file
         S.fileName = newHandle.name;
         await saveRecentHandle(S.fileName, S.fileHandle);
         showToast('Migrated from JSON to SQLite format.', 'success');
       } catch(e) {
         if (e.name !== 'AbortError') showToast('Could not save as SQLite — please use Save As to convert.', 'warning');
-        S.fileHandle = null; S.fileName = 'Imported (unsaved)';
+        S.fileHandle = null; S.lockFileHandle = null; S.fileName = 'Imported (unsaved)';
       }
     } else {
       try { db = new sqlJsModule.Database(new Uint8Array(arrayBuffer)); ensureSchema(); }
@@ -1318,7 +1391,7 @@ function initLock() {
   if (S.lockInterval) { clearInterval(S.lockInterval); S.lockInterval = null; }
   if (S.bc) { try { S.bc.close(); } catch(e) {} S.bc = null; }
   S.lockId = getMyLockId();
-  checkLock();
+  checkLock(); // Async, but we don't need to await here
   S.lockInterval = setInterval(checkLock, 30000);
   try {
     const bc = new BroadcastChannel('fleethub-lock');
@@ -1327,9 +1400,11 @@ function initLock() {
   } catch(e) {}
 }
 
-function checkLock() {
-  const lockedBy = getMeta('lockedBy');
-  const lockedAt = getMeta('lockedAt');
+async function checkLock() {
+  const lockData = await readLockFile();
+  const lockedBy = lockData?.lockedBy;
+  const lockedAt = lockData?.lockedAt;
+
   if (lockedBy && lockedBy !== S.lockId && lockedAt) {
     const elapsed = Date.now() - new Date(lockedAt).getTime();
     if (elapsed < 5 * 60 * 1000) { // 5 min stale threshold
@@ -1338,7 +1413,9 @@ function checkLock() {
       updateLockBadge();
       return;
     }
+    // Lock is stale, treat as unlocked
   }
+
   // If current user holds the lock, set lockedBy to own ID
   if (lockedBy === S.lockId) {
     S.lockedBy = S.lockId;
@@ -1349,10 +1426,11 @@ function checkLock() {
   updateLockBadge();
 }
 
-function acquireLock() {
-  // Check database to see if someone else holds the lock
-  const currentLock = getMeta('lockedBy');
-  const currentLockAt = getMeta('lockedAt');
+async function acquireLock() {
+  // Check lock file to see if someone else holds the lock
+  const lockData = await readLockFile();
+  const currentLock = lockData?.lockedBy;
+  const currentLockAt = lockData?.lockedAt;
 
   // If someone else holds a fresh lock (< 5 minutes), don't acquire
   if (currentLock && currentLock !== S.lockId && currentLockAt) {
@@ -1363,26 +1441,32 @@ function acquireLock() {
     }
   }
 
-  setMeta('lockedBy', S.lockId);
-  setMeta('lockedAt', new Date().toISOString());
+  // Write lock to sidecar file (not database)
+  await writeLockFile({
+    lockedBy: S.lockId,
+    lockedAt: new Date().toISOString()
+  });
+
   S.lockedBy = S.lockId;
   hideLockAlert();
-  markDirty();
-  saveFile(); // Must persist immediately so other tabs/users can see the lock
   updateLockBadge();
   showToast('Lock acquired', 'success');
 }
 
-function releaseLock() {
-  if (getMeta('lockedBy') === S.lockId) {
-    setMeta('lockedBy', null);
-    setMeta('lockedAt', null);
-    markDirty();
-    saveFile(); // Must persist immediately so other tabs/users see the release
+async function releaseLock() {
+  const lockData = await readLockFile();
+  if (lockData?.lockedBy === S.lockId) {
+    // Delete lock file
+    await deleteLockFile();
   }
+
   // Clean up interval and broadcast channel to prevent resource leak
   if (S.lockInterval) { clearInterval(S.lockInterval); S.lockInterval = null; }
   if (S.bc) { try { S.bc.close(); } catch(e) {} S.bc = null; }
+
+  S.lockedBy = null;
+  hideLockAlert();
+  updateLockBadge();
 }
 
 function showLockAlert(lockedBy, elapsed) {
@@ -1407,23 +1491,28 @@ function enterApp() {
   renderChat();
 }
 
-function closeApp() {
-  releaseLock();
+async function closeApp() {
+  await releaseLock();
   saveFile();
+  S.fileHandle = null;
+  S.lockFileHandle = null;
+  S.fileName = '';
   document.getElementById('app').classList.remove('active');
   document.getElementById('landing').style.display = 'flex';
   renderRecentFiles();
 }
 
 window.addEventListener('beforeunload', (e) => {
-  // Always release lock on tab close, then save if dirty
+  // Attempt to release lock and save if dirty
+  // Note: async operations may not complete, but we try our best
   if (S.lockedBy === S.lockId) {
-    releaseLock();
-    saveFile();
-  } else if (S.dirty) {
-    saveFile();
+    releaseLock(); // Fire and forget - browser may not wait
   }
-  if (S.dirty) { e.preventDefault(); e.returnValue = ''; }
+  if (S.dirty) {
+    saveFile(); // Fire and forget
+    e.preventDefault();
+    e.returnValue = '';
+  }
 });
 
 // ===================== NAVIGATION =====================
@@ -1493,11 +1582,10 @@ function updateLockBadge() {
   }
 }
 
-function toggleLock() {
+async function toggleLock() {
   if (S.lockedBy === S.lockId) {
     // User holds the lock - unlock it
-    releaseLock();
-    markDirty();
+    await releaseLock();
     showToast('File unlocked', 'info');
     checkLock();
     updateLockBadge();
@@ -1506,7 +1594,7 @@ function toggleLock() {
     showToast('Cannot unlock: another user holds the lock', 'warning');
   } else {
     // No lock - acquire it
-    acquireLock();
+    await acquireLock();
     checkLock();
     updateLockBadge();
   }
