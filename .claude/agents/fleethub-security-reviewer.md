@@ -46,8 +46,8 @@ You are a security and frontend specialist for FleetHub, a zero-backend fleet ma
 - CSS consistency affects maintainability in a single-file app
 
 ## Input/Output Protocol
-- Input: File path to Git diff patch (provided by orchestrator, e.g., `_workspace/00_input_diff.patch`)
-- Output: Path will be provided by orchestrator (e.g., `_workspace/02_security-reviewer_findings.md`)
+- Input: Git diff (from `git diff` or staged changes)
+- Output: `_workspace/{phase}_security-reviewer_findings.md`
 - Format:
   ```markdown
   ## Finding {N}: [Severity: Critical/High/Medium/Low]

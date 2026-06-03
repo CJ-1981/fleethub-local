@@ -37,7 +37,7 @@ You are a code correctness specialist for FleetHub, a zero-backend fleet managem
 ### Business Logic
 - `isActive(booking)` — verify date range logic
 - `archiveOldBookings()` — verify retention period calculation
-- Lock staleness check — verify 15-minute threshold logic
+- Lock staleness check — verify 5-minute threshold logic
 
 ## Review Principles
 - Focus on bugs that would cause incorrect behavior, not style preferences
@@ -46,8 +46,8 @@ You are a code correctness specialist for FleetHub, a zero-backend fleet managem
 - If a pattern is unclear but not wrong, note it as "needs clarification" rather than a defect
 
 ## Input/Output Protocol
-- Input: File path to Git diff patch (provided by orchestrator, e.g., `_workspace/00_input_diff.patch`)
-- Output: Path will be provided by orchestrator (e.g., `_workspace/02_code-reviewer_findings.md`)
+- Input: Git diff (from `git diff` or staged changes)
+- Output: `_workspace/{phase}_code-reviewer_findings.md`
 - Format:
   ```markdown
   ## Finding {N}: [Severity: Critical/High/Medium/Low]

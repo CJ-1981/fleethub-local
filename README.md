@@ -16,12 +16,7 @@
 - **File locking** — Prevents concurrent editing conflicts across tabs and users
 - **OneDrive compatible** — Open `.sqlite` files from your synced OneDrive folder
 - **GitHub Pages ready** — Host the HTML file; data stays local in the browser
-- **AI Assistant** — Built-in fleet chat with OpenAI-compatible function calling (create bookings, update vehicle status, cancel bookings, list fleet data, add/delete vehicles, search bookings)
-- **Streaming responses** — AI chat streams tokens in real-time for responsive UX on slow API endpoints
-- **Multi-round tool execution** — AI can call tools sequentially (e.g., list vehicles → book the first one) across up to 5 reasoning rounds
-- **Destructive action confirmation** — Cancel, delete, and deregister actions require explicit user confirmation before executing
-- **Fuzzy vehicle matching** — AI understands partial vehicle names (e.g., "hilux" matches "Toyota Hilux #1")
-- **Booking conflict detection** — AI prevents double-bookings by checking for overlapping periods before creating or updating bookings
+- **AI Assistant** — Built-in fleet chat with OpenAI-compatible function calling (create bookings, update vehicle status, cancel bookings, list fleet data)
 - **Markdown rendering** — AI chat responses rendered with full Markdown support via [marked.js](https://marked.js.org/)
 - **Keyboard shortcuts** — `Ctrl+S` to save, `Ctrl+N` for new booking
 - **Calendar View** — Gantt chart-style calendar showing vehicle schedules across time with holiday highlighting (German states)
@@ -51,19 +46,16 @@
 
 ## File Locking
 
-- **Automatic lock** acquired when first user opens the file
-- **Lock alert** shown to subsequent users with the locker's name and elapsed time
-- **Human-readable names** — users are prompted for their name on first lock; shown in alerts and badges
-- **Lock heartbeat** — lock timestamp is refreshed every 60 seconds while the tab is active
-- **Stale lock detection** — locks older than 15 minutes (no heartbeat) can be taken over
-- **Database-backed lock** — lock state stored in the SQLite `meta` table and persisted to disk on acquire/release so OneDrive users can see it
-- **BroadcastChannel** — cross-tab lock detection in the same browser; lock acquire/release notifications sent immediately
-- **Session-based lock ID** — each browser session generates a unique UUID
-- **Auto-release** — lock is released when the tab is closed; beforeunload prompt gives async cleanup time to complete
+- **Automatic lock** when first user opens the file
+- **Lock alert** shown to subsequent users with the locker's ID and elapsed time
+- **Stale lock detection** — locks older than 5 minutes can be taken over
+- **BroadcastChannel** — cross-tab lock detection in the same browser
+- **Session-based lock ID** — each browser session generates a unique lock identifier
+- **Auto-release** — lock is released when the tab is closed
 
 ## Database Schema
 
-FleetHub uses SQLite via [sql.js](https://sql.js.org/) (WebAssembly). Data is stored in five tables:
+FleetHub uses SQLite via [sql.js](https://sql.js.org/) (WebAssembly). Data is stored in four tables:
 
 ### `meta`
 
@@ -72,7 +64,7 @@ FleetHub uses SQLite via [sql.js](https://sql.js.org/) (WebAssembly). Data is st
 | `key` | TEXT PK | Metadata key |
 | `value` | TEXT | Metadata value |
 
-Stores version, timestamps, and lock state (`version`, `lastModified`, `lockedBy`, `lockedAt`, `lockedUser`).
+Stores version, timestamps, lock state (`lockedBy`, `lockedAt`, `lockId`, `lastModified`).
 
 ### `vehicles`
 
@@ -192,36 +184,22 @@ FleetHub can import data from the legacy JSON format for seamless migration. The
 
 The built-in AI assistant works in two modes:
 
-1. **Local mode** (default) — Responds with fleet data summaries (available vehicles, vehicles in maintenance, in-use vehicles, pending bookings, upcoming bookings, fleet counts, bookings for a specific vehicle)
+1. **Local mode** (default) — Responds with fleet data summaries (available vehicles, pending bookings, etc.)
 2. **API mode** — Connect any OpenAI-compatible API endpoint for intelligent responses with function calling
 
 ### AI Tools (API Mode)
 
-When connected to an API, the assistant can take actions using eleven tools:
+When connected to an API, the assistant can take actions using five tools:
 
 | Tool | Description |
 |------|-------------|
 | `create_booking` | Create a new vehicle booking (requires vehicleName, userName, purpose, periodStart, periodEnd) |
-| `update_booking` | Update a booking's status, dates, user, or purpose by ID |
-| `cancel_booking` | Cancel a booking by its ID (requires confirmation) |
-| `update_vehicle_status` | Change a vehicle's status (dynamically loaded from settings; deregister requires confirmation) |
-| `add_vehicle` | Add a new vehicle to the fleet (name, type, status, licensePlate, notes) |
-| `delete_vehicle` | Remove a vehicle and all its bookings (requires confirmation) |
+| `update_vehicle_status` | Change a vehicle's status (available, in-use, maintenance, reserved) |
+| `cancel_booking` | Cancel a booking by its ID |
 | `list_vehicles` | List all vehicles with their current status |
 | `list_bookings` | List bookings, optionally filtered by status |
-| `list_vehicle_bookings` | List all bookings for a specific vehicle |
-| `get_booking_details` | Get full details of a booking by ID (supports partial ID match) |
-| `search_bookings` | Search bookings with flexible filters (date range, vehicle, user, status) |
 
-Status enums are dynamically loaded from your settings, so custom statuses work automatically. Vehicle name matching supports exact, partial, and word-level matches — the AI can find "Toyota Hilux #1" even when you just say "hilux".
-
-### Key AI Behaviors
-
-- **Conflict detection**: The AI checks for booking overlaps before creating or updating bookings, preventing double-bookings
-- **Multi-round execution**: The AI can chain tool calls across up to 5 rounds (e.g., list vehicles → pick one → create booking)
-- **Destructive action confirmation**: Cancel, delete, and deregister actions pause the tool loop and show a Confirm/Cancel prompt
-- **Streaming**: API responses stream token-by-token for real-time feedback; falls back to non-streaming on error
-- **Chat persistence**: Chat history is saved to localStorage per file and restored on reload
+Status enums are dynamically loaded from your settings, so custom statuses work automatically.
 
 ### Configuration
 
