@@ -27,7 +27,7 @@ index.html                # Single-file app (~2800 lines)
 3. **ARCHIVE FUNCTIONS** — Auto-archive old bookings, query archived data by year
 4. **FILE I/O** — File System Access API operations (`openFile`, `saveFile`, `exportJSON`, `importJSON`, `createNewFile`, `importJSONToSQLite`)
 5. **RECENT FILES** — localStorage-based recent files list
-6. **LOCKING** — File locking via `BroadcastChannel` and lock metadata in SQLite `meta` table
+6. **LOCKING** — File locking via `BroadcastChannel` and lock state in SQLite `meta` table (`lockedBy`, `lockedAt`, `lockedUser`); persisted to disk on acquire/release
 7. **APP LIFECYCLE** — `enterApp()`, `closeApp()`, demo mode
 8. **NAVIGATION** — Tab switching (`setTab()`, `renderNav()`)
 9. **RENDER** — Main `render()` function that delegates to tab-specific renderers
@@ -137,14 +137,15 @@ function render() {
 
 Multi-user coordination via file locking:
 
-1. **Lock acquisition** — On file open, generate session-unique lock ID via `uid()`, write to `meta` table
-2. **Lock detection** — Subsequent opens check `meta.lockedBy` and `meta.lockedAt`
-3. **Stale lock override** — Locks older than 5 minutes can be taken over
-4. **Cross-tab sync** — `BroadcastChannel` broadcasts lock changes across browser tabs
-5. **Lock release** — On tab close (`beforeunload`) or explicit "close file"
-6. **Lock badge** — Header shows lock state (owned/locked/unlocked) with appropriate icon
+1. **Lock acquisition** — On file open, generate session-unique lock ID via `crypto.randomUUID()`, write to `meta` table, save file to disk
+2. **Lock detection** — Subsequent opens check `meta.lockedBy`, `meta.lockedAt`, and `meta.lockedUser`
+3. **Stale lock override** — Locks older than 15 minutes can be taken over
+4. **Heartbeat** — Lock timestamp refreshed every 60 seconds in `meta` table (in-memory only, no disk save)
+5. **Cross-tab sync** — `BroadcastChannel` broadcasts lock changes across browser tabs
+6. **Lock release** — On tab close (`beforeunload`) or explicit "close file", clears `meta` table and saves to disk
+7. **Lock badge** — Header shows lock state (owned/locked/unlocked) with appropriate icon
 
-**Implementation**: Lock state stored in SQLite `meta` table, enforced by UI warnings (no hard block).
+**Implementation**: Lock state stored in SQLite `meta` table (`lockedBy`, `lockedAt`, `lockedUser` keys), persisted to disk on acquire/release. Enforced by UI warnings (no hard block).
 
 ### Demo Mode
 

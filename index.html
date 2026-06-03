@@ -68,7 +68,8 @@ body{background:var(--surface-soft)}
 .header-filename{color:var(--muted);font-size:13px;padding:4px 10px;background:var(--surface-soft);border-radius:var(--radius-sm);border:1px solid var(--hairline);max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:help}
 .header-spacer{flex:1}
 .header-actions{display:flex;align-items:center;gap:4px}
-.lock-badge{display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:500;border:1px solid}
+.lock-badge{display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:500;border:1px solid;cursor:pointer}
+.lock-badge svg{pointer-events:none}
 .lock-badge.locked{color:var(--warning);background:var(--warning-bg);border-color:var(--warning-border)}
 .lock-badge.owned{color:var(--primary);background:var(--primary-bg,#e8f0fe);border-color:var(--primary)}
 .lock-badge.unlocked{color:var(--success);background:var(--success-bg);border-color:var(--success-border)}
@@ -427,77 +428,35 @@ select.form-input{cursor:pointer}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/sql-wasm.js"></script>
 <script>
-// ===================== LOCK FILE (Sidecar) =====================
-// Lock metadata is stored in a separate .lock file to avoid forcing data saves
-// when lock state changes. This allows other tabs/users to see lock state
-// immediately without requiring the user to save their work.
+// ===================== LOCK STATE (Database) =====================
+// Lock metadata is stored in the SQLite meta table and persisted to disk
+// on acquire/release so other OneDrive users can see it. BroadcastChannel
+// provides immediate cross-tab notification in the same browser.
 
-async function writeLockFile(lockData) {
-  if (S.demoMode) return;
-  if (!S.fileHandle) return;
-
-  try {
-    // Get or create lock file handle
-    if (!S.lockFileHandle) {
-      const dir = await S.fileHandle.getParent();
-      if (!dir) return;
-      const lockFileName = S.fileHandle.name + '.lock';
-      S.lockFileHandle = await dir.getFileHandle(lockFileName, { create: true });
-    }
-
-    const json = JSON.stringify(lockData, null, 2);
-    const writable = await S.lockFileHandle.createWritable();
-    await writable.write(json);
-    await writable.close();
-  } catch (e) {
-    console.warn('Failed to write lock file:', e);
-  }
+function readLockState() {
+  if (!db) return null;
+  const lockedBy = getMeta('lockedBy');
+  const lockedAt = getMeta('lockedAt');
+  const lockedUser = getMeta('lockedUser');
+  if (!lockedBy) return null;
+  return { lockedBy, lockedAt: lockedAt || '', lockedUser: lockedUser || '' };
 }
 
-async function readLockFile() {
-  if (!S.fileHandle) return null;
-
-  try {
-    // Get lock file handle
-    if (!S.lockFileHandle) {
-      const dir = await S.fileHandle.getParent();
-      if (!dir) return null;
-      const lockFileName = S.fileHandle.name + '.lock';
-      try {
-        S.lockFileHandle = await dir.getFileHandle(lockFileName, { create: false });
-      } catch (e) {
-        // Lock file doesn't exist
-        return null;
-      }
-    }
-
-    const file = await S.lockFileHandle.getFile();
-    const text = await file.text();
-    return JSON.parse(text);
-  } catch (e) {
-    // Lock file doesn't exist or is invalid
-    return null;
-  }
+function writeLockState(lockData) {
+  if (!db) return;
+  setMeta('lockedBy', lockData.lockedBy || '');
+  setMeta('lockedAt', lockData.lockedAt || '');
+  setMeta('lockedUser', lockData.lockedUser || '');
 }
 
-async function deleteLockFile() {
-  if (S.demoMode) return;
-  if (!S.fileHandle) return;
-
-  try {
-    const dir = await S.fileHandle.getParent();
-    if (!dir) return;
-    const lockFileName = S.fileHandle.name + '.lock';
-    await dir.removeEntry(lockFileName);
-    S.lockFileHandle = null;
-  } catch (e) {
-    // Lock file doesn't exist or couldn't be deleted
-    console.warn('Failed to delete lock file:', e);
-  }
+function clearLockState() {
+  if (!db) return;
+  setMeta('lockedBy', '');
+  setMeta('lockedAt', '');
+  setMeta('lockedUser', '');
 }
 const S = {
   fileHandle: null,
-  lockFileHandle: null, // Separate handle for .lock file
   fileName: '',
   filePath: '', // Full path of loaded file
   demoMode: false,
@@ -508,6 +467,8 @@ const S = {
   lockId: null,
   lockUser: null,
   lockedBy: null,
+  lockedUser: null, // Human-readable name of who holds the lock
+  _lockReady: false, // True once initial lock check completes
   editingVehicle: null,
   editingBooking: null,
   shareDialogBooking: null,
@@ -523,6 +484,7 @@ const S = {
   calendarStart: new Date().toISOString(),
   settingsTab: 'booking',
   archiveYear: null,
+  toolLoopState: null,
 };
 
 const DEFAULT_SETTINGS = {
@@ -612,9 +574,9 @@ function initDefaultSettings() {
   setSetting('archiveRetentionMonths', 12);
   setMeta('version', '1.0');
   setMeta('lastModified', new Date().toISOString());
-  setMeta('lockedBy', null);
-  setMeta('lockedAt', null);
-  setMeta('lockId', null);
+  setMeta('lockedBy', '');
+  setMeta('lockedAt', '');
+  setMeta('lockedUser', '');
 }
 
 function importJSONToSQLite(jsonData, appendMode = false) {
@@ -719,7 +681,7 @@ function getAllSettings() {
 
 function getData() {
   if (!db) return null;
-  return { meta: { version: getMeta('version','1.0'), lastModified: getMeta('lastModified'), lockedBy: getMeta('lockedBy'), lockedAt: getMeta('lockedAt'), lockId: getMeta('lockId') }, vehicles: getVehicles(), bookings: getBookings(), settings: getAllSettings() };
+  return { meta: { version: getMeta('version','1.0'), lastModified: getMeta('lastModified'), lockedBy: getMeta('lockedBy'), lockedAt: getMeta('lockedAt'), lockedUser: getMeta('lockedUser') }, vehicles: getVehicles(), bookings: getBookings(), settings: getAllSettings() };
 }
 
 // ===================== ARCHIVE FUNCTIONS =====================
@@ -961,7 +923,7 @@ const saveShortcut = isMac ? '⌘+Enter' : 'Ctrl+Enter';
 
 function getDefaultData() {
   return {
-    meta: { version: '1.0', lastModified: new Date().toISOString(), lockedBy: null, lockedAt: null, lockId: null },
+    meta: { version: '1.0', lastModified: new Date().toISOString() },
     vehicles: [],
     bookings: [],
     settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS))
@@ -1110,7 +1072,6 @@ async function openFile() {
     await initSqlJsModule();
     const arrayBuffer = await file.arrayBuffer();
     S.fileHandle = handle;
-    S.lockFileHandle = null; // Reset lock file handle for new file
     S.fileName = file.name;
     S.demoMode = false;
     document.getElementById('demo-banner').style.display = 'none';
@@ -1127,8 +1088,7 @@ async function openFile() {
         await writable.write(binaryData);
         await writable.close();
         S.fileHandle = newHandle;
-        S.lockFileHandle = null; // Reset lock file handle for new file
-        S.fileName = newHandle.name;
+            S.fileName = newHandle.name;
         S.filePath = '';
         showToast('Migrated from JSON to SQLite format.', 'success');
       } catch(e) {
@@ -1156,7 +1116,6 @@ async function createNewFile() {
     await writable.write(binaryData);
     await writable.close();
     S.fileHandle = handle;
-    S.lockFileHandle = null; // Reset lock file handle for new file
     S.fileName = handle.name;
     S.filePath = ''; // FileSystemFileHandle doesn't expose full path for security
     S.demoMode = false;
@@ -1191,7 +1150,7 @@ function getDemoData() {
   const nextWeek = new Date(now.getTime() + 7*86400000).toISOString().slice(0,10);
   const yesterday = new Date(now.getTime() - 86400000).toISOString().slice(0,10);
   return {
-    meta: { version: '1.0', lastModified: now.toISOString(), lockedBy: null, lockedAt: null, lockId: null },
+    meta: { version: '1.0', lastModified: now.toISOString() },
     vehicles: [
       { id: 'v001', name: 'Toyota Hilux #1', type: 'pickup', licensePlate: 'XYZ-1234', status: 'available', notes: 'Team lead vehicle', sortOrder: 0, createdAt: '2026-01-15T08:00:00.000Z', updatedAt: now.toISOString() },
       { id: 'v002', name: 'Honda CR-V #2', type: 'suv', licensePlate: 'ABC-5678', status: 'in-use', notes: null, sortOrder: 1, createdAt: '2026-02-01T08:00:00.000Z', updatedAt: now.toISOString() },
@@ -1226,16 +1185,15 @@ function getDemoData() {
   };
 }
 
-async function saveFile() {
-  if (S.demoMode) { showToast('Demo mode — use Export to save a copy', 'info'); return; }
-  if (!db) { showToast('No database — cannot save', 'error'); return; }
+async function saveFile(silent) {
+  if (S.demoMode) { if (!silent) showToast('Demo mode — use Export to save a copy', 'info'); return; }
+  if (!db) { if (!silent) showToast('No database — cannot save', 'error'); return; }
   if (!S.fileHandle) {
     // No file handle — prompt Save As
     try {
       const handle = await window.showSaveFilePicker({ suggestedName: (S.fileName && !S.fileName.includes('(unsaved)')) ? S.fileName : 'fleet-data.sqlite', types: [{ description: 'FleetHub Data', accept: { 'application/sqlite': ['.sqlite'] } }] });
       S.fileHandle = handle;
-      S.lockFileHandle = null; // Reset lock file handle for new file
-      S.fileName = handle.name;
+        S.fileName = handle.name;
       S.filePath = ''; // FileSystemFileHandle doesn't expose full path for security
       await saveRecentHandle(S.fileName, S.fileHandle, S.filePath);
     } catch(e) {
@@ -1254,8 +1212,8 @@ async function saveFile() {
     await writable.write(binaryData);
     await writable.close();
     S.dirty = false;
-    showToast('File saved', 'success');
-  } catch (e) { showToast('Save failed: ' + e.message, 'error'); }
+    if (!silent) showToast('File saved', 'success');
+  } catch (e) { if (!silent) showToast('Save failed: ' + e.message, 'error'); }
   S.saving = false;
   updateSaveIndicator();
 }
@@ -1391,14 +1349,13 @@ async function openRecentFile(name) {
         await writable.write(binaryData);
         await writable.close();
         S.fileHandle = newHandle;
-        S.lockFileHandle = null; // Reset lock file handle for new file
-        S.fileName = newHandle.name;
+            S.fileName = newHandle.name;
         S.filePath = storedPath;
         await saveRecentHandle(S.fileName, S.fileHandle, S.filePath);
         showToast('Migrated from JSON to SQLite format.', 'success');
       } catch(e) {
         if (e.name !== 'AbortError') showToast('Could not save as SQLite — please use Save As to convert.', 'warning');
-        S.fileHandle = null; S.lockFileHandle = null; S.fileName = 'Imported (unsaved)'; S.filePath = '';
+        S.fileHandle = null; S.fileName = 'Imported (unsaved)'; S.filePath = '';
       }
     } else {
       try { db = new sqlJsModule.Database(new Uint8Array(arrayBuffer)); ensureSchema(); }
@@ -1413,99 +1370,144 @@ async function openRecentFile(name) {
 // ===================== LOCKING =====================
 function getMyLockId() {
   if (S._lockId) return S._lockId;
-  // Generate a per-tab UUID — avoids same-browser tabs sharing the same lock ID
-  // which would defeat cross-tab lock detection
   S._lockId = crypto.randomUUID ? crypto.randomUUID() : uid();
   return S._lockId;
 }
 
 function initLock() {
-  // Clean up previous interval and channel to prevent leaks on re-open
   if (S.lockInterval) { clearInterval(S.lockInterval); S.lockInterval = null; }
   if (S.bc) { try { S.bc.close(); } catch(e) {} S.bc = null; }
   S.lockId = getMyLockId();
-  checkLock(); // Async, but we don't need to await here
-  S.lockInterval = setInterval(checkLock, 30000);
+  S._lockReady = false;
+  updateLockBadge();
+
+  // Check lock state from database, then acquire if available
+  (async () => {
+    try {
+      await checkLock();
+      if (!S.lockedBy || S.lockedBy === S.lockId) {
+        await acquireLock();
+      }
+    } catch(e) {
+      console.warn('Lock init error:', e);
+    }
+    S._lockReady = true;
+    updateLockBadge();
+  })();
+
+  // Heartbeat: refresh lock timestamp every 60s to prevent stale detection
+  S.lockInterval = setInterval(async () => {
+    try { await checkLock(); } catch(e) {}
+  }, 60000);
   try {
     const bc = new BroadcastChannel('fleethub-lock');
-    bc.onmessage = () => checkLock();
+    bc.onmessage = () => { checkLock(); };
     S.bc = bc;
   } catch(e) {}
 }
 
 async function checkLock() {
-  const lockData = await readLockFile();
+  const lockData = readLockState();
   const lockedBy = lockData?.lockedBy;
   const lockedAt = lockData?.lockedAt;
 
+  // Heartbeat: if we hold the lock, refresh the timestamp so it doesn't go stale
+  if (lockedBy === S.lockId) {
+    writeLockState({
+      lockedBy: S.lockId,
+      lockedAt: new Date().toISOString(),
+      lockedUser: S.lockUser || lockData?.lockedUser || ''
+    });
+    S.lockedBy = S.lockId;
+    S.lockedUser = S.lockUser || lockData?.lockedUser || '';
+    hideLockAlert();
+    updateLockBadge();
+    return;
+  }
+
   if (lockedBy && lockedBy !== S.lockId && lockedAt) {
     const elapsed = Date.now() - new Date(lockedAt).getTime();
-    if (elapsed < 5 * 60 * 1000) { // 5 min stale threshold
+    if (elapsed < 15 * 60 * 1000) {
       S.lockedBy = lockedBy;
-      showLockAlert(lockedBy, elapsed);
+      S.lockedUser = lockData?.lockedUser || '';
+      showLockAlert(lockedBy, S.lockedUser, elapsed);
       updateLockBadge();
       return;
     }
     // Lock is stale, treat as unlocked
   }
 
-  // If current user holds the lock, set lockedBy to own ID
-  if (lockedBy === S.lockId) {
-    S.lockedBy = S.lockId;
-  } else {
-    S.lockedBy = null;
-  }
+  S.lockedBy = null;
+  S.lockedUser = null;
   hideLockAlert();
   updateLockBadge();
 }
 
 async function acquireLock() {
-  // Check lock file to see if someone else holds the lock
-  const lockData = await readLockFile();
+  const lockData = readLockState();
   const currentLock = lockData?.lockedBy;
   const currentLockAt = lockData?.lockedAt;
 
-  // If someone else holds a fresh lock (< 5 minutes), don't acquire
   if (currentLock && currentLock !== S.lockId && currentLockAt) {
     const elapsed = Date.now() - new Date(currentLockAt).getTime();
-    if (elapsed < 5 * 60 * 1000) {
+    if (elapsed < 15 * 60 * 1000) {
       showToast('Cannot acquire lock: another user holds the lock', 'warning');
       return;
     }
   }
 
-  // Write lock to sidecar file (not database)
-  await writeLockFile({
+  // Resolve human-readable user name for the lock
+  if (!S.lockUser) {
+    const stored = localStorage.getItem('fleethub_user_name');
+    if (stored) { S.lockUser = stored; }
+    else {
+      const name = prompt('Enter your name (shown to other users when you lock a file):');
+      if (name && name.trim()) {
+        S.lockUser = name.trim();
+        localStorage.setItem('fleethub_user_name', S.lockUser);
+      }
+    }
+  }
+
+  // Write lock to database meta table
+  writeLockState({
     lockedBy: S.lockId,
-    lockedAt: new Date().toISOString()
+    lockedAt: new Date().toISOString(),
+    lockedUser: S.lockUser || ''
   });
 
   S.lockedBy = S.lockId;
+  S.lockedUser = S.lockUser || '';
   hideLockAlert();
   updateLockBadge();
   showToast('Lock acquired', 'success');
+  // Persist to disk so other OneDrive users can see the lock
+  await saveFile(true);
+  try { if (S.bc) S.bc.postMessage('lock-acquired'); } catch(e) {}
 }
 
 async function releaseLock() {
-  const lockData = await readLockFile();
-  if (lockData?.lockedBy === S.lockId) {
-    // Delete lock file
-    await deleteLockFile();
+  const lockData = readLockState();
+  const owned = lockData?.lockedBy === S.lockId;
+
+  if (owned) {
+    clearLockState();
+    S.lockedBy = null;
+    S.lockedUser = null;
+    try { if (S.bc) S.bc.postMessage('lock-released'); } catch(e) {}
+    // Persist to disk so other OneDrive users see the release
+    await saveFile(true);
   }
 
-  // Clean up interval and broadcast channel to prevent resource leak
-  if (S.lockInterval) { clearInterval(S.lockInterval); S.lockInterval = null; }
-  if (S.bc) { try { S.bc.close(); } catch(e) {} S.bc = null; }
-
-  S.lockedBy = null;
   hideLockAlert();
-  updateLockBadge(); // Now updates with lockedBy = null
+  updateLockBadge();
 }
 
-function showLockAlert(lockedBy, elapsed) {
+function showLockAlert(lockedBy, lockedUser, elapsed) {
   const el = document.getElementById('lock-alert');
   const text = document.getElementById('lock-alert-text');
-  text.textContent = `File is currently locked by ${lockedBy} (${Math.floor(elapsed / 60000)}m ago). Changes may conflict.`;
+  const displayName = lockedUser || (lockedBy ? lockedBy.slice(0, 8) : 'Unknown');
+  text.textContent = `File is currently locked by ${displayName} (${Math.floor(elapsed / 60000)}m ago). Changes may conflict.`;
   el.style.display = 'flex';
 }
 
@@ -1525,7 +1527,10 @@ function enterApp() {
   }
   initLock();
   render();
-  if (!S.chatMessages.length) {
+  const saved = loadChatHistory();
+  if (saved) {
+    S.chatMessages = saved;
+  } else if (!S.chatMessages.length) {
     S.chatMessages = [{ id: genId(), role: 'assistant', content: 'Hello! I\'m your FleetHub AI assistant. Ask me about your vehicles, bookings, or fleet management tips. Note: AI responses require configuring an API endpoint in Settings.', timestamp: new Date() }];
   }
   renderChat();
@@ -1533,9 +1538,8 @@ function enterApp() {
 
 async function closeApp() {
   await releaseLock();
-  saveFile();
+  cleanupLockMonitoring();
   S.fileHandle = null;
-  S.lockFileHandle = null;
   S.fileName = '';
   S.filePath = '';
   document.getElementById('app').classList.remove('active');
@@ -1543,12 +1547,24 @@ async function closeApp() {
   renderRecentFiles();
 }
 
+function cleanupLockMonitoring() {
+  if (S.lockInterval) { clearInterval(S.lockInterval); S.lockInterval = null; }
+  if (S.bc) { try { S.bc.close(); } catch(e) {} S.bc = null; }
+}
+
 window.addEventListener('beforeunload', (e) => {
   // Attempt to release lock and save if dirty
   // Note: async operations may not complete, but we try our best
+  // Stale lock detection (15 min) is the safety net if release doesn't complete
   if (S.lockedBy === S.lockId) {
     releaseLock(); // Fire and forget - browser may not wait
+    // Prompt user so async release has a better chance to complete
+    if (!S.dirty) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
   }
+  cleanupLockMonitoring();
   if (S.dirty) {
     saveFile(); // Fire and forget
     e.preventDefault();
@@ -1601,22 +1617,32 @@ function updateLockBadge() {
   // Open lock SVG — shackle is raised and disconnected on one side
   const openLock = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>';
 
-  badge.style.cursor = 'pointer';
-  badge.onclick = toggleLock;
-
   // Remove existing SVG first
   const existingSvg = badge.querySelector('svg');
   if (existingSvg) existingSvg.remove();
 
+  // While initializing, show neutral state and disable click
+  if (!S._lockReady && S.fileHandle) {
+    badge.className = 'lock-badge unlocked';
+    text.textContent = 'Checking...';
+    badge.insertAdjacentHTML('afterbegin', openLock);
+    badge.style.cursor = 'default';
+    badge.onclick = null;
+    return;
+  }
+
+  badge.style.cursor = 'pointer';
+  badge.onclick = toggleLock;
+
   if (S.lockedBy === S.lockId) {
     // Current user holds the lock
     badge.className = 'lock-badge owned';
-    text.textContent = 'Locked';
+    text.textContent = S.lockUser ? `Locked (${S.lockUser})` : 'Locked';
     badge.insertAdjacentHTML('afterbegin', closedLock);
   } else if (S.lockedBy && S.lockedBy !== S.lockId) {
     // Someone else holds the lock
     badge.className = 'lock-badge locked';
-    text.textContent = 'Locked';
+    text.textContent = S.lockedUser ? `Locked (${S.lockedUser})` : 'Locked';
     badge.insertAdjacentHTML('afterbegin', closedLock);
   } else {
     // No lock
@@ -1627,6 +1653,10 @@ function updateLockBadge() {
 }
 
 async function toggleLock() {
+  if (!S._lockReady) {
+    showToast('Lock is initializing, please wait...', 'info');
+    return;
+  }
   if (S.lockedBy === S.lockId) {
     // User holds the lock - unlock it
     await releaseLock();
@@ -2312,16 +2342,20 @@ function renderBookingsTable() {
   if (newSearch && pos !== null) { newSearch.focus(); newSearch.setSelectionRange(pos, pos); }
 }
 
-function renderConflictWarning(booking) {
-  if (!booking.vehicleId || !booking.periodStart || !booking.periodEnd) return '';
-  const conflicts = getBookings().filter(b => {
-    if (b.id === booking.id) return false;
-    if (b.vehicleId !== booking.vehicleId) return false;
+function findBookingConflicts(vehicleId, periodStart, periodEnd, excludeBookingId) {
+  if (!vehicleId || !periodStart || !periodEnd) return [];
+  return getBookings().filter(b => {
+    if (b.id === excludeBookingId) return false;
+    if (b.vehicleId !== vehicleId) return false;
     if (b.status === 'cancelled') return false;
     const bs = new Date(b.periodStart), be = new Date(b.periodEnd);
-    const ns = new Date(booking.periodStart), ne = new Date(booking.periodEnd);
+    const ns = new Date(periodStart), ne = new Date(periodEnd);
     return ns < be && ne > bs;
   });
+}
+
+function renderConflictWarning(booking) {
+  const conflicts = findBookingConflicts(booking.vehicleId, booking.periodStart, booking.periodEnd, booking.id);
   if (!conflicts.length) return '';
   return `<div style="padding:10px 14px;background:var(--warning-bg);border:1px solid var(--warning-border);border-radius:var(--radius-sm);margin-bottom:16px;font-size:13px;color:var(--warning);display:flex;align-items:center;gap:8px">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
@@ -2332,19 +2366,11 @@ function renderConflictWarning(booking) {
 
 function shareWithConflicts() {
   if (!S.editingBooking) return;
-  const conflicts = getBookings().filter(b => {
-    if (b.id === S.editingBooking.id) return false;
-    if (b.vehicleId !== S.editingBooking.vehicleId) return false;
-    if (b.status === 'cancelled') return false;
-    const bs = new Date(b.periodStart), be = new Date(b.periodEnd);
-    const ns = new Date(S.editingBooking.periodStart), ne = new Date(S.editingBooking.periodEnd);
-    return ns < be && ne > bs;
-  });
+  const conflicts = findBookingConflicts(S.editingBooking.vehicleId, S.editingBooking.periodStart, S.editingBooking.periodEnd, S.editingBooking.id);
   const existing = S.editingBooking.shareWith || [];
   conflicts.forEach(c => { if (!existing.includes(c.userName)) existing.push(c.userName); });
   S.editingBooking.shareWith = existing;
   S.editingBooking.shareNote = getSettings().shareMessage || DEFAULT_SETTINGS.shareMessage;
-  // Re-render dialog if open
   showToast('Added conflicting users to share list', 'info');
 }
 
@@ -2737,7 +2763,7 @@ function renderSettings() {
     <div class="file-info-row"><span class="label">Bookings</span><span class="value">${getBookings().length}</span></div>
     <div class="file-info-row"><span class="label">Archived Bookings</span><span class="value">${archivedCount.length ? archivedCount[0].cnt : 0}</span></div>
     <div class="file-info-row"><span class="label">Last Modified</span><span class="value">${fmtDateTime(getMeta('lastModified'))}</span></div>
-    <div class="file-info-row"><span class="label">Locked By</span><span class="value">${esc(getMeta('lockedBy') || 'None')}</span></div>
+    <div class="file-info-row"><span class="label">Locked By</span><span class="value">${esc(S.lockedUser || (S.lockedBy ? S.lockedBy.slice(0,8) : 'None'))}</span></div>
   </div>`;
 
   // Archive Settings Section
@@ -3186,6 +3212,20 @@ function renderChatPage() {
   </div>`;
 }
 
+function toolRequiresConfirmation(name, args) {
+  if (name === 'cancel_booking') return true;
+  if (name === 'delete_vehicle') return true;
+  if (name === 'update_vehicle_status' && args.status === 'deregistered') return true;
+  return false;
+}
+
+function describeToolAction(name, args) {
+  if (name === 'cancel_booking') return `Cancel booking ${args.bookingId || '(unknown)'}`;
+  if (name === 'delete_vehicle') return `Delete vehicle "${args.vehicleName || '(unknown)'}" and all its bookings`;
+  if (name === 'update_vehicle_status' && args.status === 'deregistered') return `Deregister vehicle "${args.vehicleName || '(unknown)'}"`;
+  return `${name}: ${JSON.stringify(args)}`;
+}
+
 function renderChatMessages() {
   const el = document.getElementById('chat-messages');
   if (!el) return;
@@ -3193,7 +3233,14 @@ function renderChatMessages() {
     const avatar = m.role === 'assistant' ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>' : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
     const raw = m.role === 'assistant' ? (m.content || '') : null;
     const html = raw && typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(marked.parse(raw)) : esc(m.content);
-    return `<div class="chat-msg ${m.role}"><div class="chat-msg-avatar">${avatar}</div><div class="chat-msg-bubble">${html}</div></div>`;
+    let extra = '';
+    if (m.confirmation) {
+      extra = `<div class="chat-confirmation" style="margin-top:8px;display:flex;gap:8px;">
+        <button onclick="confirmToolAction('${m.id}')" style="padding:4px 12px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;">Confirm</button>
+        <button onclick="cancelToolAction('${m.id}')" style="padding:4px 12px;background:var(--hairline);color:var(--text);border:none;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;">Cancel</button>
+      </div>`;
+    }
+    return `<div class="chat-msg ${m.role}" data-msg-id="${m.id}"><div class="chat-msg-avatar">${avatar}</div><div class="chat-msg-bubble">${html}${extra}</div></div>`;
   }).join('');
   el.scrollTop = el.scrollHeight;
 }
@@ -3228,40 +3275,67 @@ async function sendChat() {
   const apiKey = localStorage.getItem('fleethub_ai_key');
 
   let response;
+  const assistantMsgId = genId();
   if (apiEndpoint && apiKey) {
-    try { response = await callAIWithTools(apiEndpoint, apiKey, text); }
+    S.chatMessages.push({ id: assistantMsgId, role: 'assistant', content: '', timestamp: new Date() });
+    renderChat();
+    try { response = await callAIWithTools(apiEndpoint, apiKey, text, assistantMsgId); }
     catch (e) { response = 'Error: ' + e.message; }
+    const msg = S.chatMessages.find(m => m.id === assistantMsgId);
+    if (msg) msg.content = response;
   } else {
     response = generateLocalResponse(text);
+    S.chatMessages.push({ id: assistantMsgId, role: 'assistant', content: response, timestamp: new Date() });
   }
 
-  S.chatMessages.push({ id: genId(), role: 'assistant', content: response, timestamp: new Date() });
   S.chatLoading = false;
+  saveChatHistory();
   renderChat();
+}
+
+function findVehicleByName(name) {
+  if (!name) return null;
+  const vehicles = getVehicles();
+  const lower = name.toLowerCase();
+  let match = vehicles.find(v => v.name.toLowerCase() === lower);
+  if (match) return { vehicle: match, matchType: 'exact' };
+  match = vehicles.find(v => v.name.toLowerCase().includes(lower) || lower.includes(v.name.toLowerCase()));
+  if (match) return { vehicle: match, matchType: 'partial' };
+  const searchWords = lower.split(/\s+/).filter(w => w.length > 2);
+  match = vehicles.find(v => {
+    const nameWords = v.name.toLowerCase().split(/\s+/);
+    return searchWords.some(sw => nameWords.some(nw => nw === sw));
+  });
+  if (match) return { vehicle: match, matchType: 'word' };
+  return null;
 }
 
 function getAITools() {
   const statuses = getSetting('statuses', ['pending','confirmed','in-use','returned','cancelled']);
-  const vehicleStatuses = ['available','in-use','maintenance','reserved','deregistered'];
+  const vehicleStatuses = getSetting('vehicleStatuses', ['available','in-use','maintenance','reserved','deregistered']);
   return [
     { type: 'function', function: { name: 'create_booking', description: 'Create a new vehicle booking.', parameters: { type: 'object', properties: { vehicleName: { type: 'string', description: 'Vehicle name' }, userName: { type: 'string', description: 'Name of the person' }, purpose: { type: 'string', description: 'Purpose' }, periodStart: { type: 'string', description: 'YYYY-MM-DD' }, periodEnd: { type: 'string', description: 'YYYY-MM-DD' }, status: { type: 'string', enum: statuses } }, required: ['vehicleName','userName','purpose','periodStart','periodEnd'] } } },
     { type: 'function', function: { name: 'update_vehicle_status', description: 'Change a vehicle status.', parameters: { type: 'object', properties: { vehicleName: { type: 'string' }, status: { type: 'string', enum: vehicleStatuses } }, required: ['vehicleName','status'] } } },
     { type: 'function', function: { name: 'cancel_booking', description: 'Cancel a booking by ID.', parameters: { type: 'object', properties: { bookingId: { type: 'string' } }, required: ['bookingId'] } } },
+    { type: 'function', function: { name: 'update_booking', description: 'Update a booking status or other fields by ID.', parameters: { type: 'object', properties: { bookingId: { type: 'string', description: 'Booking ID' }, status: { type: 'string', enum: statuses, description: 'New status' }, userName: { type: 'string', description: 'Updated user name' }, purpose: { type: 'string', description: 'Updated purpose' }, periodStart: { type: 'string', description: 'Updated start (YYYY-MM-DD)' }, periodEnd: { type: 'string', description: 'Updated end (YYYY-MM-DD)' } }, required: ['bookingId'] } } },
     { type: 'function', function: { name: 'list_vehicles', description: 'List all vehicles.', parameters: { type: 'object', properties: {} } } },
     { type: 'function', function: { name: 'list_bookings', description: 'List recent bookings (up to 20).', parameters: { type: 'object', properties: { status: { type: 'string' } } } } },
-    { type: 'function', function: { name: 'list_vehicle_bookings', description: 'List ALL bookings for a specific vehicle. Use this when user asks about bookings for a particular vehicle.', parameters: { type: 'object', properties: { vehicleName: { type: 'string', description: 'Vehicle name' } }, required: ['vehicleName'] } } }
+    { type: 'function', function: { name: 'list_vehicle_bookings', description: 'List ALL bookings for a specific vehicle. Use this when user asks about bookings for a particular vehicle.', parameters: { type: 'object', properties: { vehicleName: { type: 'string', description: 'Vehicle name' } }, required: ['vehicleName'] } } },
+    { type: 'function', function: { name: 'add_vehicle', description: 'Add a new vehicle to the fleet.', parameters: { type: 'object', properties: { name: { type: 'string', description: 'Vehicle name (must be unique)' }, type: { type: 'string', enum: getSetting('vehicleTypes', ['Sedan','SUV','Van','Truck','Bus','Other']), description: 'Vehicle type' }, status: { type: 'string', enum: vehicleStatuses, description: 'Initial status (default: available)' }, licensePlate: { type: 'string', description: 'License plate number' }, notes: { type: 'string', description: 'Additional notes' } }, required: ['name'] } } },
+    { type: 'function', function: { name: 'delete_vehicle', description: 'Remove a vehicle from the fleet. This will also delete all its bookings.', parameters: { type: 'object', properties: { vehicleName: { type: 'string', description: 'Vehicle name to delete' } }, required: ['vehicleName'] } } },
+    { type: 'function', function: { name: 'get_booking_details', description: 'Get full details of a specific booking by ID (supports partial ID match).', parameters: { type: 'object', properties: { bookingId: { type: 'string', description: 'Booking ID (full or first 8 characters)' } }, required: ['bookingId'] } } },
+    { type: 'function', function: { name: 'search_bookings', description: 'Search bookings with flexible filters. Returns up to 30 results.', parameters: { type: 'object', properties: { fromDate: { type: 'string', description: 'Filter bookings starting after this date (YYYY-MM-DD)' }, toDate: { type: 'string', description: 'Filter bookings starting before this date (YYYY-MM-DD)' }, vehicleName: { type: 'string', description: 'Filter by vehicle name (supports partial match)' }, userName: { type: 'string', description: 'Filter by user name' }, status: { type: 'string', description: 'Filter by booking status' } } } } }
   ];
 }
 
-// Keep AI_TOOLS as fallback for legacy references
-const AI_TOOLS = getAITools();
 
 function executeToolCall(name, args) {
   switch (name) {
     case 'create_booking': {
-      const vehicles = getVehicles();
-      const vehicle = vehicles.find(v => v.name.toLowerCase() === (args.vehicleName||'').toLowerCase());
-      if (!vehicle) return `Error: Vehicle "${args.vehicleName}" not found. Available: ${vehicles.map(v=>v.name).join(', ')}`;
+      const found = findVehicleByName(args.vehicleName);
+      if (!found) return `Error: Vehicle "${args.vehicleName}" not found. Available: ${getVehicles().map(v=>v.name).join(', ')}`;
+      const vehicle = found.vehicle;
+      const fuzzyNote = found.matchType !== 'exact' ? ` (matched "${vehicle.name}")` : '';
       const nowISO = new Date().toISOString();
       const id = genId();
       // Normalize bare dates (YYYY-MM-DD) to ISO datetime for datetime-local compatibility
@@ -3272,23 +3346,29 @@ function executeToolCall(name, args) {
       const psDate = new Date(ps), peDate = new Date(pe);
       if (isNaN(psDate.getTime()) || isNaN(peDate.getTime())) return 'Error: Invalid date provided for periodStart or periodEnd.';
       if (psDate > peDate) return 'Error: periodStart must be before periodEnd.';
+      const conflicts = findBookingConflicts(vehicle.id, ps, pe, null);
+      if (conflicts.length) {
+        const conflictList = conflicts.map(c => `  - ${c.userName}: ${c.purpose} (${fmtDate(c.periodStart)} to ${fmtDate(c.periodEnd)})`).join('\n');
+        return `Error: Scheduling conflict detected for vehicle "${vehicle.name}". The following bookings overlap:\n${conflictList}\nPlease choose different dates or vehicle.`;
+      }
       const validStatuses = getSetting('statuses', ['pending','confirmed','in-use','returned','cancelled']);
       const status = args.status || validStatuses[0] || 'pending';
       if (!validStatuses.includes(status)) return `Error: Invalid status "${status}". Must be one of: ${validStatuses.join(', ')}`;
       db.run("INSERT INTO bookings (id, vehicle_id, user_name, purpose, period_start, period_end, status, remarks, custom_fields, share_with, share_note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         [id, vehicle.id, args.userName||'', args.purpose||'', ps, pe, status, args.remarks||'', JSON.stringify(args.customFields||{}), JSON.stringify(args.shareWith||[]), args.shareNote||'', nowISO, nowISO]);
       markDirty(); render();
-      return `Booking created. ID: ${id}, Vehicle: ${vehicle.name}, User: ${args.userName}, ${ps} to ${pe}`;
+      return `Booking created. ID: ${id}, Vehicle: ${vehicle.name}, User: ${args.userName}, ${ps} to ${pe}${fuzzyNote}`;
     }
     case 'update_vehicle_status': {
-      const validStatuses = ['available','in-use','maintenance','reserved','deregistered'];
+      const validStatuses = getSetting('vehicleStatuses', ['available','in-use','maintenance','reserved','deregistered']);
       if (!args.status || !validStatuses.includes(args.status)) return `Error: Invalid status "${args.status}". Must be one of: ${validStatuses.join(', ')}`;
-      const vehicles = getVehicles();
-      const vehicle = vehicles.find(v => v.name.toLowerCase() === (args.vehicleName||'').toLowerCase());
-      if (!vehicle) return `Error: Vehicle "${args.vehicleName}" not found.`;
+      const found = findVehicleByName(args.vehicleName);
+      if (!found) return `Error: Vehicle "${args.vehicleName}" not found. Available: ${getVehicles().map(v=>v.name).join(', ')}`;
+      const vehicle = found.vehicle;
+      const fuzzyNote = found.matchType !== 'exact' ? ` (matched "${vehicle.name}")` : '';
       db.run("UPDATE vehicles SET status=? WHERE id=?", [args.status, vehicle.id]);
       markDirty(); render();
-      return `Vehicle "${vehicle.name}" status updated to "${args.status}".`;
+      return `Vehicle "${vehicle.name}" status updated to "${args.status}".${fuzzyNote}`;
     }
     case 'cancel_booking': {
       const booking = getBookings().find(b => b.id === args.bookingId);
@@ -3296,6 +3376,44 @@ function executeToolCall(name, args) {
       db.run("UPDATE bookings SET status='cancelled', updated_at=? WHERE id=?", [new Date().toISOString(), args.bookingId]);
       markDirty(); render();
       return `Booking ${args.bookingId} cancelled.`;
+    }
+    case 'update_booking': {
+      const booking = getBookings().find(b => b.id === args.bookingId);
+      if (!booking) return `Error: Booking "${args.bookingId}" not found.`;
+      const sets = [];
+      const params = [];
+      if (args.status) {
+        const validStatuses = getSetting('statuses', ['pending','confirmed','in-use','returned','cancelled']);
+        if (!validStatuses.includes(args.status)) return `Error: Invalid status "${args.status}". Must be one of: ${validStatuses.join(', ')}`;
+        sets.push('status=?'); params.push(args.status);
+      }
+      if (args.userName) { sets.push('user_name=?'); params.push(args.userName); }
+      if (args.purpose) { sets.push('purpose=?'); params.push(args.purpose); }
+      if (args.periodStart) {
+        let ps = args.periodStart;
+        if (ps.length === 10) ps = ps + 'T00:00:00.000Z';
+        sets.push('period_start=?'); params.push(ps);
+      }
+      if (args.periodEnd) {
+        let pe = args.periodEnd;
+        if (pe.length === 10) pe = pe + 'T23:59:59.000Z';
+        sets.push('period_end=?'); params.push(pe);
+      }
+      if (!sets.length) return 'Error: No fields to update. Provide at least one of: status, userName, purpose, periodStart, periodEnd.';
+      if (args.periodStart || args.periodEnd) {
+        const newPs = args.periodStart ? (args.periodStart.length === 10 ? args.periodStart + 'T00:00:00.000Z' : args.periodStart) : booking.periodStart;
+        const newPe = args.periodEnd ? (args.periodEnd.length === 10 ? args.periodEnd + 'T23:59:59.000Z' : args.periodEnd) : booking.periodEnd;
+        const conflicts = findBookingConflicts(booking.vehicleId, newPs, newPe, args.bookingId);
+        if (conflicts.length) {
+          const conflictList = conflicts.map(c => `  - ${c.userName}: ${c.purpose} (${fmtDate(c.periodStart)} to ${fmtDate(c.periodEnd)})`).join('\n');
+          return `Error: Scheduling conflict detected. The following bookings overlap:\n${conflictList}\nPlease choose different dates.`;
+        }
+      }
+      sets.push('updated_at=?'); params.push(new Date().toISOString());
+      params.push(args.bookingId);
+      db.run(`UPDATE bookings SET ${sets.join(', ')} WHERE id=?`, params);
+      markDirty(); render();
+      return `Booking ${args.bookingId} updated: ${sets.slice(0,-1).map((s,i) => s.replace('=?','') + '=' + params[i]).join(', ')}`;
     }
     case 'list_vehicles': return getVehicles().map(v => `• ${v.name} — ${v.status}`).join('\n') || 'No vehicles.';
     case 'list_bookings': {
@@ -3309,57 +3427,273 @@ function executeToolCall(name, args) {
       }).join('\n') || 'No bookings.';
     }
     case 'list_vehicle_bookings': {
-      const vehicles = getVehicles();
-      const vehicle = vehicles.find(v => v.name.toLowerCase() === (args.vehicleName||'').toLowerCase());
-      if (!vehicle) return `Error: Vehicle "${args.vehicleName}" not found. Available: ${vehicles.map(v=>v.name).join(', ')}`;
+      const result = findVehicleByName(args.vehicleName);
+      if (!result) { const vehicles = getVehicles(); return `Error: Vehicle "${args.vehicleName}" not found. Available: ${vehicles.map(v=>v.name).join(', ')}`; }
+      const { vehicle, matchType } = result;
+      const fuzzyNote = matchType !== 'exact' ? ` (matched "${vehicle.name}")` : '';
       const bookings = getBookings().filter(b => b.vehicleId === vehicle.id);
-      return bookings.map(b => `• ${b.userName} - ${vehicle.name} - ${b.purpose} (${b.periodStart} to ${b.periodEnd}) [${b.status}]`).join('\n') || `No bookings for ${args.vehicleName}.`;
+      return bookings.map(b => `• ${b.userName} - ${vehicle.name} - ${b.purpose} (${b.periodStart} to ${b.periodEnd}) [${b.status}]`).join('\n') || `No bookings for ${vehicle.name}${fuzzyNote}.`;
+    }
+    case 'add_vehicle': {
+      if (!args.name) return 'Error: Vehicle name is required.';
+      const vehicles = getVehicles();
+      if (vehicles.find(v => v.name.toLowerCase() === args.name.toLowerCase())) return `Error: Vehicle "${args.name}" already exists.`;
+      const id = genId();
+      const maxSort = vehicles.reduce((m, v) => Math.max(m, v.sort_order || 0), 0);
+      const nowISO = new Date().toISOString();
+      db.run('INSERT INTO vehicles (id,name,type,status,license_plate,notes,sort_order,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)',
+        [id, args.name, args.type || 'Other', args.status || 'available', args.licensePlate || '', args.notes || '', maxSort + 1, nowISO, nowISO]);
+      render();
+      return `Vehicle "${args.name}" added successfully (status: ${args.status || 'available'}, type: ${args.type || 'Other'}).`;
+    }
+    case 'delete_vehicle': {
+      const result = findVehicleByName(args.vehicleName);
+      if (!result) return `Error: Vehicle "${args.vehicleName}" not found.`;
+      const vehicle = result.vehicle;
+      const fuzzyNote = result.matchType !== 'exact' ? ` (matched "${vehicle.name}")` : '';
+      const bookingCount = getBookings().filter(b => b.vehicleId === vehicle.id).length;
+      db.run('DELETE FROM bookings WHERE vehicle_id = ?', [vehicle.id]);
+      db.run('DELETE FROM vehicles WHERE id = ?', [vehicle.id]);
+      render();
+      return `Vehicle "${vehicle.name}"${fuzzyNote} deleted successfully along with ${bookingCount} associated booking(s).`;
+    }
+    case 'get_booking_details': {
+      if (!args.bookingId) return 'Error: bookingId is required.';
+      const bookings = getBookings();
+      let booking = bookings.find(b => b.id === args.bookingId);
+      if (!booking && args.bookingId.length >= 8) booking = bookings.find(b => b.id.startsWith(args.bookingId));
+      if (!booking) return `Error: Booking "${args.bookingId}" not found.`;
+      const vehicle = getVehicles().find(v => v.id === booking.vehicleId);
+      return `Booking Details:\n• ID: ${booking.id}\n• Vehicle: ${vehicle ? vehicle.name : 'Unknown'}\n• User: ${booking.userName}\n• Purpose: ${booking.purpose}\n• Period: ${booking.periodStart} to ${booking.periodEnd}\n• Status: ${booking.status}${booking.notes ? '\n• Notes: ' + booking.notes : ''}`;
+    }
+    case 'search_bookings': {
+      let results = getBookings();
+      if (args.status) results = results.filter(b => b.status === args.status);
+      if (args.userName) results = results.filter(b => b.userName.toLowerCase().includes(args.userName.toLowerCase()));
+      if (args.vehicleName) {
+        const vResult = findVehicleByName(args.vehicleName);
+        if (vResult) results = results.filter(b => b.vehicleId === vResult.vehicle.id);
+        else results = [];
+      }
+      if (args.fromDate) { const fd = new Date(args.fromDate); results = results.filter(b => new Date(b.periodStart) >= fd); }
+      if (args.toDate) { const td = new Date(args.toDate); results = results.filter(b => new Date(b.periodStart) <= td); }
+      const vehicles = getVehicles();
+      return results.slice(0, 30).map(b => {
+        const v = vehicles.find(x => x.id === b.vehicleId);
+        return `• [${b.id.slice(0,8)}] ${b.userName} - ${v ? v.name : 'Unknown'} - ${b.purpose} (${b.periodStart} to ${b.periodEnd}) [${b.status}]`;
+      }).join('\n') || 'No bookings match the search criteria.';
     }
     default: return `Error: Unknown tool "${name}".`;
   }
 }
 
-async function callAIWithTools(apiEndpoint, apiKey, userText) {
+function updateStreamingMessage(msgId, content) {
+  const el = document.querySelector(`[data-msg-id="${msgId}"] .chat-msg-bubble`);
+  if (!el) return;
+  const html = typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(marked.parse(content)) : esc(content);
+  el.innerHTML = html;
+  const container = document.getElementById('chat-messages');
+  if (container) container.scrollTop = container.scrollHeight;
+}
+
+async function streamChatResponse(apiEndpoint, apiKey, body, onChunk) {
+  body.stream = true;
+  try {
+    const res = await fetch(apiEndpoint, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify(body), signal: AbortSignal.timeout(60000)
+    });
+    if (!res.ok) return null;
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let content = '';
+    let toolCalls = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') break;
+        try {
+          const json = JSON.parse(data);
+          const delta = json.choices?.[0]?.delta;
+          if (delta?.content) {
+            content += delta.content;
+            if (onChunk) onChunk(content);
+          }
+          if (delta?.tool_calls) {
+            for (const tc of delta.tool_calls) {
+              if (tc.index !== undefined) {
+                if (!toolCalls[tc.index]) toolCalls[tc.index] = { id: '', function: { name: '', arguments: '' } };
+                if (tc.id) toolCalls[tc.index].id = tc.id;
+                if (tc.function?.name) toolCalls[tc.index].function.name += tc.function.name;
+                if (tc.function?.arguments) toolCalls[tc.index].function.arguments += tc.function.arguments;
+              }
+            }
+          }
+        } catch {}
+      }
+    }
+    if (toolCalls.length) return { content, tool_calls: toolCalls };
+    return { content };
+  } catch {
+    return null;
+  }
+}
+
+async function callAIWithTools(apiEndpoint, apiKey, userText, streamMsgId) {
   const model = localStorage.getItem('fleethub_ai_model') || 'gpt-4o-mini';
   const vehicles = getVehicles();
   const bookings = getBookings();
   const context = `Fleet data: ${vehicles.length} vehicles, ${bookings.length} bookings. Vehicles: ${vehicles.map(v=>v.name+' ('+v.status+')').join(', ')}. Recent bookings: ${bookings.slice(0,10).map(b=>{const v=vehicles.find(x=>x.id===b.vehicleId);return b.userName+' - '+(v?v.name:'Unknown')+' - '+b.purpose+' ('+b.status+')'}).join(';')}. Today is ${new Date().toISOString().split('T')[0]}.`;
   const messages = [
-    { role: 'system', content: `You are a fleet management AI assistant embedded in FleetHub. You can answer questions AND take actions using the available tools.\n\nIMPORTANT: Before calling create_booking, you MUST have ALL required fields (vehicleName, userName, purpose, periodStart, periodEnd). If ANY is missing, ASK the user. After collecting all fields, confirm briefly before creating. Always confirm what you did.\n\nBe concise. ${context}` },
+    { role: 'system', content: `You are a fleet management AI assistant embedded in FleetHub. You can answer questions AND take actions using the available tools.\n\nTools: create_booking, update_booking (change status, dates, etc.), cancel_booking, update_vehicle_status, list_vehicles, list_bookings, list_vehicle_bookings.\n\nIMPORTANT: Before calling create_booking, you MUST have ALL required fields (vehicleName, userName, purpose, periodStart, periodEnd). If ANY is missing, ASK the user. Use update_booking to change a booking status (e.g. pending→confirmed). Always confirm what you did.\n\nBe concise. ${context}` },
     ...S.chatMessages.map(m => ({ role: m.role, content: m.content }))
   ];
-  const res = await fetch(apiEndpoint, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, tools: getAITools(), tool_choice: 'auto' })
-  });
-  if (!res.ok) {
-    const res2 = await fetch(apiEndpoint, {
+  const MAX_ROUNDS = 5;
+  for (let round = 0; round < MAX_ROUNDS; round++) {
+    const body = { model, messages, tools: getAITools() };
+    if (round === 0) body.tool_choice = 'auto';
+    let msg;
+    if (round === 0 && streamMsgId) {
+      const streamed = await streamChatResponse(apiEndpoint, apiKey, body, (content) => {
+        updateStreamingMessage(streamMsgId, content);
+      });
+      if (streamed && streamed.tool_calls?.length) {
+        msg = { role: 'assistant', content: streamed.content || '', tool_calls: streamed.tool_calls };
+      } else if (streamed) {
+        return streamed.content || 'No response.';
+      } else {
+        const res = await fetch(apiEndpoint, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+          const res2 = await fetch(apiEndpoint, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify({ model, messages })
+          });
+          if (!res2.ok) throw new Error(`API error ${res2.status}`);
+          const d2 = await res2.json();
+          return d2.choices?.[0]?.message?.content || 'No response.';
+        }
+        const data = await res.json();
+        msg = data.choices?.[0]?.message;
+      }
+    } else {
+      const res = await fetch(apiEndpoint, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        if (round === 0) {
+          const res2 = await fetch(apiEndpoint, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify({ model, messages })
+          });
+          if (!res2.ok) throw new Error(`API error ${res2.status}`);
+          const d2 = await res2.json();
+          return d2.choices?.[0]?.message?.content || 'No response.';
+        }
+        throw new Error(`API error ${res.status}`);
+      }
+      const data = await res.json();
+      msg = data.choices?.[0]?.message;
+    }
+    if (!msg.tool_calls?.length) return msg.content || 'No response.';
+    messages.push(msg);
+    for (const tc of msg.tool_calls) {
+      let fnArgs = {};
+      try { fnArgs = JSON.parse(tc.function.arguments || '{}'); } catch { fnArgs = {}; }
+      if (toolRequiresConfirmation(tc.function.name, fnArgs)) {
+        const confirmMsgId = genId();
+        S.chatMessages.push({ id: confirmMsgId, role: 'assistant', content: `⚠️ **Confirmation required**: ${describeToolAction(tc.function.name, fnArgs)}\n\nProceed?`, timestamp: new Date(), confirmation: { toolCallId: tc.id, toolName: tc.function.name, toolArgs: fnArgs } });
+        S.toolLoopState = { messages, apiEndpoint, apiKey, round, pendingToolCallId: tc.id, streamMsgId };
+        S.chatLoading = false;
+        renderChat();
+        return;
+      }
+      const result = executeToolCall(tc.function.name, fnArgs);
+      messages.push({ role: 'tool', tool_call_id: tc.id, content: result });
+    }
+  }
+  return 'Reached maximum tool execution rounds. Please continue the conversation for further actions.';
+}
+
+async function resumeToolLoop() {
+  const state = S.toolLoopState;
+  if (!state) return;
+  S.toolLoopState = null;
+  S.chatLoading = true;
+  const { messages, apiEndpoint, apiKey, round: startRound, pendingToolCallId } = state;
+  const pendingMsg = S.chatMessages.find(m => m.confirmation?.toolCallId === pendingToolCallId);
+  if (pendingMsg) {
+    const { toolName, toolArgs } = pendingMsg.confirmation;
+    const result = executeToolCall(toolName, toolArgs);
+    messages.push({ role: 'tool', tool_call_id: pendingToolCallId, content: result });
+    pendingMsg.content = `✅ **Confirmed**: ${describeToolAction(toolName, toolArgs)}\n\n${result}`;
+    pendingMsg.confirmation = null;
+    renderChat();
+  }
+  const model = localStorage.getItem('fleethub_ai_model') || 'gpt-4o-mini';
+  const MAX_ROUNDS = 5;
+  for (let round = startRound; round < MAX_ROUNDS; round++) {
+    const body = { model, messages, tools: getAITools() };
+    const res = await fetch(apiEndpoint, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, messages })
+      body: JSON.stringify(body)
     });
-    if (!res2.ok) throw new Error(`API error ${res2.status}`);
-    const d2 = await res2.json();
-    return d2.choices?.[0]?.message?.content || 'No response.';
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    const data = await res.json();
+    const msg = data.choices?.[0]?.message;
+    if (!msg.tool_calls?.length) {
+      S.chatLoading = false;
+      const assistantMsg = S.chatMessages.find(m => m.id === state.streamMsgId);
+      if (assistantMsg) assistantMsg.content = msg.content || 'No response.';
+      renderChat();
+      return;
+    }
+    messages.push(msg);
+    for (const tc of msg.tool_calls) {
+      let fnArgs = {};
+      try { fnArgs = JSON.parse(tc.function.arguments || '{}'); } catch { fnArgs = {}; }
+      if (toolRequiresConfirmation(tc.function.name, fnArgs)) {
+        const confirmMsgId = genId();
+        S.chatMessages.push({ id: confirmMsgId, role: 'assistant', content: `⚠️ **Confirmation required**: ${describeToolAction(tc.function.name, fnArgs)}\n\nProceed?`, timestamp: new Date(), confirmation: { toolCallId: tc.id, toolName: tc.function.name, toolArgs: fnArgs } });
+        S.toolLoopState = { messages, apiEndpoint, apiKey, round, pendingToolCallId: tc.id, streamMsgId: state.streamMsgId };
+        S.chatLoading = false;
+        renderChat();
+        return;
+      }
+      const result = executeToolCall(tc.function.name, fnArgs);
+      messages.push({ role: 'tool', tool_call_id: tc.id, content: result });
+    }
   }
-  const data = await res.json();
-  const msg = data.choices?.[0]?.message;
-  if (!msg.tool_calls?.length) return msg.content || 'No response.';
-  messages.push(msg);
-  let results = [];
-  for (const tc of msg.tool_calls) {
-    let fnArgs = {};
-    try { fnArgs = JSON.parse(tc.function.arguments || '{}'); } catch { fnArgs = {}; }
-    const result = executeToolCall(tc.function.name, fnArgs);
-    messages.push({ role: 'tool', tool_call_id: tc.id, content: result });
-    results.push(result);
+  S.chatLoading = false;
+  const assistantMsg = S.chatMessages.find(m => m.id === state.streamMsgId);
+  if (assistantMsg) assistantMsg.content = 'Reached maximum tool execution rounds.';
+  renderChat();
+}
+
+function confirmToolAction(msgId) {
+  resumeToolLoop();
+}
+
+function cancelToolAction(msgId) {
+  const msg = S.chatMessages.find(m => m.id === msgId);
+  if (msg) {
+    msg.content = '❌ Action cancelled.';
+    msg.confirmation = null;
   }
-  const res2 = await fetch(apiEndpoint, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, tools: getAITools() })
-  });
-  if (!res2.ok) throw new Error(`API error ${res2.status}`);
-  const d2 = await res2.json();
-  return d2.choices?.[0]?.message?.content || results.join('\n');
+  S.toolLoopState = null;
+  S.chatLoading = false;
+  saveChatHistory();
+  renderChat();
 }
 
 function generateLocalResponse(query) {
@@ -3368,25 +3702,72 @@ function generateLocalResponse(query) {
   const bookings = getBookings();
   const available = vehicles.filter(v => v.status === 'available');
   const inUse = vehicles.filter(v => v.status === 'in-use');
+  const maintenance = vehicles.filter(v => v.status === 'maintenance');
   const pending = bookings.filter(b => b.status === 'pending');
+  const now = new Date();
+  const weekEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const upcoming = bookings.filter(b => b.status !== 'cancelled' && new Date(b.periodStart) >= now && new Date(b.periodStart) <= weekEnd);
+  const thisWeekStart = new Date(now); thisWeekStart.setDate(now.getDate() - now.getDay());
+  const thisWeekEnd = new Date(thisWeekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const thisWeek = bookings.filter(b => b.status !== 'cancelled' && new Date(b.periodStart) < thisWeekEnd && new Date(b.periodEnd) > thisWeekStart);
 
   if (q.includes('available') || q.includes('free')) {
     return `There are ${available.length} available vehicle(s):\n${available.map(v => '• ' + v.name + (v.licensePlate ? ' (' + v.licensePlate + ')' : '')).join('\n')}`;
   }
+  if (q.includes('maintenance')) {
+    return `There are ${maintenance.length} vehicle(s) in maintenance:\n${maintenance.map(v => '• ' + v.name + (v.notes ? ' — ' + v.notes : '')).join('\n') || 'No vehicles in maintenance.'}`;
+  }
+  if (q.includes('in use') || q.includes('busy')) {
+    return `There are ${inUse.length} vehicle(s) currently in use:\n${inUse.map(v => '• ' + v.name).join('\n') || 'No vehicles in use.'}`;
+  }
+  if (q.includes('next week') || q.includes('upcoming')) {
+    return `Upcoming bookings (next 7 days):\n${upcoming.map(b => '• ' + b.userName + ' - ' + b.purpose + ' (' + fmtDate(b.periodStart) + ' to ' + fmtDate(b.periodEnd) + ')').join('\n') || 'No upcoming bookings.'}`;
+  }
+  if (q.includes('this week')) {
+    return `Bookings active this week:\n${thisWeek.map(b => '• ' + b.userName + ' - ' + b.purpose + ' (' + fmtDate(b.periodStart) + ' to ' + fmtDate(b.periodEnd) + ')').join('\n') || 'No bookings this week.'}`;
+  }
+  if (q.includes('how many')) {
+    return `Vehicle counts by status:\n• Available: ${available.length}\n• In use: ${inUse.length}\n• Maintenance: ${maintenance.length}\n• Total: ${vehicles.length}`;
+  }
   if (q.includes('summary') || q.includes('overview') || q.includes('status')) {
-    return `Fleet Summary:\n• Total vehicles: ${vehicles.length}\n• Available: ${available.length}\n• In use: ${inUse.length}\n• Total bookings: ${bookings.length}\n• Pending approval: ${pending.length}`;
+    return `Fleet Summary:\n• Total vehicles: ${vehicles.length}\n• Available: ${available.length}\n• In use: ${inUse.length}\n• Maintenance: ${maintenance.length}\n• Total bookings: ${bookings.length}\n• Pending approval: ${pending.length}`;
   }
   if (q.includes('pending')) {
     return `There are ${pending.length} pending booking(s):\n${pending.map(b => '• ' + b.userName + ' - ' + b.purpose + ' (' + fmtDate(b.periodStart) + ')').join('\n')}`;
   }
-  if (q.includes('help') || q.includes('what can')) {
-    return 'I can help you with:\n• "Show available vehicles" — list free vehicles\n• "Show pending bookings" — list bookings awaiting approval\n• "Fleet summary" — overview of your fleet\n• "How many vehicles?" — vehicle count\n• Configure an AI API in Settings for intelligent responses.';
+  const vehicleMatch = findVehicleByName(q.replace(/bookings?\s*(for|of)\s*/i, '').replace(/vehicle\s*/i, '').trim());
+  if (vehicleMatch && (q.includes('bookings') || q.includes('vehicle'))) {
+    const vBookings = bookings.filter(b => b.vehicleId === vehicleMatch.vehicle.id && b.status !== 'cancelled');
+    return `Bookings for ${vehicleMatch.vehicle.name}:\n${vBookings.map(b => '• ' + b.userName + ' - ' + b.purpose + ' (' + fmtDate(b.periodStart) + ' to ' + fmtDate(b.periodEnd) + ') [' + b.status + ']').join('\n') || 'No bookings for this vehicle.'}`;
   }
-  return `I see you asked about "${query}". For smarter responses, configure an OpenAI-compatible API endpoint in Settings. For now, try asking about available vehicles, pending bookings, or fleet summary.`;
+  if (q.includes('help') || q.includes('what can')) {
+    return 'I can help you with:\n• "Show available vehicles" — list free vehicles\n• "Show vehicles in maintenance" — list maintenance vehicles\n• "Show in-use/busy vehicles" — list active vehicles\n• "Show pending bookings" — list bookings awaiting approval\n• "Upcoming bookings" / "next week" — bookings starting within 7 days\n• "This week" — bookings active this week\n• "How many vehicles?" — counts by status\n• "Fleet summary" — overview of your fleet\n• "Bookings for [vehicle]" — bookings for a specific vehicle\n• Configure an AI API in Settings for intelligent responses.';
+  }
+  return `I see you asked about "${query}". For smarter responses, configure an OpenAI-compatible API endpoint in Settings. For now, try asking about available vehicles, pending bookings, fleet summary, or bookings for a specific vehicle.`;
+}
+
+function saveChatHistory() {
+  try {
+    const key = `fleethub_chat_${S.fileName || 'demo'}`;
+    const data = S.chatMessages.slice(-50).map(m => ({ id: m.id, role: m.role, content: m.content, timestamp: m.timestamp ? new Date(m.timestamp).toISOString() : null }));
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch {}
+}
+
+function loadChatHistory() {
+  try {
+    const key = `fleethub_chat_${S.fileName || 'demo'}`;
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!Array.isArray(data) || !data.length) return null;
+    return data.map(m => ({ id: m.id, role: m.role, content: m.content, timestamp: m.timestamp ? new Date(m.timestamp) : new Date(), confirmation: null }));
+  } catch { return null; }
 }
 
 function clearChat() {
   S.chatMessages = [{ id: genId(), role: 'assistant', content: 'Chat cleared. How can I help with your fleet?', timestamp: new Date() }];
+  try { localStorage.removeItem(`fleethub_chat_${S.fileName || 'demo'}`); } catch {}
   renderChat();
 }
 
