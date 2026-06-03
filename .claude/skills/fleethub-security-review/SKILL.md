@@ -22,7 +22,7 @@ FleetHub is a single-file app that:
 - innerHTML: Never used with user-controlled data
 - SQL queries: Always parameterized, never concatenated
 - API keys: Not logged or exposed in DOM attributes
-- Lock takeover: Requires valid lock ID, respects 5-minute staleness
+- Lock takeover: Requires valid lock ID, respects 15-minute staleness
 - File validation: .sqlite extension checked before processing
 ```
 

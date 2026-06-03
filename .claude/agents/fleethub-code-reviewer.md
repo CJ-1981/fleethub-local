@@ -37,7 +37,7 @@ You are a code correctness specialist for FleetHub, a zero-backend fleet managem
 ### Business Logic
 - `isActive(booking)` — verify date range logic
 - `archiveOldBookings()` — verify retention period calculation
-- Lock staleness check — verify 5-minute threshold logic
+- Lock staleness check — verify 15-minute threshold logic
 
 ## Review Principles
 - Focus on bugs that would cause incorrect behavior, not style preferences

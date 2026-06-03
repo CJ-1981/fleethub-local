@@ -46,7 +46,7 @@ FleetHub is a single-file app (~2500+ lines) with:
 ```
 - isActive(booking): start <= now <= end
 - archiveOldBookings(): Retention period calculation
-- Lock staleness: 5-minute threshold
+- Lock staleness: 15-minute threshold
 - Date formatting: fmtDate() handles null/undefined
 ```
 

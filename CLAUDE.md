@@ -211,7 +211,7 @@ npx serve .
 1. Open `index.html` in two tabs
 2. Open the same `.sqlite` file in both tabs
 3. Second tab should show lock warning
-4. Try taking over the lock (wait 5 minutes for stale lock)
+4. Try taking over the lock (wait 15 minutes for stale lock)
 
 ## Key Functions
 
