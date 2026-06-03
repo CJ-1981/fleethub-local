@@ -3318,7 +3318,7 @@ function getAITools() {
     { type: 'function', function: { name: 'update_vehicle_status', description: 'Change a vehicle status.', parameters: { type: 'object', properties: { vehicleName: { type: 'string' }, status: { type: 'string', enum: vehicleStatuses } }, required: ['vehicleName','status'] } } },
     { type: 'function', function: { name: 'cancel_booking', description: 'Cancel a booking by ID.', parameters: { type: 'object', properties: { bookingId: { type: 'string' } }, required: ['bookingId'] } } },
     { type: 'function', function: { name: 'update_booking', description: 'Update a booking status or other fields by ID.', parameters: { type: 'object', properties: { bookingId: { type: 'string', description: 'Booking ID' }, status: { type: 'string', enum: statuses, description: 'New status' }, userName: { type: 'string', description: 'Updated user name' }, purpose: { type: 'string', description: 'Updated purpose' }, periodStart: { type: 'string', description: 'Updated start (YYYY-MM-DD)' }, periodEnd: { type: 'string', description: 'Updated end (YYYY-MM-DD)' } }, required: ['bookingId'] } } },
-    { type: 'function', function: { name: 'list_vehicles', description: 'List all vehicles.', parameters: { type: 'object', properties: {} } } },
+    { type: 'function', function: { name: 'list_vehicles', description: 'List all vehicles with name, status, type, license plate, and notes.', parameters: { type: 'object', properties: {} } } },
     { type: 'function', function: { name: 'list_bookings', description: 'List recent bookings (up to 20).', parameters: { type: 'object', properties: { status: { type: 'string' } } } } },
     { type: 'function', function: { name: 'list_vehicle_bookings', description: 'List ALL bookings for a specific vehicle. Use this when user asks about bookings for a particular vehicle.', parameters: { type: 'object', properties: { vehicleName: { type: 'string', description: 'Vehicle name' } }, required: ['vehicleName'] } } },
     { type: 'function', function: { name: 'add_vehicle', description: 'Add a new vehicle to the fleet.', parameters: { type: 'object', properties: { name: { type: 'string', description: 'Vehicle name (must be unique)' }, type: { type: 'string', enum: getSetting('vehicleTypes', ['Sedan','SUV','Van','Truck','Bus','Other']), description: 'Vehicle type' }, status: { type: 'string', enum: vehicleStatuses, description: 'Initial status (default: available)' }, licensePlate: { type: 'string', description: 'License plate number' }, notes: { type: 'string', description: 'Additional notes' } }, required: ['name'] } } },
@@ -3415,14 +3415,14 @@ function executeToolCall(name, args) {
       markDirty(); render();
       return `Booking ${args.bookingId} updated: ${sets.slice(0,-1).map((s,i) => s.replace('=?','') + '=' + params[i]).join(', ')}`;
     }
-    case 'list_vehicles': return getVehicles().map(v => `• ${v.name} — ${v.status}`).join('\n') || 'No vehicles.';
+    case 'list_vehicles': return getVehicles().map(v => `• ${v.name} — ${v.status} | Type: ${v.type || '-'} | Plate: ${v.licensePlate || '-'} | Notes: ${v.notes || '-'}`).join('\n') || 'No vehicles.';
     case 'list_bookings': {
       let bookings = getBookings();
       const vehicles = getVehicles();
       if (args.status) bookings = bookings.filter(b => b.status === args.status);
       return bookings.slice(0,20).map(b => {
         const vehicle = vehicles.find(v => v.id === b.vehicleId);
-        const vehicleName = vehicle ? vehicle.name : 'Unknown';
+        const vehicleName = vehicle ? `${vehicle.name} (${vehicle.licensePlate || 'no plate'})` : 'Unknown';
         return `• [${b.id.slice(0,8)}] ${b.userName} - ${vehicleName} - ${b.purpose} (${b.periodStart} to ${b.periodEnd}) [${b.status}]`;
       }).join('\n') || 'No bookings.';
     }
@@ -3432,7 +3432,7 @@ function executeToolCall(name, args) {
       const { vehicle, matchType } = result;
       const fuzzyNote = matchType !== 'exact' ? ` (matched "${vehicle.name}")` : '';
       const bookings = getBookings().filter(b => b.vehicleId === vehicle.id);
-      return bookings.map(b => `• ${b.userName} - ${vehicle.name} - ${b.purpose} (${b.periodStart} to ${b.periodEnd}) [${b.status}]`).join('\n') || `No bookings for ${vehicle.name}${fuzzyNote}.`;
+      return bookings.map(b => `• ${b.userName} - ${vehicle.name} (${vehicle.type || '?'}, ${vehicle.licensePlate || 'no plate'}) - ${b.purpose} (${b.periodStart} to ${b.periodEnd}) [${b.status}]`).join('\n') || `No bookings for ${vehicle.name}${fuzzyNote}.`;
     }
     case 'add_vehicle': {
       if (!args.name) return 'Error: Vehicle name is required.';
@@ -3464,7 +3464,7 @@ function executeToolCall(name, args) {
       if (!booking && args.bookingId.length >= 8) booking = bookings.find(b => b.id.startsWith(args.bookingId));
       if (!booking) return `Error: Booking "${args.bookingId}" not found.`;
       const vehicle = getVehicles().find(v => v.id === booking.vehicleId);
-      return `Booking Details:\n• ID: ${booking.id}\n• Vehicle: ${vehicle ? vehicle.name : 'Unknown'}\n• User: ${booking.userName}\n• Purpose: ${booking.purpose}\n• Period: ${booking.periodStart} to ${booking.periodEnd}\n• Status: ${booking.status}${booking.notes ? '\n• Notes: ' + booking.notes : ''}`;
+      return `Booking Details:\n• ID: ${booking.id}\n• Vehicle: ${vehicle ? vehicle.name + ' (' + (vehicle.type || '?') + ', Plate: ' + (vehicle.licensePlate || 'N/A') + ')' : 'Unknown'}\n• User: ${booking.userName}\n• Purpose: ${booking.purpose}\n• Period: ${booking.periodStart} to ${booking.periodEnd}\n• Status: ${booking.status}${booking.notes ? '\n• Notes: ' + booking.notes : ''}`;
     }
     case 'search_bookings': {
       let results = getBookings();
@@ -3480,7 +3480,7 @@ function executeToolCall(name, args) {
       const vehicles = getVehicles();
       return results.slice(0, 30).map(b => {
         const v = vehicles.find(x => x.id === b.vehicleId);
-        return `• [${b.id.slice(0,8)}] ${b.userName} - ${v ? v.name : 'Unknown'} - ${b.purpose} (${b.periodStart} to ${b.periodEnd}) [${b.status}]`;
+        return `• [${b.id.slice(0,8)}] ${b.userName} - ${v ? v.name + ' (' + (v.licensePlate || 'no plate') + ')' : 'Unknown'} - ${b.purpose} (${b.periodStart} to ${b.periodEnd}) [${b.status}]`;
       }).join('\n') || 'No bookings match the search criteria.';
     }
     default: return `Error: Unknown tool "${name}".`;
