@@ -3172,9 +3172,8 @@ async function sendChat() {
     catch (e) { response = 'Error: ' + e.message; }
   } else {
     response = generateLocalResponse(text);
-    S.chatMessages.push({ id: assistantMsgId, role: 'assistant', content: response, timestamp: new Date() });
   }
-
+  S.chatMessages.push({ id: assistantMsgId, role: 'assistant', content: response, timestamp: new Date() });
   S.chatLoading = false;
   saveChatHistory();
   renderChat();
