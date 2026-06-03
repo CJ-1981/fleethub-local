@@ -2240,11 +2240,11 @@ function renderBookingsTable() {
   if (newSearch && pos !== null) { newSearch.focus(); newSearch.setSelectionRange(pos, pos); }
 }
 
-function renderConflictWarning(booking) {
-  if (!booking.vehicleId || !booking.periodStart || !booking.periodEnd) return '';
-  const conflicts = getBookings().filter(b => {
-    if (b.id === booking.id) return false;
-    if (b.vehicleId !== booking.vehicleId) return false;
+function findBookingConflicts(vehicleId, periodStart, periodEnd, excludeBookingId) {
+  if (!vehicleId || !periodStart || !periodEnd) return [];
+  return getBookings().filter(b => {
+    if (b.id === excludeBookingId) return false;
+    if (b.vehicleId !== vehicleId) return false;
     if (b.status === 'cancelled') return false;
     const bs = new Date(b.periodStart), be = new Date(b.periodEnd);
     const ns = new Date(periodStart), ne = new Date(periodEnd);
@@ -2264,14 +2264,7 @@ function renderConflictWarning(booking) {
 
 function shareWithConflicts() {
   if (!S.editingBooking) return;
-  const conflicts = getBookings().filter(b => {
-    if (b.id === S.editingBooking.id) return false;
-    if (b.vehicleId !== S.editingBooking.vehicleId) return false;
-    if (b.status === 'cancelled') return false;
-    const bs = new Date(b.periodStart), be = new Date(b.periodEnd);
-    const ns = new Date(S.editingBooking.periodStart), ne = new Date(S.editingBooking.periodEnd);
-    return ns < be && ne > bs;
-  });
+  const conflicts = findBookingConflicts(S.editingBooking.vehicleId, S.editingBooking.periodStart, S.editingBooking.periodEnd, S.editingBooking.id);
   const existing = S.editingBooking.shareWith || [];
   conflicts.forEach(c => { if (!existing.includes(c.userName)) existing.push(c.userName); });
   S.editingBooking.shareWith = existing;
