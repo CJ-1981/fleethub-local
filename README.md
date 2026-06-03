@@ -63,7 +63,7 @@
 
 ## Database Schema
 
-FleetHub uses SQLite via [sql.js](https://sql.js.org/) (WebAssembly). Data is stored in four tables:
+FleetHub uses SQLite via [sql.js](https://sql.js.org/) (WebAssembly). Data is stored in five tables:
 
 ### `meta`
 

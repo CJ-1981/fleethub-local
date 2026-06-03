@@ -119,7 +119,7 @@ Two reviewers work in parallel, share findings via SendMessage, and challenge ea
 
 1. Send shutdown requests to team members
 2. Delete team (TeamDelete)
-3. Preserve `_workspace/` for audit trail
+3. Workspace preserved as `_workspace/` (Phase 0 will rename with timestamp on next run if needed)
 4. Report summary to user
 
 ## Data Flow
