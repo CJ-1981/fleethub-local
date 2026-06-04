@@ -346,7 +346,7 @@ select.form-input{cursor:pointer}
         Try Demo
       </button>
     </div>
-    <input type="file" id="landing-file-input" accept=".sqlite,.json,application/sqlite,application/json,text/plain" style="position:absolute;opacity:0;pointer-events:none" onchange="loadFromInput(this)">
+    <input type="file" id="landing-file-input" accept=".json,application/json,text/plain" style="position:absolute;opacity:0;pointer-events:none" onchange="loadFromInput(this)">
     <div id="recent-files" style="margin-top:24px;text-align:left"></div>
   </div>
 </div>
@@ -1177,7 +1177,7 @@ function getDemoData() {
   };
 }
 
-async function saveFile() {
+async function saveFile(silent = false) {
   if (S.demoMode) { showToast('Demo mode — use Export to save a copy', 'info'); return; }
   if (!db) { showToast('No database — cannot save', 'error'); return; }
   if (!S.fileHandle) {
@@ -1204,8 +1204,7 @@ async function saveFile() {
     S.dirty = false;
     if (!silent) showToast('File saved', 'success');
   } catch (e) { if (!silent) showToast('Save failed: ' + e.message, 'error'); }
-  S.saving = false;
-  updateSaveIndicator();
+  finally { S.saving = false; updateSaveIndicator(); }
 }
 
 function markDirty() {
@@ -1385,9 +1384,9 @@ function checkLock() {
   const lockedAt = getMeta('lockedAt');
   if (lockedBy && lockedBy !== S.lockId && lockedAt) {
     const elapsed = Date.now() - new Date(lockedAt).getTime();
-    if (elapsed < 5 * 60 * 1000) { // 5 min stale threshold
+    if (elapsed < 15 * 60 * 1000) { // 15 min stale threshold
       S.lockedBy = lockedBy;
-      showLockAlert(lockedBy, elapsed);
+      showLockAlert(lockedBy, null, elapsed);
       return;
     }
   }
