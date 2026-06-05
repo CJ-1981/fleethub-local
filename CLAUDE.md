@@ -306,3 +306,73 @@ Modify CSS custom properties in `:root` within the `<style>` section.
 | 2026-05-31 | Initial setup | All | Frontend expert team for calendar view color cell fix |
 | 2026-06-01 | Code review harness added | agents/fleethub-code-reviewer.md, agents/fleethub-security-reviewer.md, skills/code-review-orchestrator | 2-person reviewer team for accuracy, security, and frontend quality |
 | 2026-06-02 | SQLite migration documented | README.md, CLAUDE.md | Updated docs to reflect JSON → SQLite migration |
+| 2026-06-05 | GitHub CLI documentation added | CLAUDE.md | Added gh.exe usage instructions for PR management |
+
+## GitHub CLI (gh.exe) Usage
+
+This section documents how to use GitHub CLI (`gh.exe`) with the FleetHub project.
+
+### gh.exe Installation Path
+`gh.exe` is installed at:
+```
+C:\Program Files\GitHub CLI\gh.exe
+```
+
+You can use it directly by full path, or add it to your PATH:
+```powershell
+# Add to current PowerShell session
+$env:PATH += ";C:\Program Files\GitHub CLI"
+
+# Verify
+& "C:\Program Files\GitHub CLI\gh.exe" --version
+```
+
+### Common gh.exe Commands
+
+| Command | Purpose |
+|---------|---------|
+| `gh auth login` | Authenticate with GitHub |
+| `gh repo view` | View repository details |
+| `gh pr list` | List all pull requests |
+| `gh pr view {PR#}` | View specific PR details |
+| `gh pr checkout {PR#}` | Check out a PR branch locally |
+| `gh pr merge {PR#}` | Merge a pull request |
+| `gh pr create` | Create a new pull request |
+| `gh release create` | Create a new release |
+
+### PR Workflow with gh.exe
+
+```bash
+# 1. List open PRs
+gh pr list
+
+# 2. View PR details and diff
+gh pr view 5
+gh pr diff 5
+
+# 3. Checkout PR to test locally
+gh pr checkout 5
+
+# 4. Merge PR (after approval)
+gh pr merge 5 --merge
+
+# 5. Delete the branch after merge (optional)
+git branch -d fix/app-improvements
+git push origin --delete fix/app-improvements
+```
+
+### Merge Strategies with gh.exe
+
+| Strategy | Command | Use Case |
+|----------|---------|----------|
+| Merge commit | `gh pr merge {PR#} --merge` | Preserves full history (default) |
+| Squash merge | `gh pr merge {PR#} --squash` | Combine commits for cleaner history |
+| Rebase merge | `gh pr merge {PR#} --rebase` | Linear history without merge commits |
+
+### Installing GitHub CLI
+
+Download from: https://cli.github.com/ or install via package manager:
+
+- Windows: `winget install GitHub.cli`
+- macOS: `brew install gh`
+- Linux: `apt install gh` / `dnf install gh`

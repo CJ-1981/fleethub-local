@@ -6,7 +6,7 @@
 <title>FleetHub — Local File Mode</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -495,7 +495,6 @@ const S = {
   openSections: ['booking', 'data'],
   calendarView: 'week',
   calendarStart: new Date().toISOString(),
-  settingsTab: 'booking',
   archiveYear: null,
 };
 
@@ -842,7 +841,8 @@ function exportArchiveYearSQL(year) {
   let sql = `-- FleetHub Local - Archived Bookings Export\n`;
   sql += `-- Year: ${year}\n`;
   sql += `-- Exported: ${now}\n`;
-  sql += `-- Total records: ${archived.length}\n\n`;
+  sql += `-- Total records: ${archived.length}\n`;
+  sql += `-- WARNING: This file uses custom escaping. Only re-import via FleetHub.\n\n`;
   sql += `CREATE TABLE IF NOT EXISTS archived_bookings (\n`;
   sql += `  id TEXT PRIMARY KEY,\n`;
   sql += `  vehicle_id TEXT NOT NULL,\n`;
@@ -1116,6 +1116,11 @@ function getGermanHolidays(year, state = null) {
 // ===================== FILE I/O =====================
 async function openFile() {
   try {
+    // Confirm if in demo mode with unsaved changes
+    if (S.demoMode && S.dirty) {
+      const confirmed = confirm('You have unsaved changes in demo mode. Are you sure you want to open a new file and lose these changes?');
+      if (!confirmed) return;
+    }
     const [handle] = await window.showOpenFilePicker({
       types: [{ description: 'FleetHub Data', accept: { 'application/sqlite': ['.sqlite'], 'application/json': ['.json'] } }],
       multiple: false
@@ -1164,6 +1169,11 @@ async function openFile() {
 
 async function createNewFile() {
   try {
+    // Confirm if in demo mode with unsaved changes
+    if (S.demoMode && S.dirty) {
+      const confirmed = confirm('You have unsaved changes in demo mode. Are you sure you want to create a new file and lose these changes?');
+      if (!confirmed) return;
+    }
     const handle = await window.showSaveFilePicker({ suggestedName: 'fleet-data.sqlite', types: [{ description: 'FleetHub Data', accept: { 'application/sqlite': ['.sqlite'] } }] });
     await initSqlJsModule();
     createDatabase();
@@ -2349,8 +2359,10 @@ function moveVehicleUp(idx) {
 }
 
 function moveVehicleDown(idx) {
+  // First get all vehicles (needed to check boundaries and reorder)
   const vehicles = [...getVehicles()].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   if (idx >= vehicles.length - 1) return;
+  // Then proceed with reordering
   vehicles.forEach((v, i) => { v.sortOrder = i; });
   const currentVehicle = vehicles[idx];
   const nextVehicle = vehicles[idx + 1];
@@ -2879,7 +2891,7 @@ function renderSettings() {
   const maskedKey = curKey ? curKey.slice(0, 6) + '...' + curKey.slice(-4) : '';
   const apiContent = `<div style="margin-bottom:14px">
     <div class="form-group"><label class="form-label">API Endpoint URL</label><input class="form-input" id="api-endpoint" placeholder="https://api.openai.com/v1" value="${esc(curEndpoint)}"><div class="form-hint">Base URL or full path (auto-appends /chat/completions)</div></div>
-    <div class="form-group"><label class="form-label">API Key</label><div style="position:relative"><input class="form-input" id="api-key" type="password" placeholder="sk-... or your API key" value="${esc(curKey)}" style="padding-right:40px"><button class="btn-icon" onclick="toggleApiKeyVisibility()" style="position:absolute;right:4px;top:50%;transform:translateY(-50%)"><svg id="api-key-eye" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>${maskedKey ? '<div class="form-hint">Current: ' + esc(maskedKey) + '</div>' : ''}</div>
+    <div class="form-group"><label class="form-label">API Key</label><div style="position:relative"><input class="form-input" id="api-key" type="password" placeholder="sk-... or your API key" value="${esc(curKey)}" style="padding-right:40px"><button class="btn-icon" onclick="toggleApiKeyVisibility()" style="position:absolute;right:4px;top:50%;transform:translateY(-50%)"><svg id="api-key-eye" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>${maskedKey ? '<div class="form-hint">Current: ' + esc(maskedKey) + '</div>' : ''}<div class="form-hint" style="color:var(--warning)"><strong>Warning:</strong> API key is stored in browser localStorage in plaintext and may be accessible to browser extensions.</div></div>
     <div class="form-group"><label class="form-label">Model Name</label><input class="form-input" id="api-model" placeholder="gpt-4o-mini" value="${esc(curModel)}"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-primary btn-sm" onclick="saveApiConfig()">Save</button>
@@ -2930,8 +2942,8 @@ function renderSettings() {
             <td style="white-space:nowrap">${fmtDate(b.periodStart)}</td>
             <td><span class="badge badge-${b.status}">${esc(b.status)}</span></td>
             <td style="white-space:nowrap">
-              <button class="btn-icon btn-sm" onclick="restoreArchivedBooking('${b.id}')" data-tooltip="Restore" style="color:var(--link)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
-              <button class="btn-icon btn-sm" onclick="deleteArchivedBooking('${b.id}')" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+              <button class="btn-icon btn-sm" onclick="restoreArchivedBooking(this.dataset.id)" data-id="${escAttr(b.id)}" data-tooltip="Restore" style="color:var(--link)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+              <button class="btn-icon btn-sm" onclick="deleteArchivedBooking(this.dataset.id)" data-id="${escAttr(b.id)}" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
             </td></tr>`;
         });
         archiveBrowseHtml += `</tbody></table></div>
@@ -3194,8 +3206,16 @@ async function importJSON() {
     const [handle] = await window.showOpenFilePicker({ types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }] });
     const file = await handle.getFile();
     const text = await file.text();
-    importJSONToSQLite(JSON.parse(text));
-    markDirty(); render(); showToast('Data imported successfully', 'success');
+    const jsonData = JSON.parse(text);
+
+    openDialog('Import JSON Data', `
+      <p>This will replace all existing vehicles, bookings, and settings with the data from <strong>${esc(file.name)}</strong>.</p>
+      <p style="color:var(--warning);margin-top:8px;font-size:13px">This action cannot be undone.</p>
+    `, async () => {
+      importJSONToSQLite(jsonData);
+      markDirty(); render(); showToast('Data imported successfully', 'success');
+      return true;
+    }, true);
   } catch (e) { if (e.name !== 'AbortError') showToast('Import failed: ' + e.message, 'error'); }
 }
 
@@ -3431,8 +3451,8 @@ function normalizeApiEndpoint(url) {
   url = url.trim();
   if (!url) return url;
   if (url.endsWith('/chat/completions')) return url;
-  if (!url.endsWith('/')) url += '/';
-  return url + 'chat/completions';
+  url = url.replace(/\/+$/, '');
+  return url + '/chat/completions';
 }
 
 async function sendChat() {
