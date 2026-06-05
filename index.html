@@ -650,6 +650,8 @@ function getVehicles() {
 
 function getBookings() {
   return dbQuery("SELECT id, vehicle_id AS vehicleId, user_name AS userName, purpose, period_start AS periodStart, period_end AS periodEnd, status, remarks, custom_fields AS customFields, share_with AS shareWith, share_note AS shareNote, created_at AS createdAt, updated_at AS updatedAt FROM bookings ORDER BY period_start DESC").map(b => {
+    b.periodStart = normalizePeriodDate(b.periodStart, false);
+    b.periodEnd = normalizePeriodDate(b.periodEnd, true);
     try { return { ...b, customFields: JSON.parse(b.customFields || '{}'), shareWith: JSON.parse(b.shareWith || '[]') }; }
     catch(e) { return { ...b, customFields: {}, shareWith: [] }; }
   });
@@ -727,6 +729,8 @@ function getArchivedBookings(year) {
   if (!db) return [];
   return dbQuery("SELECT id, vehicle_id AS vehicleId, vehicle_name AS vehicleName, user_name AS userName, purpose, period_start AS periodStart, period_end AS periodEnd, status, remarks, custom_fields AS customFields, share_with AS shareWith, share_note AS shareNote, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt, archive_year AS archiveYear FROM archived_bookings WHERE archive_year = ? ORDER BY period_start DESC", [year])
     .map(b => {
+      b.periodStart = normalizePeriodDate(b.periodStart, false);
+      b.periodEnd = normalizePeriodDate(b.periodEnd, true);
       try { return { ...b, customFields: JSON.parse(b.customFields || '{}'), shareWith: JSON.parse(b.shareWith || '[]') }; }
       catch(e) { return { ...b, customFields: {}, shareWith: [] }; }
     });
@@ -935,7 +939,7 @@ function fmtDate(d) { if (!d) return '—'; const dt = typeof d === 'string' && 
 function fmtDateTime(d) { if (!d) return '—'; const dt = typeof d === 'string' && d.length === 10 ? new Date(d + 'T00:00') : new Date(d); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
 function fmtDateTimeISO(d) { if (!d) return '—'; const dt = typeof d === 'string' && d.length === 10 ? new Date(d + 'T00:00') : new Date(d); if (isNaN(dt.getTime())) return '—'; const p = (n) => String(n).padStart(2, '0'); return `${dt.getFullYear()}-${p(dt.getMonth()+1)}-${p(dt.getDate())} ${p(dt.getHours())}:${p(dt.getMinutes())}`; }
 function isToday(d) { if (!d) return false; const dt = new Date(d), now = new Date(); return dt.toDateString() === now.toDateString(); }
-function isActive(b) { const now = new Date(); const s = new Date(b.periodStart), e = new Date(b.periodEnd); return now >= s && now <= e; }
+function isActive(b) { const now = new Date(); const s = new Date(b.periodStart), e = snapMidnightEnd(new Date(b.periodEnd)); return now >= s && now <= e; }
 function uid() { return 'User-' + Math.random().toString(36).substr(2, 6).toUpperCase(); }
 
 // ===================== GERMAN HOLIDAYS =====================
@@ -945,6 +949,20 @@ function formatDateLocal(date) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function snapMidnightEnd(d) {
+  if (!(d instanceof Date) || isNaN(d.getTime())) return d;
+  if (formatDateLocal(d) !== formatDateLocal(new Date(d.getTime() - 1))) {
+    return new Date(d.getTime() - 1);
+  }
+  return d;
+}
+
+function normalizePeriodDate(s, isEnd) {
+  if (!s || typeof s !== 'string') return s;
+  if (s.length === 10) return isEnd ? s + 'T23:59:59' : s + 'T00:00:00';
+  return s;
 }
 
 function getEasterDate(year) {
@@ -1798,7 +1816,7 @@ function renderDashboard() {
   const widgetRows = vehicles.length ? vehicles.slice(0, 5).map(v => {
     const vehicleBookings = bookings.filter(b => {
       const bStart = new Date(b.periodStart);
-      const bEnd = new Date(b.periodEnd);
+      let bEnd = snapMidnightEnd(new Date(b.periodEnd));
       return b.vehicleId === v.id && b.status !== 'cancelled' && bEnd >= widgetStartDate && bStart <= widgetViewEnd;
     });
 
@@ -1808,7 +1826,7 @@ function renderDashboard() {
     const slotEnds = [];
     for (const ob of sortedVB) {
       const oStart = new Date(ob.periodStart);
-      const oEnd = new Date(ob.periodEnd);
+      let oEnd = snapMidnightEnd(new Date(ob.periodEnd));
       let slot = -1;
       for (let si = 0; si < slotEnds.length; si++) {
         if (slotEnds[si] <= oStart) { slot = si; slotEnds[si] = oEnd; break; }
@@ -1823,15 +1841,7 @@ function renderDashboard() {
 
     const bookingBars = vehicleBookings.map(b => {
       const bStart = new Date(b.periodStart);
-      let bEnd = new Date(b.periodEnd);
-      // For whole-day events (periodEnd is midnight), snap to local midnight of that date minus 1ms,
-      // so the bar ends at the previous day's 23:59:59.999 instead of bleeding into the next day.
-      // Using the stored string is critical because new Date("2026-06-05T00:00:00.000Z") parses
-      // to 9:00 AM in KST, and subtracting 1ms from 9:00 AM does nothing useful.
-      if ((b.periodEnd || '').slice(11, 16) === '00:00') {
-        const localMidnight = new Date(b.periodEnd.slice(0, 10) + 'T00:00:00');
-        bEnd = new Date(localMidnight.getTime() - 1);
-      }
+      let bEnd = snapMidnightEnd(new Date(b.periodEnd));
       const clampedStart = new Date(Math.max(bStart, widgetStartDate));
       const clampedEnd = new Date(Math.min(bEnd, widgetViewEnd));
       if (clampedStart >= clampedEnd) return '';
@@ -1920,7 +1930,7 @@ function renderDashboard() {
     </div>`;
   }).join('') : '<div class="empty-state"><p>No vehicles yet</p></div>';
 
-  const upcoming = bookings.filter(b => new Date(b.periodEnd) >= new Date()).sort((a, b) => new Date(a.periodStart) - new Date(b.periodStart)).slice(0, 5);
+  const upcoming = bookings.filter(b => snapMidnightEnd(new Date(b.periodEnd)) >= new Date()).sort((a, b) => new Date(a.periodStart) - new Date(b.periodStart)).slice(0, 5);
   const upcomingHtml = upcoming.length ? upcoming.map(b => {
     const v = vehicles.find(v => v.id === b.vehicleId);
     return `<div class="vehicle-status-row" style="cursor:pointer" onclick="editBooking(this.dataset.id)" data-id="${escAttr(b.id)}">
@@ -2045,7 +2055,7 @@ function renderCalendar() {
     // Clamp to visible range for slot assignment and rendering
     const visibleBookings = vehicleBookings.filter(b => {
       const bs = new Date(b.periodStart);
-      const be = new Date(b.periodEnd);
+      let be = snapMidnightEnd(new Date(b.periodEnd));
       return be > firstVisibleDate && bs < lastVisibleEnd;
     });
 
@@ -2055,7 +2065,7 @@ function renderCalendar() {
     const slotEnds = [];
     for (const ob of sortedVB) {
       const oStart = new Date(ob.periodStart);
-      const oEnd = new Date(ob.periodEnd);
+      let oEnd = snapMidnightEnd(new Date(ob.periodEnd));
       let slot = -1;
       for (let si = 0; si < slotEnds.length; si++) {
         if (slotEnds[si] <= oStart) { slot = si; slotEnds[si] = oEnd; break; }
@@ -2066,15 +2076,7 @@ function renderCalendar() {
 
     const bookingBars = visibleBookings.map(b => {
       const bStart = new Date(b.periodStart);
-      let bEnd = new Date(b.periodEnd);
-      // For whole-day events (periodEnd is midnight), snap to local midnight of that date minus 1ms,
-      // so the bar ends at the previous day's 23:59:59.999 instead of bleeding into the next day.
-      // Using the stored string is critical because new Date("2026-06-05T00:00:00.000Z") parses
-      // to 9:00 AM in KST, and subtracting 1ms from 9:00 AM does nothing useful.
-      if ((b.periodEnd || '').slice(11, 16) === '00:00') {
-        const localMidnight = new Date(b.periodEnd.slice(0, 10) + 'T00:00:00');
-        bEnd = new Date(localMidnight.getTime() - 1);
-      }
+      let bEnd = snapMidnightEnd(new Date(b.periodEnd));
 
       // Clamp booking to visible range (supports bookings starting before or ending after)
       const cStart = new Date(Math.max(bStart.getTime(), firstVisibleDate.getTime()));
@@ -2377,8 +2379,8 @@ function findBookingConflicts(vehicleId, periodStart, periodEnd, excludeBookingI
     if (b.id === excludeBookingId) return false;
     if (b.vehicleId !== vehicleId) return false;
     if (b.status === 'cancelled') return false;
-    const bs = new Date(b.periodStart), be = new Date(b.periodEnd);
-    const ns = new Date(periodStart), ne = new Date(periodEnd);
+    const bs = new Date(b.periodStart), be = snapMidnightEnd(new Date(b.periodEnd));
+    const ns = new Date(periodStart), ne = snapMidnightEnd(new Date(periodEnd));
     return ns < be && ne > bs;
   });
 }
@@ -2554,11 +2556,14 @@ function editBooking(id, preselectedVehicleId) {
   });
   // Check conflicts immediately when opening edit dialog
   if (b) setTimeout(checkConflicts, 0);
-  // Auto-detect whole-day bookings (00:00 to 23:59)
+  // Auto-detect whole-day bookings (00:00 to 23:59) using local time
+  // (stored UTC strings differ by timezone, so string-based checks are unreliable)
   if (b && b.periodStart && b.periodEnd) {
-    const startTime = b.periodStart.slice(11, 16);
-    const endTime = b.periodEnd.slice(11, 16);
-    if (startTime === '00:00' && endTime === '23:59') {
+    const sd = new Date(b.periodStart);
+    const ed = new Date(b.periodEnd);
+    if (!isNaN(sd.getTime()) && !isNaN(ed.getTime()) &&
+        sd.getHours() === 0 && sd.getMinutes() === 0 &&
+        ed.getHours() === 23 && ed.getMinutes() === 59) {
       const checkbox = document.getElementById('b-whole-day');
       if (checkbox) {
         checkbox.checked = true;
@@ -3875,7 +3880,7 @@ function generateLocalResponse(query) {
   const upcoming = bookings.filter(b => b.status !== 'cancelled' && new Date(b.periodStart) >= now && new Date(b.periodStart) <= weekEnd);
   const thisWeekStart = new Date(now); thisWeekStart.setDate(now.getDate() - now.getDay());
   const thisWeekEnd = new Date(thisWeekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
-  const thisWeek = bookings.filter(b => b.status !== 'cancelled' && new Date(b.periodStart) < thisWeekEnd && new Date(b.periodEnd) > thisWeekStart);
+  const thisWeek = bookings.filter(b => b.status !== 'cancelled' && new Date(b.periodStart) < thisWeekEnd && snapMidnightEnd(new Date(b.periodEnd)) > thisWeekStart);
 
   if (q.includes('available') || q.includes('free')) {
     return `There are ${available.length} available vehicle(s):\n${available.map(v => '• ' + v.name + (v.licensePlate ? ' (' + v.licensePlate + ')' : '')).join('\n')}`;
