@@ -3340,7 +3340,8 @@ function getAITools() {
     { type: 'function', function: { name: 'add_vehicle', description: 'Add a new vehicle to the fleet.', parameters: { type: 'object', properties: { name: { type: 'string', description: 'Vehicle name (must be unique)' }, type: { type: 'string', enum: getSetting('vehicleTypes', ['Sedan','SUV','Van','Truck','Bus','Other']), description: 'Vehicle type' }, status: { type: 'string', enum: vehicleStatuses, description: 'Initial status (default: available)' }, licensePlate: { type: 'string', description: 'License plate number' }, notes: { type: 'string', description: 'Additional notes' } }, required: ['name'] } } },
     { type: 'function', function: { name: 'delete_vehicle', description: 'Remove a vehicle from the fleet. This will also delete all its bookings.', parameters: { type: 'object', properties: { vehicleName: { type: 'string', description: 'Vehicle name to delete' } }, required: ['vehicleName'] } } },
     { type: 'function', function: { name: 'get_booking_details', description: 'Get full details of a specific booking by ID (supports partial ID match).', parameters: { type: 'object', properties: { bookingId: { type: 'string', description: 'Booking ID (full or first 8 characters)' } }, required: ['bookingId'] } } },
-    { type: 'function', function: { name: 'search_bookings', description: 'Search bookings with flexible filters. Returns up to 30 results.', parameters: { type: 'object', properties: { fromDate: { type: 'string', description: 'Filter bookings starting after this date (YYYY-MM-DD)' }, toDate: { type: 'string', description: 'Filter bookings starting before this date (YYYY-MM-DD)' }, vehicleName: { type: 'string', description: 'Filter by vehicle name (supports partial match)' }, userName: { type: 'string', description: 'Filter by user name' }, status: { type: 'string', description: 'Filter by booking status' } } } } }
+    { type: 'function', function: { name: 'search_bookings', description: 'Search bookings with flexible filters. Returns up to 30 results.', parameters: { type: 'object', properties: { fromDate: { type: 'string', description: 'Filter bookings starting after this date (YYYY-MM-DD)' }, toDate: { type: 'string', description: 'Filter bookings starting before this date (YYYY-MM-DD)' }, vehicleName: { type: 'string', description: 'Filter by vehicle name (supports partial match)' }, userName: { type: 'string', description: 'Filter by user name' }, status: { type: 'string', description: 'Filter by booking status' } } } } },
+    { type: 'function', function: { name: 'get_booking_statistics', description: 'Get aggregated booking statistics for analytics. Returns counts by status, by vehicle, by user, monthly trends, and date range summary. Use this for any statistics/analytics/trend questions about bookings.', parameters: { type: 'object', properties: {} } } }
   ];
 }
 
@@ -3499,8 +3500,65 @@ function executeToolCall(name, args) {
         return `• [${b.id.slice(0,8)}] ${b.userName} - ${v ? v.name + ' (' + (v.licensePlate || 'no plate') + ')' : 'Unknown'} - ${b.purpose} (${b.periodStart} to ${b.periodEnd}) [${b.status}]`;
       }).join('\n') || 'No bookings match the search criteria.';
     }
+    case 'get_booking_statistics': return getBookingStatistics();
     default: return `Error: Unknown tool "${name}".`;
   }
+}
+
+function getBookingStatistics() {
+  const bookings = getBookings();
+  const vehicles = getVehicles();
+  if (!bookings.length) return 'No booking data available for statistics.';
+
+  // Date range
+  const dates = bookings.map(b => new Date(b.periodStart)).filter(d => !isNaN(d.getTime()));
+  if (!dates.length) return 'No bookings with valid dates found.';
+  const minDate = new Date(Math.min(...dates));
+  const maxDate = new Date(Math.max(...dates));
+  const rangeDays = Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24));
+
+  // Counts by status
+  const byStatus = {};
+  bookings.forEach(b => { byStatus[b.status || 'unknown'] = (byStatus[b.status || 'unknown'] || 0) + 1; });
+
+  // Counts by vehicle
+  const byVehicle = {};
+  bookings.forEach(b => {
+    const v = vehicles.find(x => x.id === b.vehicleId);
+    const name = v ? v.name : 'Unknown';
+    byVehicle[name] = (byVehicle[name] || 0) + 1;
+  });
+
+  // Counts by user
+  const byUser = {};
+  bookings.forEach(b => { byUser[b.userName || 'unknown'] = (byUser[b.userName || 'unknown'] || 0) + 1; });
+
+  // Monthly counts (last 12 months from max date)
+  const monthly = {};
+  for (let i = 11; i >= 0; i--) {
+    const key = `${maxDate.getFullYear()}-${String(maxDate.getMonth() - i + 1).padStart(2, '0')}`;
+    monthly[key] = 0;
+  }
+  bookings.forEach(b => {
+    const d = new Date(b.periodStart);
+    if (!isNaN(d.getTime())) {
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (monthly.hasOwnProperty(key)) monthly[key]++;
+    }
+  });
+
+  // Active now
+  const now = new Date().toISOString();
+  const activeNow = bookings.filter(b => b.periodStart <= now && b.periodEnd >= now).length;
+
+  let stats = `📊 **Booking Statistics**\n\n`;
+  stats += `**Overview:** ${bookings.length} total bookings from ${fmtDate(minDate.toISOString())} to ${fmtDate(maxDate.toISOString())} (${rangeDays} days)\n`;
+  stats += `**Active now:** ${activeNow}\n\n`;
+  stats += `**By Status:**\n${Object.entries(byStatus).sort((a,b) => b[1] - a[1]).map(([k,v]) => `• ${k}: ${v}`).join('\n')}\n\n`;
+  stats += `**Top Vehicles:**\n${Object.entries(byVehicle).sort((a,b) => b[1] - a[1]).slice(0,10).map(([k,v]) => `• ${k}: ${v} bookings`).join('\n')}\n\n`;
+  stats += `**Top Users:**\n${Object.entries(byUser).sort((a,b) => b[1] - a[1]).slice(0,10).map(([k,v]) => `• ${k}: ${v} bookings`).join('\n')}\n\n`;
+  stats += `**Monthly Trends (last 12 months):**\n${Object.entries(monthly).map(([k,v]) => `• ${k}: ${v}`).join('\n')}`;
+  return stats;
 }
 
 function updateStreamingMessage(msgId, content) {
