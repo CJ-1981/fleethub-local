@@ -1799,8 +1799,9 @@ function renderDashboard() {
     const bookingBars = vehicleBookings.map(b => {
       const bStart = new Date(b.periodStart);
       let bEnd = new Date(b.periodEnd);
-      // Snap midnight end times back 1ms so the bar doesn't bleed into the next day's column
-      if (bEnd.getHours() === 0 && bEnd.getMinutes() === 0 && bEnd.getSeconds() === 0) bEnd = new Date(bEnd.getTime() - 1);
+      // Snap midnight end times back 1ms so the bar doesn't bleed into the next day's column.
+      // Check the stored string (not getHours()) because .000Z UTC midnight ≠ local midnight in non-UTC timezones.
+      if ((b.periodEnd || '').slice(11, 16) === '00:00') bEnd = new Date(bEnd.getTime() - 1);
       const clampedStart = new Date(Math.max(bStart, widgetStartDate));
       const clampedEnd = new Date(Math.min(bEnd, widgetViewEnd));
       if (clampedStart >= clampedEnd) return '';
@@ -2036,8 +2037,9 @@ function renderCalendar() {
     const bookingBars = visibleBookings.map(b => {
       const bStart = new Date(b.periodStart);
       let bEnd = new Date(b.periodEnd);
-      // Snap midnight end times back 1ms so the bar doesn't bleed into the next day's column
-      if (bEnd.getHours() === 0 && bEnd.getMinutes() === 0 && bEnd.getSeconds() === 0) bEnd = new Date(bEnd.getTime() - 1);
+      // Snap midnight end times back 1ms so the bar doesn't bleed into the next day's column.
+      // Check the stored string (not getHours()) because .000Z UTC midnight ≠ local midnight in non-UTC timezones.
+      if ((b.periodEnd || '').slice(11, 16) === '00:00') bEnd = new Date(bEnd.getTime() - 1);
 
       // Clamp booking to visible range (supports bookings starting before or ending after)
       const cStart = new Date(Math.max(bStart.getTime(), firstVisibleDate.getTime()));
