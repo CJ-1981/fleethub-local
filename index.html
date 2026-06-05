@@ -1571,17 +1571,8 @@ async function checkLock() {
 }
 
 async function acquireLock() {
-  const lockData = readLockState();
-  const currentLock = lockData?.lockedBy;
-  const currentLockAt = lockData?.lockedAt;
-
-  if (currentLock && currentLock !== S.lockId && currentLockAt) {
-    const elapsed = Date.now() - new Date(currentLockAt).getTime();
-    if (elapsed < CONST.LOCK_STALE_MS) {
-      showToast('Cannot acquire lock: another user holds the lock', 'warning');
-      return;
-    }
-  }
+  // Always allow acquiring the lock when user clicks Take Over
+  // Don't check stale lock threshold - user explicitly wants to take over
 
   // Resolve human-readable user name for the lock
   if (!S.lockUser) {
