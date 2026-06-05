@@ -1370,8 +1370,27 @@ function initLock() {
   if (S.lockInterval) { clearInterval(S.lockInterval); S.lockInterval = null; }
   if (S.bc) { try { S.bc.close(); } catch(e) {} S.bc = null; }
   S.lockId = getMyLockId();
-  checkLock();
-  S.lockInterval = setInterval(checkLock, 30000);
+  S._lockReady = false;
+  updateLockBadge();
+
+  // Check lock state from database, then acquire if available
+  (async () => {
+    try {
+      await checkLock();
+      if (!S.lockedBy || S.lockedBy === S.lockId) {
+        await acquireLock();
+      }
+    } catch(e) {
+      console.warn('Lock init error:', e);
+    }
+    S._lockReady = true;
+    updateLockBadge();
+  })();
+
+  // Heartbeat: refresh lock timestamp every 60s to prevent stale detection
+  S.lockInterval = setInterval(async () => {
+    try { await checkLock(); } catch(e) {}
+  }, 60000);
   try {
     const bc = new BroadcastChannel('fleethub-lock');
     bc.onmessage = () => { checkLock(); };
@@ -1379,44 +1398,83 @@ function initLock() {
   } catch(e) {}
 }
 
-function checkLock() {
-  const lockedBy = getMeta('lockedBy');
-  const lockedAt = getMeta('lockedAt');
+async function checkLock() {
+  const lockData = readLockState();
+  const lockedBy = lockData?.lockedBy;
+  const lockedAt = lockData?.lockedAt;
+
+  // Heartbeat: if we hold the lock, refresh the timestamp so it doesn't go stale
+  if (lockedBy === S.lockId) {
+    writeLockState({
+      lockedBy: S.lockId,
+      lockedAt: new Date().toISOString(),
+      lockedUser: S.lockUser || lockData?.lockedUser || ''
+    });
+    S.lockedBy = S.lockId;
+    S.lockedUser = S.lockUser || lockData?.lockedUser || '';
+    hideLockAlert();
+    updateLockBadge();
+    return;
+  }
+
   if (lockedBy && lockedBy !== S.lockId && lockedAt) {
     const elapsed = Date.now() - new Date(lockedAt).getTime();
     if (elapsed < 15 * 60 * 1000) { // 15 min stale threshold
       S.lockedBy = lockedBy;
-      showLockAlert(lockedBy, null, elapsed);
+      S.lockedUser = lockData?.lockedUser || '';
+      showLockAlert(lockedBy, S.lockedUser, elapsed);
+      updateLockBadge();
+      return;
+    }
+    // Lock is stale, treat as unlocked
+  }
+
+  S.lockedBy = null;
+  S.lockedUser = null;
+  hideLockAlert();
+  updateLockBadge();
+}
+
+async function acquireLock() {
+  const lockData = readLockState();
+  const currentLock = lockData?.lockedBy;
+  const currentLockAt = lockData?.lockedAt;
+
+  if (currentLock && currentLock !== S.lockId && currentLockAt) {
+    const elapsed = Date.now() - new Date(currentLockAt).getTime();
+    if (elapsed < 15 * 60 * 1000) {
+      showToast('Cannot acquire lock: another user holds the lock', 'warning');
       return;
     }
   }
-  // If current user holds the lock, set lockedBy to own ID
-  if (lockedBy === S.lockId) {
-    S.lockedBy = S.lockId;
-  } else {
-    S.lockedBy = null;
-  }
-  hideLockAlert();
-}
 
-function acquireLock() {
-  setMeta('lockedBy', S.lockId);
-  setMeta('lockedAt', new Date().toISOString());
-  S.lockedBy = null;
+  // Resolve human-readable user name for the lock
+  if (!S.lockUser) {
+    const stored = localStorage.getItem('fleethub_user_name');
+    if (stored) { S.lockUser = stored; }
+    else {
+      const name = prompt('Enter your name (shown to other users when you lock a file):');
+      if (name && name.trim()) {
+        S.lockUser = name.trim();
+        localStorage.setItem('fleethub_user_name', S.lockUser);
+      }
+    }
+  }
+
+  writeLockState({
+    lockedBy: S.lockId,
+    lockedAt: new Date().toISOString(),
+    lockedUser: S.lockUser || ''
+  });
+
+  S.lockedBy = S.lockId;
+  S.lockedUser = S.lockUser || '';
   hideLockAlert();
-  markDirty();
-  saveFile();
+  updateLockBadge();
   showToast('Lock acquired', 'success');
-}
-
-function releaseLock() {
-  if (getMeta('lockedBy') === S.lockId) {
-    setMeta('lockedBy', null);
-    setMeta('lockedAt', null);
-  }
-  // Clean up interval and broadcast channel to prevent resource leak
-  if (S.lockInterval) { clearInterval(S.lockInterval); S.lockInterval = null; }
-  if (S.bc) { try { S.bc.close(); } catch(e) {} S.bc = null; }
+  // Persist to disk so other OneDrive users can see the lock
+  await saveFile(true);
+  try { if (S.bc) S.bc.postMessage('lock-acquired'); } catch(e) {}
 }
 
 async function releaseLock() {
@@ -1551,21 +1609,52 @@ function updateLockBadge() {
   // Open lock SVG — shackle is raised and disconnected on one side
   const openLock = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>';
 
+  badge.style.cursor = 'pointer';
+  badge.onclick = toggleLock;
+
+  // While initializing, show neutral state
+  if (!S._lockReady && S.fileHandle) {
+    badge.className = 'lock-badge unlocked';
+    text.textContent = 'Checking...';
+    icon.outerHTML = openLock;
+    return;
+  }
+
   if (S.lockedBy === S.lockId) {
     // Current user holds the lock
     badge.className = 'lock-badge owned';
-    text.textContent = 'Locked';
+    text.textContent = S.lockUser ? `Locked (${S.lockUser})` : 'Locked';
     icon.outerHTML = closedLock;
   } else if (S.lockedBy && S.lockedBy !== S.lockId) {
     // Someone else holds the lock
     badge.className = 'lock-badge locked';
-    text.textContent = 'Locked';
+    text.textContent = S.lockedUser ? `Locked (${S.lockedUser})` : 'Locked';
     icon.outerHTML = closedLock;
   } else {
     // No lock
     badge.className = 'lock-badge unlocked';
     text.textContent = 'Unlocked';
     icon.outerHTML = openLock;
+  }
+}
+
+async function toggleLock() {
+  if (!S._lockReady) {
+    showToast('Lock is initializing, please wait...', 'info');
+    return;
+  }
+  if (S.lockedBy === S.lockId) {
+    // User holds the lock - unlock it
+    await releaseLock();
+    showToast('File unlocked', 'info');
+    await checkLock();
+  } else if (S.lockedBy && S.lockedBy !== S.lockId) {
+    // Someone else holds the lock - warn
+    showToast('Cannot unlock: another user holds the lock', 'warning');
+  } else {
+    // No lock - acquire it
+    await acquireLock();
+    await checkLock();
   }
 }
 
@@ -3130,7 +3219,15 @@ function renderChatMessages() {
     const avatar = m.role === 'assistant' ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>' : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
     const raw = m.role === 'assistant' ? (m.content || '') : null;
     const html = raw && typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(marked.parse(raw)) : esc(m.content);
-    return `<div class="chat-msg ${m.role}"><div class="chat-msg-avatar">${avatar}</div><div class="chat-msg-bubble">${html}</div></div>`;
+    const display = m.content ? html : '<span class="pulse" style="color:var(--muted)">Thinking...</span>';
+    let extra = '';
+    if (m.confirmation) {
+      extra = `<div class="chat-confirmation" style="margin-top:8px;display:flex;gap:8px;">
+        <button onclick="confirmToolAction('${m.id}')" style="padding:4px 12px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;">Confirm</button>
+        <button onclick="cancelToolAction('${m.id}')" style="padding:4px 12px;background:var(--surface-strong);color:var(--ink);border:1px solid var(--hairline);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;">Cancel</button>
+      </div>`;
+    }
+    return `<div class="chat-msg ${m.role}" data-msg-id="${m.id}"><div class="chat-msg-avatar">${avatar}</div><div class="chat-msg-bubble">${display}${extra}</div></div>`;
   }).join('');
   el.scrollTop = el.scrollHeight;
 }
@@ -3167,12 +3264,18 @@ async function sendChat() {
   let response;
   const assistantMsgId = genId();
   if (apiEndpoint && apiKey) {
-    try { response = await callAIWithTools(apiEndpoint, apiKey, text); }
+    // Push empty placeholder to show "Thinking..." indicator immediately
+    S.chatMessages.push({ id: assistantMsgId, role: 'assistant', content: '', timestamp: new Date() });
+    renderChat();
+    try { response = await callAIWithTools(apiEndpoint, apiKey, text, assistantMsgId); }
     catch (e) { response = 'Error: ' + e.message; }
+    // Update the placeholder with the real response
+    const msg = S.chatMessages.find(m => m.id === assistantMsgId);
+    if (msg) msg.content = response;
   } else {
     response = generateLocalResponse(text);
+    S.chatMessages.push({ id: assistantMsgId, role: 'assistant', content: response, timestamp: new Date() });
   }
-  S.chatMessages.push({ id: assistantMsgId, role: 'assistant', content: response, timestamp: new Date() });
   S.chatLoading = false;
   saveChatHistory();
   renderChat();
@@ -3438,7 +3541,7 @@ async function callAIWithTools(apiEndpoint, apiKey, userText, streamMsgId) {
   const context = `Fleet data: ${vehicles.length} vehicles, ${bookings.length} bookings. Vehicles: ${vehicles.map(v=>v.name+' ('+v.status+')').join(', ')}. Recent bookings: ${bookings.slice(0,10).map(b=>{const v=vehicles.find(x=>x.id===b.vehicleId);return b.userName+' - '+(v?v.name:'Unknown')+' - '+b.purpose+' ('+b.status+')'}).join(';')}. Today is ${new Date().toISOString().split('T')[0]}.`;
   const messages = [
     { role: 'system', content: `You are a fleet management AI assistant embedded in FleetHub. You can answer questions AND take actions using the available tools.\n\nTools: create_booking, update_booking (change status, dates, etc.), cancel_booking, update_vehicle_status, list_vehicles, list_bookings, list_vehicle_bookings.\n\nIMPORTANT: Before calling create_booking, you MUST have ALL required fields (vehicleName, userName, purpose, periodStart, periodEnd). If ANY is missing, ASK the user. Use update_booking to change a booking status (e.g. pending→confirmed). Always confirm what you did.\n\nBe concise. ${context}` },
-    ...S.chatMessages.map(m => ({ role: m.role, content: m.content }))
+    ...S.chatMessages.filter(m => m.content).map(m => ({ role: m.role, content: m.content }))
   ];
   const MAX_ROUNDS = 5;
   for (let round = 0; round < MAX_ROUNDS; round++) {
