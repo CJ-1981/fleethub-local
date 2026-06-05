@@ -3234,7 +3234,11 @@ function renderChatMessages() {
         <button onclick="cancelToolAction('${m.id}')" style="padding:4px 12px;background:var(--surface-strong);color:var(--ink);border:1px solid var(--hairline);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;">Cancel</button>
       </div>`;
     }
-    return `<div class="chat-msg ${m.role}" data-msg-id="${m.id}"><div class="chat-msg-avatar">${avatar}</div><div class="chat-msg-bubble">${display}${extra}</div></div>`;
+    let copyBtn = '';
+    if (m.content && m.role === 'assistant') {
+      copyBtn = `<button class="chat-copy-btn" onclick="copyChatMsg('${m.id}')" title="Copy to clipboard" style="position:absolute;top:4px;right:4px;background:var(--surface-soft);border:1px solid var(--hairline);border-radius:var(--radius-sm);cursor:pointer;padding:4px 6px;line-height:1;opacity:0.5;transition:opacity 0.15s" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.5'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>`;
+    }
+    return `<div class="chat-msg ${m.role}" data-msg-id="${m.id}"><div class="chat-msg-avatar">${avatar}</div><div class="chat-msg-bubble" style="position:relative">${copyBtn}${display}${extra}</div></div>`;
   }).join('');
   el.scrollTop = el.scrollHeight;
 }
@@ -3879,6 +3883,24 @@ function clearChat() {
   S.chatHistoryIndex = -1;
   try { localStorage.removeItem(`fleethub_chat_${S.fileName || 'demo'}`); } catch {}
   renderChat();
+}
+
+function copyChatMsg(msgId) {
+  const msg = S.chatMessages.find(m => m.id === msgId);
+  if (!msg || !msg.content) return;
+  navigator.clipboard.writeText(msg.content).then(() => {
+    showToast('Copied to clipboard');
+  }).catch(() => {
+    // Fallback for older browsers
+    const ta = document.createElement('textarea');
+    ta.value = msg.content;
+    ta.style.position = 'fixed'; ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('Copied to clipboard');
+  });
 }
 
 // ===================== TOAST =====================
