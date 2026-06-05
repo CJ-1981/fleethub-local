@@ -1799,9 +1799,14 @@ function renderDashboard() {
     const bookingBars = vehicleBookings.map(b => {
       const bStart = new Date(b.periodStart);
       let bEnd = new Date(b.periodEnd);
-      // Snap midnight end times back 1ms so the bar doesn't bleed into the next day's column.
-      // Check the stored string (not getHours()) because .000Z UTC midnight ≠ local midnight in non-UTC timezones.
-      if ((b.periodEnd || '').slice(11, 16) === '00:00') bEnd = new Date(bEnd.getTime() - 1);
+      // For whole-day events (periodEnd is midnight), snap to local midnight of that date minus 1ms,
+      // so the bar ends at the previous day's 23:59:59.999 instead of bleeding into the next day.
+      // Using the stored string is critical because new Date("2026-06-05T00:00:00.000Z") parses
+      // to 9:00 AM in KST, and subtracting 1ms from 9:00 AM does nothing useful.
+      if ((b.periodEnd || '').slice(11, 16) === '00:00') {
+        const localMidnight = new Date(b.periodEnd.slice(0, 10) + 'T00:00:00');
+        bEnd = new Date(localMidnight.getTime() - 1);
+      }
       const clampedStart = new Date(Math.max(bStart, widgetStartDate));
       const clampedEnd = new Date(Math.min(bEnd, widgetViewEnd));
       if (clampedStart >= clampedEnd) return '';
@@ -2037,9 +2042,14 @@ function renderCalendar() {
     const bookingBars = visibleBookings.map(b => {
       const bStart = new Date(b.periodStart);
       let bEnd = new Date(b.periodEnd);
-      // Snap midnight end times back 1ms so the bar doesn't bleed into the next day's column.
-      // Check the stored string (not getHours()) because .000Z UTC midnight ≠ local midnight in non-UTC timezones.
-      if ((b.periodEnd || '').slice(11, 16) === '00:00') bEnd = new Date(bEnd.getTime() - 1);
+      // For whole-day events (periodEnd is midnight), snap to local midnight of that date minus 1ms,
+      // so the bar ends at the previous day's 23:59:59.999 instead of bleeding into the next day.
+      // Using the stored string is critical because new Date("2026-06-05T00:00:00.000Z") parses
+      // to 9:00 AM in KST, and subtracting 1ms from 9:00 AM does nothing useful.
+      if ((b.periodEnd || '').slice(11, 16) === '00:00') {
+        const localMidnight = new Date(b.periodEnd.slice(0, 10) + 'T00:00:00');
+        bEnd = new Date(localMidnight.getTime() - 1);
+      }
 
       // Clamp booking to visible range (supports bookings starting before or ending after)
       const cStart = new Date(Math.max(bStart.getTime(), firstVisibleDate.getTime()));
