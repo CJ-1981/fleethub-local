@@ -455,9 +455,21 @@ function clearLockState() {
   setMeta('lockedAt', '');
   setMeta('lockedUser', '');
 }
+const _cache = { vehicles: null, bookings: null, dirty: true };
+
+const CONST = {
+  MS_PER_DAY: 86400000,
+  LOCK_STALE_MS: 5 * 60 * 1000,
+  GANTT_DAY_WIDTH: 120,
+  HEARTBEAT_MS: 60000,
+  API_TIMEOUT_MS: 60000,
+  MAX_ARCHIVE_MONTHS: 120,
+};
+
 const S = {
   fileHandle: null,
   fileName: '',
+  fileLastModified: null,
   demoMode: false,
   // data is now backed by SQLite — use getVehicles()/getBookings() instead of S.data
   dirty: false,
@@ -513,6 +525,13 @@ function ensureSchema() {
     CREATE TABLE IF NOT EXISTS bookings (id TEXT PRIMARY KEY, vehicle_id TEXT NOT NULL, period_start TEXT NOT NULL, period_end TEXT NOT NULL, user_name TEXT NOT NULL DEFAULT '', purpose TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', remarks TEXT DEFAULT '', custom_fields TEXT DEFAULT '{}', share_with TEXT DEFAULT '[]', share_note TEXT DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS archived_bookings (id TEXT PRIMARY KEY, vehicle_id TEXT NOT NULL, vehicle_name TEXT DEFAULT '', user_name TEXT NOT NULL DEFAULT '', purpose TEXT NOT NULL DEFAULT '', period_start TEXT NOT NULL, period_end TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', remarks TEXT DEFAULT '', custom_fields TEXT DEFAULT '{}', share_with TEXT DEFAULT '[]', share_note TEXT DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived_at TEXT NOT NULL, archive_year INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+  `);
+  db.run(`
+    CREATE INDEX IF NOT EXISTS idx_bookings_vehicle ON bookings(vehicle_id);
+    CREATE INDEX IF NOT EXISTS idx_bookings_period_start ON bookings(period_start);
+    CREATE INDEX IF NOT EXISTS idx_bookings_period_end ON bookings(period_end);
+    CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status);
+    CREATE INDEX IF NOT EXISTS idx_archived_year ON archived_bookings(archive_year);
   `);
 }
 
@@ -617,7 +636,7 @@ function importJSONToSQLite(jsonData, appendMode = false) {
       }
       // Validate boolean and numeric settings
       if (k === 'archiveEnabled' && typeof val !== 'boolean') val = Boolean(val);
-      if (k === 'archiveRetentionMonths') val = Math.max(1, Math.min(120, parseInt(val) || 12));
+      if (k === 'archiveRetentionMonths') val = Math.max(1, Math.min(CONST.MAX_ARCHIVE_MONTHS, parseInt(val) || 12));
       if (k === 'userNameConfig' && typeof val !== 'object') val = { type: 'text' };
       setSetting(k, val);
     }
@@ -645,16 +664,20 @@ function importJSONToSQLite(jsonData, appendMode = false) {
 }
 
 function getVehicles() {
-  return dbQuery("SELECT id, name, type, license_plate AS licensePlate, status, notes, sort_order AS sortOrder, created_at AS createdAt, updated_at AS updatedAt FROM vehicles ORDER BY sort_order, created_at");
+  if (_cache.vehicles && !_cache.dirty) return _cache.vehicles;
+  _cache.vehicles = dbQuery("SELECT id, name, type, license_plate AS licensePlate, status, notes, sort_order AS sortOrder, created_at AS createdAt, updated_at AS updatedAt FROM vehicles ORDER BY sort_order, created_at");
+  return _cache.vehicles;
 }
 
 function getBookings() {
-  return dbQuery("SELECT id, vehicle_id AS vehicleId, user_name AS userName, purpose, period_start AS periodStart, period_end AS periodEnd, status, remarks, custom_fields AS customFields, share_with AS shareWith, share_note AS shareNote, created_at AS createdAt, updated_at AS updatedAt FROM bookings ORDER BY period_start DESC").map(b => {
+  if (_cache.bookings && !_cache.dirty) return _cache.bookings;
+  _cache.bookings = dbQuery("SELECT id, vehicle_id AS vehicleId, user_name AS userName, purpose, period_start AS periodStart, period_end AS periodEnd, status, remarks, custom_fields AS customFields, share_with AS shareWith, share_note AS shareNote, created_at AS createdAt, updated_at AS updatedAt FROM bookings ORDER BY period_start DESC").map(b => {
     b.periodStart = normalizePeriodDate(b.periodStart, false);
     b.periodEnd = normalizePeriodDate(b.periodEnd, true);
     try { return { ...b, customFields: JSON.parse(b.customFields || '{}'), shareWith: JSON.parse(b.shareWith || '[]') }; }
     catch(e) { return { ...b, customFields: {}, shareWith: [] }; }
   });
+  return _cache.bookings;
 }
 
 function getSettings() {
@@ -740,9 +763,17 @@ function restoreArchivedBooking(id) {
   const rows = dbQuery("SELECT * FROM archived_bookings WHERE id = ?", [id]);
   if (!rows.length) return;
   const b = rows[0];
-  db.run("INSERT OR REPLACE INTO bookings (id, vehicle_id, user_name, purpose, period_start, period_end, status, remarks, custom_fields, share_with, share_note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    [b.id, b.vehicle_id, b.user_name, b.purpose, b.period_start, b.period_end, b.status, b.remarks, b.custom_fields, b.share_with, b.share_note, b.created_at, b.updated_at]);
-  db.run("DELETE FROM archived_bookings WHERE id = ?", [id]);
+  try {
+    db.run("BEGIN TRANSACTION;");
+    db.run("INSERT OR REPLACE INTO bookings (id, vehicle_id, user_name, purpose, period_start, period_end, status, remarks, custom_fields, share_with, share_note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+      [b.id, b.vehicle_id, b.user_name, b.purpose, b.period_start, b.period_end, b.status, b.remarks, b.custom_fields, b.share_with, b.share_note, b.created_at, b.updated_at]);
+    db.run("DELETE FROM archived_bookings WHERE id = ?", [id]);
+    db.run("COMMIT;");
+  } catch(e) {
+    try { db.run("ROLLBACK;"); } catch(_) {}
+    console.error('restoreArchivedBooking error:', e);
+    showToast('Failed to restore booking', 'error'); return;
+  }
   markDirty(); render(); showToast('Booking restored', 'success');
 }
 
@@ -855,7 +886,7 @@ function exportArchiveYearSQL(year) {
 }
 
 function sqlEscape(str) {
-  return String(str).replace(/'/g, "''");
+  return String(str).replace(/\\/g, '\\\\').replace(/'/g, "''").replace(/\0/g, '\\0').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
 }
 
 function archiveAndExportSQL() {
@@ -900,8 +931,8 @@ function toggleArchiveEnabled() {
 function updateArchiveRetention() {
   const val = parseInt(document.getElementById('archive-retention').value);
   if (!val || val < 1) { showToast('Retention must be at least 1 month', 'error'); return; }
-  setSetting('archiveRetentionMonths', Math.min(val, 120));
-  markDirty(); showToast(`Retention set to ${Math.min(val, 120)} months`, 'success');
+  setSetting('archiveRetentionMonths', Math.min(val, CONST.MAX_ARCHIVE_MONTHS));
+  markDirty(); showToast(`Retention set to ${Math.min(val, CONST.MAX_ARCHIVE_MONTHS)} months`, 'success');
 }
 
 function runAutoArchiveNow() {
@@ -983,7 +1014,10 @@ function getEasterDate(year) {
   return new Date(year, month - 1, day);
 }
 
+const _holidayCache = {};
 function getGermanHolidays(year, state = null) {
+  const cacheKey = year + '|' + (state || '');
+  if (_holidayCache[cacheKey]) return _holidayCache[cacheKey];
   const holidays = [];
   const easterSunday = getEasterDate(year);
   const goodFriday = new Date(easterSunday); goodFriday.setDate(goodFriday.getDate() - 2);
@@ -1070,11 +1104,13 @@ function getGermanHolidays(year, state = null) {
     holidays.push({ date: dayOfRepentance, name: 'Buß- und Bettag', states: [SN[0]] });
   }
 
-  return holidays.map(h => ({
+  const result = holidays.map(h => ({
     date: formatDateLocal(h.date),
     name: h.name,
     isNationwide: !h.states
   }));
+  _holidayCache[cacheKey] = result;
+  return result;
 }
 
 // ===================== FILE I/O =====================
@@ -1089,7 +1125,8 @@ async function openFile() {
     const arrayBuffer = await file.arrayBuffer();
     S.fileHandle = handle;
     S.fileName = file.name;
-    S.filePath = ''; // File System Access API doesn't expose full path
+    S.fileLastModified = file.lastModified;
+    S.filePath = '';
     S.demoMode = false;
     document.getElementById('demo-banner').style.display = 'none';
     if (file.name.endsWith('.json')) {
@@ -1106,6 +1143,7 @@ async function openFile() {
         await writable.close();
         S.fileHandle = newHandle;
         S.fileName = newHandle.name;
+        S.fileLastModified = Date.now();
         S.filePath = '';
         await saveRecentHandle(S.fileName, S.fileHandle, S.filePath);
         showToast('Migrated from JSON to SQLite format.', 'success');
@@ -1135,6 +1173,7 @@ async function createNewFile() {
     await writable.close();
     S.fileHandle = handle;
     S.fileName = handle.name;
+    S.fileLastModified = Date.now();
     S.filePath = '';
     S.demoMode = false;
     document.getElementById('demo-banner').style.display = 'none';
@@ -1164,9 +1203,9 @@ function exitDemo() {
 function getDemoData() {
   const now = new Date();
   const today = now.toISOString().slice(0,10);
-  const tomorrow = new Date(now.getTime() + 86400000).toISOString().slice(0,10);
-  const nextWeek = new Date(now.getTime() + 7*86400000).toISOString().slice(0,10);
-  const yesterday = new Date(now.getTime() - 86400000).toISOString().slice(0,10);
+  const tomorrow = new Date(now.getTime() + CONST.MS_PER_DAY).toISOString().slice(0,10);
+  const nextWeek = new Date(now.getTime() + 7*CONST.MS_PER_DAY).toISOString().slice(0,10);
+  const yesterday = new Date(now.getTime() - CONST.MS_PER_DAY).toISOString().slice(0,10);
   return {
     meta: { version: '1.0', lastModified: now.toISOString() },
     vehicles: [
@@ -1186,10 +1225,10 @@ function getDemoData() {
       { id: 'b004', vehicleId: 'v003', userName: 'David Lee', purpose: 'Airport pickup — VIP guest', periodStart: tomorrow + 'T14:00:00.000Z', periodEnd: tomorrow + 'T16:30:00.000Z', status: 'pending', remarks: 'Terminal 2, flight arrives 14:20', customFields: { department: 'Executive', priority: 'high' }, shareWith: [], shareNote: null, createdAt: today + 'T08:30:00.000Z', updatedAt: today + 'T08:30:00.000Z' },
       { id: 'b005', vehicleId: 'v006', userName: 'Emily Chen', purpose: 'Warehouse audit — south facility', periodStart: nextWeek + 'T08:00:00.000Z', periodEnd: nextWeek + 'T16:00:00.000Z', status: 'confirmed', remarks: 'Bring clipboards and camera', customFields: { department: 'Operations', priority: 'medium' }, shareWith: ['Frank Wilson', 'Grace Kim'], shareNote: 'Warehouse audit team, leaving at 7:45 AM', createdAt: today + 'T10:00:00.000Z', updatedAt: today + 'T10:00:00.000Z' },
       { id: 'b006', vehicleId: 'v005', userName: 'Frank Wilson', purpose: 'Safety training venue transport', periodStart: nextWeek + 'T09:00:00.000Z', periodEnd: nextWeek + 'T17:00:00.000Z', status: 'pending', remarks: null, customFields: {}, shareWith: ['Emily Chen'], shareNote: 'Ride together to training', createdAt: today + 'T11:00:00.000Z', updatedAt: today + 'T11:00:00.000Z' },
-      { id: 'b007', vehicleId: 'v002', userName: 'Grace Kim', purpose: 'Marketing event — conference center', periodStart: yesterday + 'T08:00:00.000Z', periodEnd: yesterday + 'T18:00:00.000Z', status: 'returned', remarks: 'Booth setup at Hall B', customFields: { department: 'Marketing', priority: 'medium' }, shareWith: ['Alice Johnson'], shareNote: null, createdAt: (new Date(now.getTime() - 2*86400000)).toISOString().slice(0,10) + 'T10:00:00.000Z', updatedAt: yesterday + 'T18:00:00.000Z' },
+      { id: 'b007', vehicleId: 'v002', userName: 'Grace Kim', purpose: 'Marketing event — conference center', periodStart: yesterday + 'T08:00:00.000Z', periodEnd: yesterday + 'T18:00:00.000Z', status: 'returned', remarks: 'Booth setup at Hall B', customFields: { department: 'Marketing', priority: 'medium' }, shareWith: ['Alice Johnson'], shareNote: null, createdAt: (new Date(now.getTime() - 2*CONST.MS_PER_DAY)).toISOString().slice(0,10) + 'T10:00:00.000Z', updatedAt: yesterday + 'T18:00:00.000Z' },
       { id: 'b008', vehicleId: 'v007', userName: 'Henry Park', purpose: 'IT equipment delivery — branch office', periodStart: today + 'T11:00:00.000Z', periodEnd: today + 'T13:00:00.000Z', status: 'confirmed', remarks: '5 monitors and 3 laptops', customFields: { department: 'IT', priority: 'high' }, shareWith: [], shareNote: null, createdAt: yesterday + 'T09:00:00.000Z', updatedAt: today + 'T09:00:00.000Z' },
-      { id: 'b009', vehicleId: 'v001', userName: 'Iris Nakamura', purpose: 'Site survey — new plot', periodStart: yesterday + 'T09:00:00.000Z', periodEnd: yesterday + 'T15:00:00.000Z', status: 'returned', remarks: null, customFields: { department: 'Engineering', priority: 'low' }, shareWith: [], shareNote: null, createdAt: (new Date(now.getTime() - 3*86400000)).toISOString().slice(0,10) + 'T08:00:00.000Z', updatedAt: yesterday + 'T15:00:00.000Z' },
-      { id: 'b010', vehicleId: 'v003', userName: 'Jack Rivera', purpose: 'Team lunch run', periodStart: (new Date(now.getTime() - 3*86400000)).toISOString().slice(0,10) + 'T12:00:00.000Z', periodEnd: (new Date(now.getTime() - 3*86400000)).toISOString().slice(0,10) + 'T13:00:00.000Z', status: 'cancelled', remarks: 'Ordered delivery instead', customFields: {}, shareWith: [], shareNote: null, createdAt: (new Date(now.getTime() - 4*86400000)).toISOString().slice(0,10) + 'T08:00:00.000Z', updatedAt: (new Date(now.getTime() - 3*86400000)).toISOString().slice(0,10) + 'T12:30:00.000Z' }
+      { id: 'b009', vehicleId: 'v001', userName: 'Iris Nakamura', purpose: 'Site survey — new plot', periodStart: yesterday + 'T09:00:00.000Z', periodEnd: yesterday + 'T15:00:00.000Z', status: 'returned', remarks: null, customFields: { department: 'Engineering', priority: 'low' }, shareWith: [], shareNote: null, createdAt: (new Date(now.getTime() - 3*CONST.MS_PER_DAY)).toISOString().slice(0,10) + 'T08:00:00.000Z', updatedAt: yesterday + 'T15:00:00.000Z' },
+      { id: 'b010', vehicleId: 'v003', userName: 'Jack Rivera', purpose: 'Team lunch run', periodStart: (new Date(now.getTime() - 3*CONST.MS_PER_DAY)).toISOString().slice(0,10) + 'T12:00:00.000Z', periodEnd: (new Date(now.getTime() - 3*CONST.MS_PER_DAY)).toISOString().slice(0,10) + 'T13:00:00.000Z', status: 'cancelled', remarks: 'Ordered delivery instead', customFields: {}, shareWith: [], shareNote: null, createdAt: (new Date(now.getTime() - 4*CONST.MS_PER_DAY)).toISOString().slice(0,10) + 'T08:00:00.000Z', updatedAt: (new Date(now.getTime() - 3*CONST.MS_PER_DAY)).toISOString().slice(0,10) + 'T12:30:00.000Z' }
     ],
     settings: {
       statuses: ['pending', 'confirmed', 'in-use', 'returned', 'cancelled'],
@@ -1226,10 +1265,27 @@ async function saveFile(silent = false) {
     const archived = runAutoArchive();
     if (archived > 0) render();
     const binaryData = db.export();
+    // Check for external modifications since last open/save
+    if (S.fileLastModified !== null) {
+      try {
+        const current = await S.fileHandle.getFile();
+        if (current.lastModified !== S.fileLastModified) {
+          if (!confirm('This file has been modified by another process since you opened it. Overwrite anyway?')) {
+            throw new DOMException('Save cancelled — file changed externally', 'AbortError');
+          }
+        }
+      } catch(e) {
+        if (e.name === 'AbortError') throw e;
+        // If we can't check, proceed (e.g. permission issues)
+      }
+    }
     const writable = await S.fileHandle.createWritable();
     await writable.write(binaryData);
     await writable.close();
+    // Update lastModified to detect future external changes
+    try { const f = await S.fileHandle.getFile(); S.fileLastModified = f.lastModified; } catch(_) {}
     S.dirty = false;
+    _cache.dirty = false;
     if (!silent) showToast('File saved', 'success');
   } catch (e) {
     if (!silent) showToast('Save failed: ' + e.message, 'error');
@@ -1242,6 +1298,9 @@ async function saveFile(silent = false) {
 
 function markDirty() {
   S.dirty = true;
+  _cache.dirty = true;
+  _cache.vehicles = null;
+  _cache.bookings = null;
   updateSaveIndicator();
 }
 
@@ -1433,7 +1492,7 @@ function initLock() {
   // Heartbeat: refresh lock timestamp every 60s to prevent stale detection
   S.lockInterval = setInterval(async () => {
     try { await checkLock(); } catch(e) {}
-  }, 60000);
+  }, CONST.HEARTBEAT_MS);
   try {
     const bc = new BroadcastChannel('fleethub-lock');
     bc.onmessage = () => { checkLock(); };
@@ -1462,7 +1521,7 @@ async function checkLock() {
 
   if (lockedBy && lockedBy !== S.lockId && lockedAt) {
     const elapsed = Date.now() - new Date(lockedAt).getTime();
-    if (elapsed < 5 * 60 * 1000) { // 5 min stale threshold
+    if (elapsed < CONST.LOCK_STALE_MS) {
       S.lockedBy = lockedBy;
       S.lockedUser = lockData?.lockedUser || '';
       showLockAlert(lockedBy, S.lockedUser, elapsed);
@@ -1485,7 +1544,7 @@ async function acquireLock() {
 
   if (currentLock && currentLock !== S.lockId && currentLockAt) {
     const elapsed = Date.now() - new Date(currentLockAt).getTime();
-    if (elapsed < 5 * 60 * 1000) {
+    if (elapsed < CONST.LOCK_STALE_MS) {
       showToast('Cannot acquire lock: another user holds the lock', 'warning');
       return;
     }
@@ -1541,7 +1600,7 @@ function showLockAlert(lockedBy, lockedUser, elapsed) {
   const el = document.getElementById('lock-alert');
   const text = document.getElementById('lock-alert-text');
   const displayName = lockedUser || (lockedBy ? lockedBy.slice(0, 8) : 'Unknown');
-  text.textContent = `File is currently locked by ${displayName} (${Math.floor(elapsed / 60000)}m ago). Changes may conflict.`;
+  text.textContent = `File is currently locked by ${displayName} (${Math.floor(elapsed / CONST.HEARTBEAT_MS)}m ago). Changes may conflict.`;
   el.style.display = 'flex';
 }
 
@@ -1714,13 +1773,18 @@ function updateSaveIndicator() {
 function render() {
   renderNav();
   const mc = document.getElementById('main-content');
-  switch (S.activeTab) {
-    case 'dashboard': mc.innerHTML = renderDashboard(); break;
-    case 'calendar': mc.innerHTML = renderCalendar(); break;
-    case 'bookings': mc.innerHTML = renderBookings(); break;
-    case 'vehicles': mc.innerHTML = renderVehicles(); break;
-    case 'settings': mc.innerHTML = renderSettings(); break;
-    case 'chat': mc.innerHTML = renderChatPage(); break;
+  try {
+    switch (S.activeTab) {
+      case 'dashboard': mc.innerHTML = renderDashboard(); break;
+      case 'calendar': mc.innerHTML = renderCalendar(); break;
+      case 'bookings': mc.innerHTML = renderBookings(); break;
+      case 'vehicles': mc.innerHTML = renderVehicles(); break;
+      case 'settings': mc.innerHTML = renderSettings(); break;
+      case 'chat': mc.innerHTML = renderChatPage(); break;
+    }
+  } catch(e) {
+    console.error('Render error:', e);
+    mc.innerHTML = `<div style="padding:32px;color:var(--destructive)"><h3>Rendering Error</h3><p>${esc(e.message)}</p><button class="btn" onclick="setTab('dashboard')">Go to Dashboard</button></div>`;
   }
   renderChatMessages();
 }
@@ -1842,7 +1906,7 @@ function renderDashboard() {
       slotAssignments.set(ob.id, slot);
     }
 
-    const dayWidth = 120;
+    const dayWidth = CONST.GANTT_DAY_WIDTH;
     const barHeight = 24;
     const barSpacing = 4;
 
@@ -1882,7 +1946,7 @@ function renderDashboard() {
 
     return `<div class="gantt-row">
       <div class="gantt-row-label">${esc(v.name)}</div>
-      <div class="gantt-timeline" style="min-height:${rowHeight}px;min-width:${widgetDays * 120}px">
+      <div class="gantt-timeline" style="min-height:${rowHeight}px;min-width:${widgetDays * CONST.GANTT_DAY_WIDTH}px">
         ${Array(widgetDays).fill(0).map((_, i) => {
           const date = new Date(widgetStartDate);
           date.setDate(date.getDate() + i);
@@ -1900,7 +1964,7 @@ function renderDashboard() {
             bgStyle = 'background:var(--highlight-bg)!important;';
           }
 
-          return `<div class="gantt-time-cell${isToday ? ' today' : ''}${holidayClass}" style="left:${i * 120}px;width:120px;${bgStyle}" ${titleAttr}></div>`;
+          return `<div class="gantt-time-cell${isToday ? ' today' : ''}${holidayClass}" style="left:${i * CONST.GANTT_DAY_WIDTH}px;width:${CONST.GANTT_DAY_WIDTH}px;${bgStyle}" ${titleAttr}></div>`;
         }).join('')}
         ${bookingBars}
       </div>
@@ -2051,7 +2115,7 @@ function renderCalendar() {
   // Helper: map a date to x-position on the Gantt timeline
   const firstVisibleDate = new Date(dateCells[0].date);
   firstVisibleDate.setHours(0, 0, 0, 0); // Normalize to midnight
-  const msPerDay = 86400000;
+  const msPerDay = CONST.MS_PER_DAY;
   function ganttX(date) {
     const dateMidnight = new Date(date);
     dateMidnight.setHours(0, 0, 0, 0);
@@ -2889,7 +2953,7 @@ function renderSettings() {
     <div id="archive-options" style="${archiveEnabled ? 'block' : 'opacity:0.5;pointer-events:none'}">
       <div class="form-group"><label class="form-label">Retention Period (months)</label>
         <div style="display:flex;align-items:center;gap:8px">
-          <input class="form-input" id="archive-retention" type="number" min="1" max="120" value="${archiveRetentionMonths}" style="width:80px" onchange="updateArchiveRetention()">
+          <input class="form-input" id="archive-retention" type="number" min="1" max="${CONST.MAX_ARCHIVE_MONTHS}" value="${archiveRetentionMonths}" style="width:80px" onchange="updateArchiveRetention()">
           <span style="font-size:13px;color:var(--muted)">Bookings ending more than this many months ago will be archived on save.</span>
         </div>
         <div class="form-hint">Archived bookings are moved out of the active list and can be restored later.</div>
@@ -3197,8 +3261,16 @@ async function testApiConfig() {
 
 function confirmClearAll() {
   openDialog('Clear All Data', '<p style="color:var(--destructive)">This will permanently delete all vehicles and bookings. This cannot be undone.</p>', () => {
-    db.run("DELETE FROM vehicles");
-    db.run("DELETE FROM bookings");
+    try {
+      db.run("BEGIN TRANSACTION;");
+      db.run("DELETE FROM bookings");
+      db.run("DELETE FROM vehicles");
+      db.run("COMMIT;");
+    } catch(e) {
+      try { db.run("ROLLBACK;"); } catch(_) {}
+      console.error('confirmClearAll error:', e);
+      showToast('Failed to clear data', 'error'); return true;
+    }
     markDirty(); render(); showToast('All data cleared', 'success'); return true;
   }, true);
 }
@@ -3655,7 +3727,7 @@ async function streamChatResponse(apiEndpoint, apiKey, body, onChunk) {
   try {
     const res = await fetch(apiEndpoint, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-      body: JSON.stringify(body), signal: AbortSignal.timeout(60000)
+      body: JSON.stringify(body), signal: AbortSignal.timeout(CONST.API_TIMEOUT_MS)
     });
     if (!res.ok) return null;
     const reader = res.body.getReader();
