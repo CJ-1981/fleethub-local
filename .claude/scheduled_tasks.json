@@ -1,0 +1,13 @@
+{
+  "tasks": [
+    {
+      "id": "1e3a28d9",
+      "cron": "7,17,27,37,47,57 * * * *",
+      "prompt": "Monitor PR #3 (https://github.com/CJ-1981/fleethub-local/pull/3) for new review comments and auto-fix them.\n\nSteps:\n1. Use `gh pr view 3 --comments --json comments` to fetch all review comments on PR #3. You need git in PATH: `$env:PATH = \"C:\\Users\\Chimin.Jung\\AppData\\Local\\Programs\\Git\\bin;C:\\Program Files\\GitHub CLI;$env:PATH\"`.\n2. Compare with previously processed comments (track by comment ID in `C:\\Users\\Chimin.Jung\\.claude\\projects\\C--Users-Chimin-Jung-Downloads-fleethub-local\\memory\\processed-comments.json`). Create the file as `{}` if it doesn't exist.\n3. For each NEW unprocessed comment:\n   a. Read the comment body to understand the requested change\n   b. Read the relevant code in index.html\n   c. Apply the fix to index.html\n   d. Commit with message like \"fix: address PR #3 review comment [comment-id]\" \n   e. Push to the `fix/code-review-round2` branch: `git push origin fix/code-review-round2`\n   f. Reply to the review thread using: `gh pr comment 3 --body \"Fixed: [brief description of what was changed]\"` \n   g. Record the comment ID as processed in the tracking file\n4. If no new comments, do nothing (no push, no commit).\n5. If any step fails (e.g., merge conflict, push rejection), log the error and continue to next comment.\n\nCRITICAL: Only process comments you haven't seen before. Never re-reply to already-processed comments. Always check the tracking file first.",
+      "createdAt": 1780503672680,
+      "recurring": true,
+      "createdBySessionId": "7233da5f-b8de-4b06-8a9a-487bdf6895b7",
+      "createdByPid": 44396
+    }
+  ]
+}

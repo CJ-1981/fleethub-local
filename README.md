@@ -119,10 +119,7 @@ FleetHub can import data from the legacy JSON format for seamless migration. The
 {
   "meta": {
     "version": "1.0",
-    "lastModified": "ISO timestamp",
-    "lockedBy": "user-id or null",
-    "lockedAt": "ISO timestamp or null",
-    "lockId": "lock-id or null"
+    "lastModified": "ISO timestamp"
   },
   "vehicles": [
     {
