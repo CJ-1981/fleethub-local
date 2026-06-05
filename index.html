@@ -664,20 +664,20 @@ function importJSONToSQLite(jsonData, appendMode = false) {
 }
 
 function getVehicles() {
-  if (_cache.vehicles && !_cache.dirty) return _cache.vehicles;
+  if (_cache.vehicles && !_cache.dirty) return _cache.vehicles.map(v => ({...v}));
   _cache.vehicles = dbQuery("SELECT id, name, type, license_plate AS licensePlate, status, notes, sort_order AS sortOrder, created_at AS createdAt, updated_at AS updatedAt FROM vehicles ORDER BY sort_order, created_at");
-  return _cache.vehicles;
+  return _cache.vehicles.map(v => ({...v}));
 }
 
 function getBookings() {
-  if (_cache.bookings && !_cache.dirty) return _cache.bookings;
+  if (_cache.bookings && !_cache.dirty) return _cache.bookings.map(b => ({...b}));
   _cache.bookings = dbQuery("SELECT id, vehicle_id AS vehicleId, user_name AS userName, purpose, period_start AS periodStart, period_end AS periodEnd, status, remarks, custom_fields AS customFields, share_with AS shareWith, share_note AS shareNote, created_at AS createdAt, updated_at AS updatedAt FROM bookings ORDER BY period_start DESC").map(b => {
     b.periodStart = normalizePeriodDate(b.periodStart, false);
     b.periodEnd = normalizePeriodDate(b.periodEnd, true);
     try { return { ...b, customFields: JSON.parse(b.customFields || '{}'), shareWith: JSON.parse(b.shareWith || '[]') }; }
     catch(e) { return { ...b, customFields: {}, shareWith: [] }; }
   });
-  return _cache.bookings;
+  return _cache.bookings.map(b => ({...b}));
 }
 
 function getSettings() {
@@ -1129,7 +1129,7 @@ async function openFile() {
     S.filePath = '';
     S.demoMode = false;
     document.getElementById('demo-banner').style.display = 'none';
-    markDirty();
+    invalidateCache();
     if (file.name.endsWith('.json')) {
       const text = await file.text();
       const parsed = JSON.parse(text);
@@ -1189,7 +1189,7 @@ async function startDemo() {
   S.fileName = 'demo-data.sqlite';
   S.fileHandle = null;
   S.fileLastModified = null;
-  markDirty();
+  invalidateCache();
   await initSqlJsModule();
   importJSONToSQLite(getDemoData());
   enterApp();
@@ -1264,11 +1264,7 @@ async function saveFile(silent = false) {
   S.saving = true;
   updateSaveIndicator();
   try {
-    setMeta('lastModified', new Date().toISOString());
-    const archived = runAutoArchive();
-    if (archived > 0) render();
-    const binaryData = db.export();
-    // Check for external modifications since last open/save
+    // Check for external modifications before mutating in-memory state
     if (S.fileLastModified !== null) {
       try {
         const current = await S.fileHandle.getFile();
@@ -1282,6 +1278,10 @@ async function saveFile(silent = false) {
         // If we can't check, proceed (e.g. permission issues)
       }
     }
+    setMeta('lastModified', new Date().toISOString());
+    const archived = runAutoArchive();
+    if (archived > 0) render();
+    const binaryData = db.export();
     const writable = await S.fileHandle.createWritable();
     await writable.write(binaryData);
     await writable.close();
@@ -1301,6 +1301,10 @@ async function saveFile(silent = false) {
 
 function markDirty() {
   S.dirty = true;
+  invalidateCache();
+}
+
+function invalidateCache() {
   _cache.dirty = true;
   _cache.vehicles = null;
   _cache.bookings = null;
@@ -1430,9 +1434,11 @@ async function openRecentFile(name) {
     const arrayBuffer = await file.arrayBuffer();
     S.fileHandle = handle;
     S.fileName = file.name;
+    S.fileLastModified = file.lastModified;
     S.filePath = storedPath;
     S.demoMode = false;
     document.getElementById('demo-banner').style.display = 'none';
+    invalidateCache();
     if (file.name.endsWith('.json')) {
       const text = await file.text();
       importJSONToSQLite(JSON.parse(text), !!JSON.parse(text)._fleethubArchive);
@@ -1444,6 +1450,7 @@ async function openRecentFile(name) {
         await writable.close();
         S.fileHandle = newHandle;
             S.fileName = newHandle.name;
+        S.fileLastModified = Date.now();
         S.filePath = storedPath;
         await saveRecentHandle(S.fileName, S.fileHandle, S.filePath);
         showToast('Migrated from JSON to SQLite format.', 'success');
@@ -1641,7 +1648,7 @@ async function closeApp() {
   S.filePath = '';
   S.chatMessages = [];
   S.chatLoading = false;
-  markDirty();
+  invalidateCache();
   document.getElementById('app').classList.remove('active');
   document.getElementById('landing').style.display = 'flex';
   renderRecentFiles();
@@ -3274,7 +3281,7 @@ function confirmClearAll() {
     } catch(e) {
       try { db.run("ROLLBACK;"); } catch(_) {}
       console.error('confirmClearAll error:', e);
-      showToast('Failed to clear data', 'error'); return true;
+      showToast('Failed to clear data', 'error'); return false;
     }
     markDirty(); render(); showToast('All data cleared', 'success'); return true;
   }, true);
