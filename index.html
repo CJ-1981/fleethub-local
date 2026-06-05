@@ -2412,7 +2412,7 @@ function editBooking(id, preselectedVehicleId) {
 
   const fmtDatetimeLocal = (iso) => {
     if (!iso) return '';
-    if (iso.length <= 10) return iso.slice(0, 10);
+    if (iso.length <= 10) return iso.slice(0, 10) + 'T00:00';
     return iso.slice(0, 16);
   };
   openDialog(b ? 'Edit Booking' : 'New Booking', `
