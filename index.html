@@ -1814,10 +1814,13 @@ function renderDashboard() {
   const widgetViewEnd = new Date(widgetStartDate);
   widgetViewEnd.setDate(widgetViewEnd.getDate() + widgetDays);
 
-  const widgetRows = vehicles.length ? vehicles.filter(v => {
-    // Hide vehicles with no bookings in the upcoming window
-    return bookings.some(b => b.vehicleId === v.id && b.status !== 'cancelled' && new Date(b.periodEnd) >= widgetStartDate && new Date(b.periodStart) <= widgetViewEnd);
-  }).slice(0, 5).map(v => {
+  const activeVehicleIdsInWidgetWindow = new Set(
+    bookings
+      .filter(b => b.status !== 'cancelled' && new Date(b.periodEnd) >= widgetStartDate && new Date(b.periodStart) <= widgetViewEnd)
+      .map(b => b.vehicleId)
+  );
+
+  const widgetRows = vehicles.length ? vehicles.filter(v => activeVehicleIdsInWidgetWindow.has(v.id)).slice(0, 5).map(v => {
     const vehicleBookings = bookings.filter(b => {
       const bStart = new Date(b.periodStart);
       let bEnd = snapMidnightEnd(new Date(b.periodEnd));
@@ -2060,11 +2063,14 @@ function renderCalendar() {
   const lastVisibleEnd = new Date(dateCells[dateCells.length - 1].date);
   lastVisibleEnd.setDate(lastVisibleEnd.getDate() + 1);
 
+  const activeVehicleIdsInVisibleRange = new Set(
+    bookings
+      .filter(b => b.status !== 'cancelled' && new Date(b.periodEnd) > firstVisibleDate && new Date(b.periodStart) < lastVisibleEnd)
+      .map(b => b.vehicleId)
+  );
+
   // Generate vehicle rows with booking bars
-  const vehicleRows = vehicles.length ? vehicles.filter(v => {
-    // Hide vehicles with no bookings in the visible range
-    return bookings.some(b => b.vehicleId === v.id && b.status !== 'cancelled' && new Date(b.periodEnd) > firstVisibleDate && new Date(b.periodStart) < lastVisibleEnd);
-  }).map(v => {
+  const vehicleRows = vehicles.length ? vehicles.filter(v => activeVehicleIdsInVisibleRange.has(v.id)).map(v => {
     const vehicleBookings = bookings.filter(b => b.vehicleId === v.id && b.status !== 'cancelled');
 
     // Clamp to visible range for slot assignment and rendering
