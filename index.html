@@ -3626,23 +3626,44 @@ async function resumeToolLoop() {
     messages.push({ role: 'tool', tool_call_id: pendingToolCallId, content: result });
     pendingMsg.content = `✅ **Confirmed**: ${describeToolAction(toolName, toolArgs)}\n\n${result}`;
     pendingMsg.confirmation = null;
+    // Push a new empty placeholder for the next API round, so user sees "Thinking..." immediately
+    const newPlaceholderId = genId();
+    S.chatMessages.push({ id: newPlaceholderId, role: 'assistant', content: '', timestamp: new Date() });
     renderChat();
+    // Use this new placeholder for streaming in subsequent rounds
+    state.streamMsgId = newPlaceholderId;
   }
+  const streamMsgId = state.streamMsgId;
   const model = localStorage.getItem('fleethub_ai_model') || 'gpt-4o-mini';
   const MAX_ROUNDS = 5;
   for (let round = startRound; round < MAX_ROUNDS; round++) {
     const body = { model, messages, tools: getAITools() };
-    const res = await fetch(apiEndpoint, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-      body: JSON.stringify(body)
+    let msg;
+    // Try streaming for subsequent rounds too
+    const streamed = await streamChatResponse(apiEndpoint, apiKey, body, (content) => {
+      updateStreamingMessage(streamMsgId, content);
     });
-    if (!res.ok) throw new Error(`API error ${res.status}`);
-    const data = await res.json();
-    const msg = data.choices?.[0]?.message;
-    if (!msg.tool_calls?.length) {
+    if (streamed && streamed.tool_calls?.length) {
+      msg = { role: 'assistant', content: streamed.content || '', tool_calls: streamed.tool_calls };
+    } else if (streamed) {
       S.chatLoading = false;
-      const assistantMsg = S.chatMessages.find(m => m.id === state.streamMsgId);
-      if (assistantMsg) assistantMsg.content = msg.content || 'No response.';
+      const assistantMsg = S.chatMessages.find(m => m.id === streamMsgId);
+      if (assistantMsg) assistantMsg.content = streamed.content || 'No response.';
+      renderChat();
+      return;
+    } else {
+      const res = await fetch(apiEndpoint, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) throw new Error(`API error ${res.status}`);
+      const data = await res.json();
+      msg = data.choices?.[0]?.message;
+    }
+    if (!msg || !msg.tool_calls?.length) {
+      S.chatLoading = false;
+      const assistantMsg = S.chatMessages.find(m => m.id === streamMsgId);
+      if (assistantMsg) assistantMsg.content = msg?.content || 'No response.';
       renderChat();
       return;
     }
@@ -3653,7 +3674,7 @@ async function resumeToolLoop() {
       if (toolRequiresConfirmation(tc.function.name, fnArgs)) {
         const confirmMsgId = genId();
         S.chatMessages.push({ id: confirmMsgId, role: 'assistant', content: `⚠️ **Confirmation required**: ${describeToolAction(tc.function.name, fnArgs)}\n\nProceed?`, timestamp: new Date(), confirmation: { toolCallId: tc.id, toolName: tc.function.name, toolArgs: fnArgs } });
-        S.toolLoopState = { messages, apiEndpoint, apiKey, round, pendingToolCallId: tc.id, streamMsgId: state.streamMsgId };
+        S.toolLoopState = { messages, apiEndpoint, apiKey, round, pendingToolCallId: tc.id, streamMsgId };
         S.chatLoading = false;
         renderChat();
         return;
@@ -3663,7 +3684,7 @@ async function resumeToolLoop() {
     }
   }
   S.chatLoading = false;
-  const assistantMsg = S.chatMessages.find(m => m.id === state.streamMsgId);
+  const assistantMsg = S.chatMessages.find(m => m.id === streamMsgId);
   if (assistantMsg) assistantMsg.content = 'Reached maximum tool execution rounds.';
   renderChat();
 }
