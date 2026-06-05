@@ -2410,6 +2410,11 @@ function editBooking(id, preselectedVehicleId) {
     return `<div class="form-group"><label class="form-label">${esc(col.label)}</label><input class="form-input cf-field" data-key="${escAttr(col.key)}" value="${escAttr(val !== '' ? String(val) : '')}"></div>`;
   }).join('');
 
+  const fmtDatetimeLocal = (iso) => {
+    if (!iso) return '';
+    if (iso.length <= 10) return iso.slice(0, 10);
+    return iso.slice(0, 16);
+  };
   openDialog(b ? 'Edit Booking' : 'New Booking', `
     <div id="conflict-warning"></div>
     ${b ? `<div style="font-size:12px;color:var(--muted);margin-bottom:12px">ID: <code style="background:var(--surface-soft);padding:2px 6px;border-radius:var(--radius-sm);font-family:monospace">${esc(b.id)}</code></div>` : ''}
@@ -2426,8 +2431,8 @@ function editBooking(id, preselectedVehicleId) {
       </div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Start *</label><input class="form-input" id="b-start" type="datetime-local" value="${eb.periodStart ? eb.periodStart.slice(0, 16) : ''}" onchange="checkConflicts()"></div>
-      <div class="form-group"><label class="form-label">End *</label><input class="form-input" id="b-end" type="datetime-local" value="${eb.periodEnd ? eb.periodEnd.slice(0, 16) : ''}" onchange="checkConflicts()"></div>
+      <div class="form-group"><label class="form-label">Start *</label><input class="form-input" id="b-start" type="datetime-local" value="${fmtDatetimeLocal(eb.periodStart)}" onchange="checkConflicts()"></div>
+      <div class="form-group"><label class="form-label">End *</label><input class="form-input" id="b-end" type="datetime-local" value="${fmtDatetimeLocal(eb.periodEnd)}" onchange="checkConflicts()"></div>
     </div>
     <div class="form-group"><label class="form-label">Status</label><select class="form-input" id="b-status">${statusOptions}</select></div>
     <div class="form-group"><label class="form-label">Remarks</label><textarea class="form-input" id="b-remarks" rows="2" placeholder="Optional remarks...">${esc(eb.remarks || '')}</textarea></div>
@@ -3357,8 +3362,8 @@ function executeToolCall(name, args) {
       const id = genId();
       // Normalize bare dates (YYYY-MM-DD) to ISO datetime for datetime-local compatibility
       let ps = args.periodStart, pe = args.periodEnd;
-      if (ps && ps.length === 10) ps = ps + 'T00:00:00.000Z';
-      if (pe && pe.length === 10) pe = pe + 'T23:59:59.000Z';
+      if (ps && ps.length === 10) ps = ps + 'T00:00:00';
+      if (pe && pe.length === 10) pe = pe + 'T23:59:59';
       // Validate dates
       const psDate = new Date(ps), peDate = new Date(pe);
       if (isNaN(psDate.getTime()) || isNaN(peDate.getTime())) return 'Error: Invalid date provided for periodStart or periodEnd.';
@@ -3408,18 +3413,18 @@ function executeToolCall(name, args) {
       if (args.purpose) { sets.push('purpose=?'); params.push(args.purpose); }
       if (args.periodStart) {
         let ps = args.periodStart;
-        if (ps.length === 10) ps = ps + 'T00:00:00.000Z';
+        if (ps.length === 10) ps = ps + 'T00:00:00';
         sets.push('period_start=?'); params.push(ps);
       }
       if (args.periodEnd) {
         let pe = args.periodEnd;
-        if (pe.length === 10) pe = pe + 'T23:59:59.000Z';
+        if (pe.length === 10) pe = pe + 'T23:59:59';
         sets.push('period_end=?'); params.push(pe);
       }
       if (!sets.length) return 'Error: No fields to update. Provide at least one of: status, userName, purpose, periodStart, periodEnd.';
       if (args.periodStart || args.periodEnd) {
-        const newPs = args.periodStart ? (args.periodStart.length === 10 ? args.periodStart + 'T00:00:00.000Z' : args.periodStart) : booking.periodStart;
-        const newPe = args.periodEnd ? (args.periodEnd.length === 10 ? args.periodEnd + 'T23:59:59.000Z' : args.periodEnd) : booking.periodEnd;
+        const newPs = args.periodStart ? (args.periodStart.length === 10 ? args.periodStart + 'T00:00:00' : args.periodStart) : booking.periodStart;
+        const newPe = args.periodEnd ? (args.periodEnd.length === 10 ? args.periodEnd + 'T23:59:59' : args.periodEnd) : booking.periodEnd;
         const conflicts = findBookingConflicts(booking.vehicleId, newPs, newPe, args.bookingId);
         if (conflicts.length) {
           const conflictList = conflicts.map(c => `  - ${c.userName}: ${c.purpose} (${fmtDate(c.periodStart)} to ${fmtDate(c.periodEnd)})`).join('\n');
