@@ -1756,7 +1756,8 @@ function renderDashboard() {
   const bookings = getBookings();
   const now = new Date();
   const activeBookings = bookings.filter(isActive);
-  const availableNow = vehicles.filter(v => !activeBookings.some(b => b.vehicleId === v.id && (b.status === 'confirmed' || b.status === 'in-use')));
+  const unavailableStatuses = ['deregistered', 'maintenance'];
+  const availableNow = vehicles.filter(v => !unavailableStatuses.includes(v.status) && !activeBookings.some(b => b.vehicleId === v.id && (b.status === 'confirmed' || b.status === 'in-use')));
   const todayBookings = bookings.filter(b => isToday(b.periodStart));
   const pendingCount = bookings.filter(b => b.status === 'pending').length;
   const activeUsers = new Set(activeBookings.map(b => b.userName)).size;
@@ -1813,7 +1814,10 @@ function renderDashboard() {
   const widgetViewEnd = new Date(widgetStartDate);
   widgetViewEnd.setDate(widgetViewEnd.getDate() + widgetDays);
 
-  const widgetRows = vehicles.length ? vehicles.slice(0, 5).map(v => {
+  const widgetRows = vehicles.length ? vehicles.slice(0, 5).filter(v => {
+    // Hide vehicles with no bookings in the upcoming window
+    return bookings.some(b => b.vehicleId === v.id && b.status !== 'cancelled' && new Date(b.periodEnd) >= widgetStartDate && new Date(b.periodStart) <= widgetViewEnd);
+  }).map(v => {
     const vehicleBookings = bookings.filter(b => {
       const bStart = new Date(b.periodStart);
       let bEnd = snapMidnightEnd(new Date(b.periodEnd));
@@ -1919,10 +1923,18 @@ function renderDashboard() {
 
   const fleetStatusHtml = vehicles.length ? vehicles.slice(0, 20).map(v => {
     const ab = activeBookings.find(b => b.vehicleId === v.id && (b.status === 'confirmed' || b.status === 'in-use'));
-    const statusBadge = ab ? `<span class="badge badge-in-use">${esc(ab.userName)}</span>` : `<span class="badge badge-available">Available</span>`;
-    const clickAttr = ab
-      ? ` data-booking-id="${escAttr(ab.id)}" onclick="editBooking(this.dataset.bookingId)" style="cursor:pointer"`
-      : ` data-vehicle-id="${escAttr(v.id)}" onclick="newBooking(this.dataset.vehicleId)" style="cursor:pointer"`;
+    const isUnavailable = unavailableStatuses.includes(v.status);
+    let statusBadge, clickAttr;
+    if (ab) {
+      statusBadge = `<span class="badge badge-in-use">${esc(ab.userName)}</span>`;
+      clickAttr = ` data-booking-id="${escAttr(ab.id)}" onclick="editBooking(this.dataset.bookingId)" style="cursor:pointer"`;
+    } else if (isUnavailable) {
+      statusBadge = `<span class="badge badge-${v.status}">${esc(v.status)}</span>`;
+      clickAttr = ` data-vehicle-id="${escAttr(v.id)}" onclick="editVehicle(this.dataset.vehicleId)" style="cursor:pointer"`;
+    } else {
+      statusBadge = `<span class="badge badge-available">Available</span>`;
+      clickAttr = ` data-vehicle-id="${escAttr(v.id)}" onclick="newBooking(this.dataset.vehicleId)" style="cursor:pointer"`;
+    }
     return `<div class="vehicle-status-row"${clickAttr}>
       <span class="v-name">${esc(v.name)}</span>
       ${v.licensePlate ? `<span class="v-plate">${esc(v.licensePlate)}</span>` : ''}
@@ -2049,7 +2061,10 @@ function renderCalendar() {
   lastVisibleEnd.setDate(lastVisibleEnd.getDate() + 1);
 
   // Generate vehicle rows with booking bars
-  const vehicleRows = vehicles.length ? vehicles.map(v => {
+  const vehicleRows = vehicles.length ? vehicles.filter(v => {
+    // Hide vehicles with no bookings in the visible range
+    return bookings.some(b => b.vehicleId === v.id && b.status !== 'cancelled' && new Date(b.periodEnd) > firstVisibleDate && new Date(b.periodStart) < lastVisibleEnd);
+  }).map(v => {
     const vehicleBookings = bookings.filter(b => b.vehicleId === v.id && b.status !== 'cancelled');
 
     // Clamp to visible range for slot assignment and rendering
