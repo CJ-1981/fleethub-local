@@ -3513,7 +3513,6 @@ function updateStreamingMessage(msgId, content) {
 }
 
 async function streamChatResponse(apiEndpoint, apiKey, body, onChunk) {
-  body.stream = true;
   try {
     const res = await fetch(apiEndpoint, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
@@ -3577,7 +3576,8 @@ async function callAIWithTools(apiEndpoint, apiKey, userText, streamMsgId) {
     if (round === 0) body.tool_choice = 'auto';
     let msg;
     if (round === 0 && streamMsgId) {
-      const streamed = await streamChatResponse(apiEndpoint, apiKey, body, (content) => {
+      const streamBody = { ...body, stream: true };
+      const streamed = await streamChatResponse(apiEndpoint, apiKey, streamBody, (content) => {
         updateStreamingMessage(streamMsgId, content);
       });
       if (streamed && streamed.tool_calls?.length) {
@@ -3667,8 +3667,9 @@ async function resumeToolLoop() {
   for (let round = startRound; round < MAX_ROUNDS; round++) {
     const body = { model, messages, tools: getAITools() };
     let msg;
-    // Try streaming for subsequent rounds too
-    const streamed = await streamChatResponse(apiEndpoint, apiKey, body, (content) => {
+    // Try streaming for subsequent rounds too (use a copy so stream flag doesn't leak)
+    const streamBody = { ...body, stream: true };
+    const streamed = await streamChatResponse(apiEndpoint, apiKey, streamBody, (content) => {
       updateStreamingMessage(streamMsgId, content);
     });
     if (streamed && streamed.tool_calls?.length) {
