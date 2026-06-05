@@ -3707,6 +3707,13 @@ async function callAIWithTools(apiEndpoint, apiKey, userText, streamMsgId) {
       }
       const result = executeToolCall(tc.function.name, fnArgs);
       messages.push({ role: 'tool', tool_call_id: tc.id, content: result });
+      const progressMsg = S.chatMessages.find(m => m.id === streamMsgId);
+      if (progressMsg) {
+        const lines = (progressMsg.content || '').split('\n').filter(l => l.trim());
+        lines.push(`- ${describeToolAction(tc.function.name, fnArgs)}`);
+        progressMsg.content = lines.join('\n');
+        renderChat();
+      }
     }
   }
   return 'Reached maximum tool execution rounds. Please continue the conversation for further actions.';
@@ -3781,6 +3788,14 @@ async function resumeToolLoop() {
       }
       const result = executeToolCall(tc.function.name, fnArgs);
       messages.push({ role: 'tool', tool_call_id: tc.id, content: result });
+      // Show progress for auto-executed tools so user sees something happening
+      const progressMsg = S.chatMessages.find(m => m.id === streamMsgId);
+      if (progressMsg) {
+        const lines = (progressMsg.content || '').split('\n').filter(l => l.trim());
+        lines.push(`- ${describeToolAction(tc.function.name, fnArgs)}`);
+        progressMsg.content = lines.join('\n');
+        renderChat();
+      }
     }
   }
   S.chatLoading = false;
