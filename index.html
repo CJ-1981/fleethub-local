@@ -886,7 +886,7 @@ function exportArchiveYearSQL(year) {
 }
 
 function sqlEscape(str) {
-  return String(str).replace(/\\/g, '\\\\').replace(/'/g, "''").replace(/\0/g, '\\0').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+  return String(str).replace(/'/g, "''");
 }
 
 function archiveAndExportSQL() {
@@ -1129,6 +1129,7 @@ async function openFile() {
     S.filePath = '';
     S.demoMode = false;
     document.getElementById('demo-banner').style.display = 'none';
+    markDirty();
     if (file.name.endsWith('.json')) {
       const text = await file.text();
       const parsed = JSON.parse(text);
@@ -1187,6 +1188,8 @@ async function startDemo() {
   S.demoMode = true;
   S.fileName = 'demo-data.sqlite';
   S.fileHandle = null;
+  S.fileLastModified = null;
+  markDirty();
   await initSqlJsModule();
   importJSONToSQLite(getDemoData());
   enterApp();
@@ -1634,9 +1637,11 @@ async function closeApp() {
   cleanupLockMonitoring();
   S.fileHandle = null;
   S.fileName = '';
+  S.fileLastModified = null;
   S.filePath = '';
   S.chatMessages = [];
   S.chatLoading = false;
+  markDirty();
   document.getElementById('app').classList.remove('active');
   document.getElementById('landing').style.display = 'flex';
   renderRecentFiles();
