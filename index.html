@@ -346,7 +346,7 @@ select.form-input{cursor:pointer}
         Try Demo
       </button>
     </div>
-    <input type="file" id="landing-file-input" accept=".json,application/json,text/plain" style="position:absolute;opacity:0;pointer-events:none" onchange="loadFromInput(this)">
+    <input type="file" id="landing-file-input" accept=".json,.sqlite,application/json,application/x-sqlite3,application/octet-stream,text/plain" style="position:absolute;opacity:0;pointer-events:none" onchange="loadFromInput(this)">
     <div id="recent-files" style="margin-top:24px;text-align:left"></div>
   </div>
 </div>
@@ -931,8 +931,9 @@ function genId() { return Date.now().toString(36) + Math.random().toString(36).s
 const _escDiv = document.createElement('div');
 function esc(s) { if (s == null || s === '') return ''; _escDiv.textContent = String(s); return _escDiv.innerHTML; }
 function escAttr(s) { if (s == null || s === '') return ''; return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
-function fmtDate(d) { if (!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
-function fmtDateTime(d) { if (!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+function fmtDate(d) { if (!d) return '—'; const dt = typeof d === 'string' && d.length === 10 ? new Date(d + 'T00:00') : new Date(d); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+function fmtDateTime(d) { if (!d) return '—'; const dt = typeof d === 'string' && d.length === 10 ? new Date(d + 'T00:00') : new Date(d); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+function fmtDateTimeISO(d) { if (!d) return '—'; const dt = typeof d === 'string' && d.length === 10 ? new Date(d + 'T00:00') : new Date(d); if (isNaN(dt.getTime())) return '—'; const p = (n) => String(n).padStart(2, '0'); return `${dt.getFullYear()}-${p(dt.getMonth()+1)}-${p(dt.getDate())} ${p(dt.getHours())}:${p(dt.getMinutes())}`; }
 function isToday(d) { if (!d) return false; const dt = new Date(d), now = new Date(); return dt.toDateString() === now.toDateString(); }
 function isActive(b) { const now = new Date(); const s = new Date(b.periodStart), e = new Date(b.periodEnd); return now >= s && now <= e; }
 function uid() { return 'User-' + Math.random().toString(36).substr(2, 6).toUpperCase(); }
@@ -1070,6 +1071,7 @@ async function openFile() {
     const arrayBuffer = await file.arrayBuffer();
     S.fileHandle = handle;
     S.fileName = file.name;
+    S.filePath = ''; // File System Access API doesn't expose full path
     S.demoMode = false;
     document.getElementById('demo-banner').style.display = 'none';
     if (file.name.endsWith('.json')) {
@@ -1086,16 +1088,19 @@ async function openFile() {
         await writable.close();
         S.fileHandle = newHandle;
         S.fileName = newHandle.name;
+        S.filePath = '';
+        await saveRecentHandle(S.fileName, S.fileHandle, S.filePath);
         showToast('Migrated from JSON to SQLite format.', 'success');
       } catch(e) {
         if (e.name !== 'AbortError') showToast('Could not save as SQLite — please use Save As to convert.', 'warning');
-        S.fileHandle = null; S.fileName = 'Imported (unsaved)';
+        S.fileHandle = null; S.fileName = 'Imported (unsaved)'; S.filePath = '';
+        saveRecentFile(S.fileName);
       }
     } else {
       try { db = new sqlJsModule.Database(new Uint8Array(arrayBuffer)); ensureSchema(); }
-      catch(e) { showToast('Could not open database — file may be corrupt or unsupported.', 'error'); S.fileHandle = null; S.fileName = ''; return; }
+      catch(e) { showToast('Could not open database — file may be corrupt or unsupported.', 'error'); S.fileHandle = null; S.fileName = ''; S.filePath = ''; return; }
+      await saveRecentHandle(S.fileName, S.fileHandle, S.filePath);
     }
-    saveRecentFile(S.fileName);
     enterApp();
   } catch (e) { if (e.name !== 'AbortError') showToast('Failed to open file: ' + e.message, 'error'); }
 }
@@ -1112,9 +1117,10 @@ async function createNewFile() {
     await writable.close();
     S.fileHandle = handle;
     S.fileName = handle.name;
+    S.filePath = '';
     S.demoMode = false;
     document.getElementById('demo-banner').style.display = 'none';
-    saveRecentFile(handle.name);
+    await saveRecentHandle(S.fileName, S.fileHandle, S.filePath);
     enterApp();
     showToast('New file created!', 'success');
   } catch (e) { if (e.name !== 'AbortError') showToast('Failed to create file: ' + e.message, 'error'); }
@@ -1188,9 +1194,11 @@ async function saveFile(silent = false) {
       const handle = await window.showSaveFilePicker({ suggestedName: (S.fileName && !S.fileName.includes('(unsaved)')) ? S.fileName : 'fleet-data.sqlite', types: [{ description: 'FleetHub Data', accept: { 'application/sqlite': ['.sqlite'] } }] });
       S.fileHandle = handle;
       S.fileName = handle.name;
+      S.filePath = '';
+      await saveRecentHandle(S.fileName, S.fileHandle, S.filePath);
     } catch(e) {
       if (e.name !== 'AbortError') showToast('Save As failed: ' + e.message, 'error');
-      return;
+      throw e; // Propagate error
     }
   }
   S.saving = true;
@@ -1205,8 +1213,13 @@ async function saveFile(silent = false) {
     await writable.close();
     S.dirty = false;
     if (!silent) showToast('File saved', 'success');
-  } catch (e) { if (!silent) showToast('Save failed: ' + e.message, 'error'); }
-  finally { S.saving = false; updateSaveIndicator(); }
+  } catch (e) {
+    if (!silent) showToast('Save failed: ' + e.message, 'error');
+    throw e; // Propagate error back to caller
+  } finally {
+    S.saving = false;
+    updateSaveIndicator();
+  }
 }
 
 function markDirty() {
@@ -1293,12 +1306,12 @@ function renderRecentFiles() {
   const recent = JSON.parse(localStorage.getItem('fleethub_recent') || '[]');
   if (!recent.length) { el.innerHTML = ''; return; }
   el.innerHTML = '<p style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:500">RECENT FILES</p>' +
-    recent.map(r => {
+    recent.map((r, index) => {
       // Handle both old format (string) and new format (object with name/path)
       const name = typeof r === 'string' ? r : r.name;
       const path = typeof r === 'string' ? '' : (r.path || '');
       const pathDisplay = path ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(path)}</div>` : '';
-      return `<button class="btn btn-ghost" style="width:100%;justify-content:flex-start;padding:6px 10px;font-size:13px;flex-direction:column;align-items:flex-start" onclick="openRecentFile('${escAttr(name)}')">
+      return `<button class="btn btn-ghost" style="width:100%;justify-content:flex-start;padding:6px 10px;font-size:13px;flex-direction:column;align-items:flex-start" data-recent-index="${index}">
         <div style="display:flex;align-items:center;gap:6px;width:100%">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
           <span style="overflow:hidden;text-overflow:ellipsis">${esc(name)}</span>
@@ -1306,6 +1319,16 @@ function renderRecentFiles() {
         ${pathDisplay}
       </button>`;
     }).join('');
+
+  // Add click handlers with event delegation
+  el.querySelectorAll('[data-recent-index]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const index = parseInt(btn.getAttribute('data-recent-index'), 10);
+      const r = recent[index];
+      const name = typeof r === 'string' ? r : r.name;
+      openRecentFile(name);
+    });
+  });
 }
 
 async function openRecentFile(name) {
@@ -1421,7 +1444,7 @@ async function checkLock() {
 
   if (lockedBy && lockedBy !== S.lockId && lockedAt) {
     const elapsed = Date.now() - new Date(lockedAt).getTime();
-    if (elapsed < 15 * 60 * 1000) { // 15 min stale threshold
+    if (elapsed < 5 * 60 * 1000) { // 5 min stale threshold
       S.lockedBy = lockedBy;
       S.lockedUser = lockData?.lockedUser || '';
       showLockAlert(lockedBy, S.lockedUser, elapsed);
@@ -1444,7 +1467,7 @@ async function acquireLock() {
 
   if (currentLock && currentLock !== S.lockId && currentLockAt) {
     const elapsed = Date.now() - new Date(currentLockAt).getTime();
-    if (elapsed < 15 * 60 * 1000) {
+    if (elapsed < 5 * 60 * 1000) {
       showToast('Cannot acquire lock: another user holds the lock', 'warning');
       return;
     }
@@ -1475,7 +1498,7 @@ async function acquireLock() {
   updateLockBadge();
   showToast('Lock acquired', 'success');
   // Persist to disk so other OneDrive users can see the lock
-  await saveFile(true);
+  try { await saveFile(true); } catch(e) {}
   try { if (S.bc) S.bc.postMessage('lock-acquired'); } catch(e) {}
 }
 
@@ -1489,7 +1512,7 @@ async function releaseLock() {
     S.lockedUser = null;
     try { if (S.bc) S.bc.postMessage('lock-released'); } catch(e) {}
     // Persist to disk so other OneDrive users see the release
-    await saveFile(true);
+    try { await saveFile(true); } catch(e) {}
   }
 
   hideLockAlert();
@@ -1535,6 +1558,8 @@ async function closeApp() {
   S.fileHandle = null;
   S.fileName = '';
   S.filePath = '';
+  S.chatMessages = [];
+  S.chatLoading = false;
   document.getElementById('app').classList.remove('active');
   document.getElementById('landing').style.display = 'flex';
   renderRecentFiles();
@@ -1895,7 +1920,7 @@ function renderDashboard() {
     </div>`;
   }).join('') : '<div class="empty-state"><p>No vehicles yet</p></div>';
 
-  const upcoming = bookings.filter(b => new Date(b.periodStart) >= new Date()).sort((a, b) => new Date(a.periodStart) - new Date(b.periodStart)).slice(0, 5);
+  const upcoming = bookings.filter(b => new Date(b.periodEnd) >= new Date()).sort((a, b) => new Date(a.periodStart) - new Date(b.periodStart)).slice(0, 5);
   const upcomingHtml = upcoming.length ? upcoming.map(b => {
     const v = vehicles.find(v => v.id === b.vehicleId);
     return `<div class="vehicle-status-row" style="cursor:pointer" onclick="editBooking(this.dataset.id)" data-id="${escAttr(b.id)}">
@@ -2076,7 +2101,7 @@ function renderCalendar() {
 
       return `<div class="gantt-booking-bar ${esc(b.status)}"
         style="left:${leftOffset}px;width:${Math.max(barWidth, 4)}px;top:${topOffset}px;background-color:${barColor}!important;color:#fff!important;"
-        data-tooltip="${escAttr(b.userName)} - ${escAttr(b.purpose)} (${fmtDateTime(b.periodStart)} to ${fmtDateTime(b.periodEnd)})"
+        data-tooltip="${escAttr(b.userName)} - ${escAttr(b.purpose)} (${fmtDateTimeISO(b.periodStart)} to ${fmtDateTimeISO(b.periodEnd)})"
         onclick="editBooking(this.dataset.id)"
         data-id="${escAttr(b.id)}"
       >${esc(b.userName)}</div>`;
@@ -2292,7 +2317,7 @@ function renderBookings() {
       <td style="font-weight:500;color:var(--ink)" title="${escAttr(v ? v.name : 'Unknown')}">${esc(v ? v.name : 'Unknown')}</td>
       <td title="${escAttr(b.userName)}">${esc(b.userName)}</td>
       <td title="${escAttr(b.purpose)}">${esc(b.purpose)}</td>
-      <td style="white-space:nowrap;font-size:13px" title="${escAttr(fmtDateTime(b.periodStart) + ' to ' + fmtDateTime(b.periodEnd))}">${fmtDate(b.periodStart)}<br>${fmtDate(b.periodEnd)}</td>
+      <td style="white-space:nowrap;font-size:13px" title="${escAttr(fmtDateTimeISO(b.periodStart) + ' to ' + fmtDateTimeISO(b.periodEnd))}">${fmtDate(b.periodStart)}<br>${fmtDate(b.periodEnd)}</td>
       <td><span class="badge badge-${esc(b.status)}">${esc(b.status)}</span></td>
       ${cfHtml}
       <td>${shareCount ? `<span class="badge badge-shared" style="cursor:pointer" onclick="event.stopPropagation();openShareDialog('${b.id}')">${shareCount}</span>` : '—'}</td>
@@ -3564,7 +3589,9 @@ function getBookingStatistics() {
   // Monthly counts (last 12 months from max date)
   const monthly = {};
   for (let i = 11; i >= 0; i--) {
-    const key = `${maxDate.getFullYear()}-${String(maxDate.getMonth() - i + 1).padStart(2, '0')}`;
+    const bucketDate = new Date(maxDate);
+    bucketDate.setMonth(bucketDate.getMonth() - i);
+    const key = `${bucketDate.getFullYear()}-${String(bucketDate.getMonth() + 1).padStart(2, '0')}`;
     monthly[key] = 0;
   }
   bookings.forEach(b => {
@@ -3887,19 +3914,19 @@ function generateLocalResponse(query) {
 
 function saveChatHistory() {
   try {
-    const key = `fleethub_chat_${S.fileName || 'demo'}`;
+    const key = `fleethub_chat_${S.filePath || S.fileName || 'demo'}`;
     const data = S.chatMessages.slice(-50).map(m => ({ id: m.id, role: m.role, content: m.content, timestamp: m.timestamp ? new Date(m.timestamp).toISOString() : null }));
     localStorage.setItem(key, JSON.stringify(data));
-    localStorage.setItem(`fleethub_chat_input_${S.fileName || 'demo'}`, JSON.stringify(S.chatInputHistory.slice(-20)));
+    localStorage.setItem(`fleethub_chat_input_${S.filePath || S.fileName || 'demo'}`, JSON.stringify(S.chatInputHistory.slice(-20)));
   } catch {}
 }
 
 function loadChatHistory() {
   try {
-    const key = `fleethub_chat_${S.fileName || 'demo'}`;
+    const key = `fleethub_chat_${S.filePath || S.fileName || 'demo'}`;
     const raw = localStorage.getItem(key);
     // Restore input history
-    const inputRaw = localStorage.getItem(`fleethub_chat_input_${S.fileName || 'demo'}`);
+    const inputRaw = localStorage.getItem(`fleethub_chat_input_${S.filePath || S.fileName || 'demo'}`);
     if (inputRaw) {
       const parsed = JSON.parse(inputRaw);
       if (Array.isArray(parsed)) S.chatInputHistory = parsed;
@@ -4026,20 +4053,38 @@ if (!hasFileAPI) {
 function loadFromInput(input) {
   const file = input.files[0];
   if (!file) return;
+  const isSQLite = file.name.endsWith('.sqlite');
   const reader = new FileReader();
   reader.onload = async () => {
     try {
       await initSqlJsModule();
-      importJSONToSQLite(JSON.parse(reader.result));
-      S.fileName = file.name;
-      S.fileHandle = null;
-      saveRecentFile(file.name);
-      enterApp();
-      if (!hasFileAPI) showToast('Import mode — use Export to save changes', 'info');
-      else showToast('File loaded', 'success');
-    } catch(e) { showToast('Invalid JSON file: ' + e.message, 'error'); }
+      if (isSQLite) {
+        // Load SQLite database
+        db = new sqlJsModule.Database(new Uint8Array(reader.result));
+        ensureSchema();
+        S.fileName = file.name;
+        S.fileHandle = null;
+        saveRecentFile(file.name);
+        enterApp();
+        if (!hasFileAPI) showToast('Import mode — use Export to save changes', 'info');
+        else showToast('File loaded', 'success');
+      } else {
+        // Load JSON and convert
+        importJSONToSQLite(JSON.parse(reader.result));
+        S.fileName = file.name;
+        S.fileHandle = null;
+        saveRecentFile(file.name);
+        enterApp();
+        if (!hasFileAPI) showToast('Import mode — use Export to save changes', 'info');
+        else showToast('File loaded', 'success');
+      }
+    } catch(e) { showToast('Invalid file: ' + e.message, 'error'); }
   };
-  reader.readAsText(file);
+  if (isSQLite) {
+    reader.readAsArrayBuffer(file);
+  } else {
+    reader.readAsText(file);
+  }
   input.value = '';
 }
 </script>
