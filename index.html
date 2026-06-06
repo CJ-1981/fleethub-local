@@ -11,7 +11,7 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --primary:#181d26;--primary-hover:#0d1218;
+  --on-primary:#ffffff;--primary:#181d26;--primary-hover:#0d1218;
   --canvas:#ffffff;--surface-soft:#f8fafc;--surface-strong:#e0e2e6;
   --hairline:#dddddd;--ink:#181d26;--body:#333840;--muted:#41454d;
   --ring:#458fff;--link:#1b61c9;
@@ -20,10 +20,36 @@
   --destructive:#b91c1c;--destructive-bg:#fee2e2;--destructive-border:#dc2626;
   --info:#254fad;--info-bg:#dbeafe;--info-border:#458fff;
   --coral:#aa2d00;--forest:#0a2e0e;--cream:#f5e9d4;--mustard:#d9a441;
-          --highlight-bg:#fef9c3;
+  --highlight-bg:#fef9c3;
+  --badge-reserved-bg:#fff1e6;--badge-reserved-border:#e8744f;
+  --badge-deregistered-color:#6b7280;--badge-deregistered-bg:#f3f4f6;--badge-deregistered-border:#d1d5db;
+  --badge-pending-bg:#fef9e7;--badge-pending-border:#e8c84a;
+  --share-panel-border:#e8d4b8;
+  --holiday-state-bg:#ffe4e6;--holiday-state-border:#e8744f;
+  --primary-bg:#e8f0fe;
+  --gantt-pending:#d9a441;--gantt-confirmed:#254fad;--gantt-in-use:#006400;--gantt-returned:#41454d;--gantt-cancelled:#b91c1c;
   --radius-sm:6px;--radius-md:10px;--radius-lg:12px;
   --font:'Inter',system-ui,-apple-system,sans-serif;
   --header-h:56px;--sidebar-w:240px;
+}
+[data-theme="dark"]{
+  --on-primary:#181d26;--primary:#e0e4eb;--primary-hover:#c8cdd6;
+  --canvas:#1a1d23;--surface-soft:#21252b;--surface-strong:#2c313a;
+  --hairline:#363b46;--ink:#e0e4eb;--body:#b0b5be;--muted:#787d87;
+  --ring:#5b9eff;--link:#7ab0ff;
+  --success:#4ade80;--success-bg:#052e16;--success-border:#166534;
+  --warning:#fbbf24;--warning-bg:#451a03;--warning-border:#92400e;
+  --destructive:#f87171;--destructive-bg:#450a0a;--destructive-border:#7f1d1d;
+  --info:#93c5fd;--info-bg:#172554;--info-border:#1e40af;
+  --coral:#ff8a65;--forest:#86efac;--cream:#3d3020;--mustard:#f0c446;
+  --highlight-bg:#3d3600;
+  --badge-reserved-bg:#3d1a0a;--badge-reserved-border:#c96b3c;
+  --badge-deregistered-color:#a8aeb8;--badge-deregistered-bg:#2c3036;--badge-deregistered-border:#4b5058;
+  --badge-pending-bg:#3d2e00;--badge-pending-border:#c99e2a;
+  --share-panel-border:#5a4020;
+  --holiday-state-bg:#3d1515;--holiday-state-border:#c96b3c;
+  --primary-bg:#1a2740;
+  --gantt-pending:#e0b04a;--gantt-confirmed:#7ab0ff;--gantt-in-use:#4ade80;--gantt-returned:#787d87;--gantt-cancelled:#f87171;
 }
 body{font-family:var(--font);font-size:14px;color:var(--body);background:var(--canvas);line-height:1.5;-webkit-font-smoothing:antialiased}
 button,input,select,textarea{font-family:inherit;font-size:inherit}
@@ -36,7 +62,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit}
 .landing{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--surface-soft)}
 .landing-card{text-align:center;max-width:480px;padding:48px 40px;background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--radius-md)}
 .landing-logo{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;background:var(--primary);border-radius:var(--radius-sm);margin-bottom:20px}
-.landing-logo svg{color:#fff;width:24px;height:24px}
+.landing-logo svg{color:var(--on-primary);width:24px;height:24px}
 .landing h1{font-size:22px;font-weight:700;color:var(--ink);margin-bottom:6px}
 .landing p{color:var(--muted);margin-bottom:32px;font-size:14px}
 
@@ -44,13 +70,15 @@ button,input,select,textarea{font-family:inherit;font-size:inherit}
 .btn{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border:1px solid var(--hairline);border-radius:var(--radius-sm);background:var(--canvas);color:var(--ink);font-weight:500;cursor:pointer;transition:background .15s,border-color .15s;white-space:nowrap}
 .btn:hover{background:var(--surface-soft);border-color:var(--surface-strong)}
 .btn:active{background:var(--surface-strong)}
-.btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn-primary{background:var(--primary);color:var(--on-primary);border-color:var(--primary)}
 .btn-primary:hover{background:var(--primary-hover);border-color:var(--primary-hover)}
 .btn-sm{padding:4px 10px;font-size:13px}
 .btn-danger{color:var(--destructive);border-color:var(--destructive-border)}
 .btn-danger:hover{background:var(--destructive-bg)}
 .btn-ghost{border-color:transparent;background:transparent}
 .btn-ghost:hover{background:var(--surface-soft)}
+.theme-toggle{width:32px;height:32px;padding:4px;border:1px solid transparent;border-radius:var(--radius-sm);background:transparent;cursor:pointer;color:var(--muted);display:flex;align-items:center;justify-content:center}
+.theme-toggle:hover{color:var(--ink);background:var(--surface-soft);border-color:var(--hairline)}
 .btn-icon{padding:6px;border-radius:var(--radius-sm);background:transparent;border:1px solid transparent}
 .btn-icon:hover:not(:disabled){background:var(--surface-soft);border-color:var(--hairline)}
 .btn-icon:disabled{opacity:0.3;cursor:not-allowed}
@@ -63,7 +91,7 @@ body{background:var(--surface-soft)}
 .app-wrapper{display:flex;flex-direction:column;flex:1;width:100%;max-width:1400px;margin:0 auto;background:var(--canvas)}
 .header{height:var(--header-h);border-bottom:1px solid var(--hairline);display:flex;align-items:center;padding:0 16px;gap:12px;background:var(--canvas);flex-shrink:0;position:sticky;top:0;z-index:100}
 .header-logo{display:flex;align-items:center;gap:8px;font-weight:700;color:var(--ink);font-size:16px;text-decoration:none}
-.header-logo .logo-icon{width:32px;height:32px;background:var(--primary);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;color:#fff}
+.header-logo .logo-icon{width:32px;height:32px;background:var(--primary);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;color:var(--on-primary)}
 .header-logo .logo-icon svg{width:18px;height:18px}
 .header-filename{color:var(--muted);font-size:13px;padding:4px 10px;background:var(--surface-soft);border-radius:var(--radius-sm);border:1px solid var(--hairline);max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:help}
 .header-spacer{flex:1}
@@ -71,7 +99,7 @@ body{background:var(--surface-soft)}
 .lock-badge{display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:500;border:1px solid;cursor:pointer}
 .lock-badge svg{pointer-events:none}
 .lock-badge.locked{color:var(--warning);background:var(--warning-bg);border-color:var(--warning-border)}
-.lock-badge.owned{color:var(--primary);background:var(--primary-bg,#e8f0fe);border-color:var(--primary)}
+.lock-badge.owned{color:var(--primary);background:var(--primary-bg);border-color:var(--primary)}
 .lock-badge.unlocked{color:var(--success);background:var(--success-bg);border-color:var(--success-border)}
 .save-indicator{font-size:12px;color:var(--muted);padding:0 8px}
 .save-indicator.unsaved{color:var(--warning)}
@@ -82,18 +110,18 @@ body{background:var(--surface-soft)}
 .sidebar-nav{padding:8px;flex:1}
 .sidebar-nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:var(--radius-sm);color:var(--body);cursor:pointer;font-weight:500;transition:background .15s;border:none;background:transparent;width:100%;text-align:left}
 .sidebar-nav-item:hover{background:var(--surface-soft)}
-.sidebar-nav-item.active{background:var(--primary);color:#fff}
+.sidebar-nav-item.active{background:var(--primary);color:var(--on-primary)}
 .sidebar-nav-item.active .nav-shortcut{color:rgba(255,255,255,.7)}
 .sidebar-nav-item svg{width:18px;height:18px;flex-shrink:0}
 .sidebar-nav-item .badge{margin-left:auto;background:var(--hairline);color:var(--body);font-size:11px;padding:1px 6px;border-radius:999px;font-weight:600}
 .nav-shortcut{margin-left:auto;font-size:11px;color:var(--muted);opacity:.6}
-.sidebar-nav-item.active .badge{background:rgba(255,255,255,.2);color:#fff}
+.sidebar-nav-item.active .badge{background:rgba(255,255,255,.2);color:var(--on-primary)}
 
 .main-content{flex:1;padding:24px}
 .mobile-nav{display:none;border-top:1px solid var(--hairline);overflow-x:auto;flex-shrink:0}
 .mobile-nav-inner{display:flex;padding:8px;gap:4px}
 .mobile-nav-item{display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--radius-sm);color:var(--body);font-weight:500;font-size:13px;white-space:nowrap;border:none;background:transparent;cursor:pointer}
-.mobile-nav-item.active{background:var(--primary);color:#fff}
+.mobile-nav-item.active{background:var(--primary);color:var(--on-primary)}
 
 @media(max-width:768px){
   .sidebar{display:none}
@@ -118,7 +146,7 @@ body{background:var(--surface-soft)}
 .stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-bottom:24px}
 .stat-card{padding:16px;border:1px solid var(--hairline);border-radius:var(--radius-md);background:var(--canvas)}
 .stat-card .stat-icon{width:36px;height:36px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;margin-bottom:10px}
-.stat-card .stat-icon svg{width:20px;height:20px;color:#fff}
+.stat-card .stat-icon svg{width:20px;height:20px;color:var(--on-primary)}
 .stat-card .stat-value{font-size:24px;font-weight:700;color:var(--ink);line-height:1}
 .stat-card .stat-label{font-size:12px;color:var(--muted);margin-top:4px;font-weight:500}
 
@@ -139,13 +167,13 @@ tbody tr:last-child td{border-bottom:none}
 .badge-available{color:var(--success);background:var(--success-bg);border-color:var(--success-border)}
 .badge-in-use{color:var(--info);background:var(--info-bg);border-color:var(--info-border)}
 .badge-maintenance{color:var(--warning);background:var(--warning-bg);border-color:var(--warning-border)}
-.badge-reserved{color:var(--coral);background:#fff1e6;border-color:#e8744f}
-.badge-deregistered{color:#6b7280;background:#f3f4f6;border-color:#d1d5db}
-.badge-pending{color:var(--mustard);background:#fef9e7;border-color:#e8c84a}
+.badge-reserved{color:var(--coral);background:var(--badge-reserved-bg);border-color:var(--badge-reserved-border)}
+.badge-deregistered{color:var(--badge-deregistered-color);background:var(--badge-deregistered-bg);border-color:var(--badge-deregistered-border)}
+.badge-pending{color:var(--mustard);background:var(--badge-pending-bg);border-color:var(--badge-pending-border)}
 .badge-confirmed{color:var(--info);background:var(--info-bg);border-color:var(--info-border)}
 .badge-returned{color:var(--success);background:var(--success-bg);border-color:var(--success-border)}
 .badge-cancelled{color:var(--muted);background:var(--surface-soft);border-color:var(--hairline)}
-.badge-shared{color:var(--coral);background:#fff1e6;border-color:#e8744f}
+.badge-shared{color:var(--coral);background:var(--badge-reserved-bg);border-color:var(--badge-reserved-border)}
 
 /* Form */
 .form-group{margin-bottom:16px}
@@ -184,7 +212,7 @@ select.form-input{cursor:pointer}
 .pagination button:disabled{opacity:.4;cursor:not-allowed}
 
 /* Share panel */
-.share-panel{background:var(--cream);border:1px solid #e8d4b8;border-radius:var(--radius-md);padding:14px;margin-top:12px}
+.share-panel{background:var(--cream);border:1px solid var(--share-panel-border);border-radius:var(--radius-md);padding:14px;margin-top:12px}
 .share-panel h4{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px;display:flex;align-items:center;gap:6px}
 .share-panel h4 svg{width:16px;height:16px}
 .share-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
@@ -196,11 +224,11 @@ select.form-input{cursor:pointer}
 .chat-msg{max-width:85%;display:flex;gap:8px}
 .chat-msg.user{align-self:flex-end;flex-direction:row-reverse}
 .chat-msg-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px}
-.chat-msg.assistant .chat-msg-avatar{background:var(--primary);color:#fff}
+.chat-msg.assistant .chat-msg-avatar{background:var(--primary);color:var(--on-primary)}
 .chat-msg.user .chat-msg-avatar{background:var(--surface-strong);color:var(--ink)}
 .chat-msg-bubble{padding:10px 14px;border-radius:var(--radius-md);font-size:13px;line-height:1.5;white-space:pre-wrap}
 .chat-msg.assistant .chat-msg-bubble{background:var(--surface-soft);border:1px solid var(--hairline);color:var(--body)}
-.chat-msg.user .chat-msg-bubble{background:var(--primary);color:#fff;border:1px solid var(--primary)}
+.chat-msg.user .chat-msg-bubble{background:var(--primary);color:var(--on-primary);border:1px solid var(--primary)}
 .chat-msg.assistant .chat-msg-bubble p{margin:0 0 8px}.chat-msg.assistant .chat-msg-bubble p:last-child{margin-bottom:0}
 .chat-msg.assistant .chat-msg-bubble ul,.chat-msg.assistant .chat-msg-bubble ol{margin:4px 0 8px 20px}.chat-msg.assistant .chat-msg-bubble li{margin-bottom:2px}
 .chat-msg.assistant .chat-msg-bubble code{background:var(--surface-strong);padding:1px 4px;border-radius:3px;font-size:12px;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace}
@@ -249,7 +277,7 @@ select.form-input{cursor:pointer}
 
 /* Tooltip */
 [data-tooltip]{position:relative}
-[data-tooltip]:hover::after{content:attr(data-tooltip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:4px 8px;background:var(--ink);color:#fff;font-size:11px;border-radius:var(--radius-sm);white-space:nowrap;pointer-events:none;z-index:99999}
+[data-tooltip]:hover::after{content:attr(data-tooltip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:4px 8px;background:var(--ink);color:var(--canvas);font-size:11px;border-radius:var(--radius-sm);white-space:nowrap;pointer-events:none;z-index:99999}
 /* Suppress CSS tooltip on Gantt elements (JS tooltip handles these) */
 .gantt-booking-bar[data-tooltip]:hover::after,.gantt-date-cell[data-tooltip]:hover::after,.gantt-time-cell[data-tooltip]:hover::after,.gantt-row-label[data-tooltip]:hover::after{display:none!important}
 
@@ -281,6 +309,7 @@ select.form-input{cursor:pointer}
 .toast{padding:12px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;border:1px solid;box-shadow:0 4px 12px rgba(0,0,0,.1);animation:fadeIn .2s ease;max-width:360px}
 .toast-success{background:var(--success-bg);color:var(--success);border-color:var(--success-border)}
 .toast-error{background:var(--destructive-bg);color:var(--destructive);border-color:var(--destructive-border)}
+.toast-warning{background:var(--warning-bg);color:var(--warning);border-color:var(--warning-border)}
 .toast-info{background:var(--info-bg);color:var(--info);border-color:var(--info-border)}
 
 /* Gantt Chart */
@@ -291,21 +320,21 @@ select.form-input{cursor:pointer}
 .gantt-date-cell{flex:0 0 120px;padding:8px 4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;border-bottom:1px solid var(--hairline);border-right:1px solid var(--hairline);position:relative}
 .gantt-date-cell.today{background:var(--highlight-bg)}
 .gantt-date-cell.holiday-nationwide{background:var(--warning-bg)!important;border-color:var(--warning-border)!important}
-.gantt-date-cell.holiday-state{background:#ffe4e6!important;border-color:#e8744f!important}
+.gantt-date-cell.holiday-state{background:var(--holiday-state-bg)!important;border-color:var(--holiday-state-border)!important}
 .gantt-time-cell.today{background:var(--highlight-bg)!important}
 .gantt-time-cell.holiday-nationwide{background:var(--warning-bg)!important}
-.gantt-time-cell.holiday-state{background:#ffe4e6!important}
+.gantt-time-cell.holiday-state{background:var(--holiday-state-bg)!important}
 .gantt-row{display:grid;grid-template-columns:150px 1fr;min-height:60px;border-bottom:1px solid var(--hairline)}
 .gantt-row-label{padding:8px 12px;font-size:13px;font-weight:500;border-right:1px solid var(--hairline);display:flex;align-items:center}
 .gantt-timeline{position:relative;min-height:60px;background:var(--surface-soft)}
 .gantt-time-cell{position:absolute;flex:0 0 120px;height:100%;border-right:1px solid var(--hairline);background:var(--canvas);top:0}
-.gantt-booking-bar{position:absolute;height:60px;top:0;border-radius:4px;font-size:12px;font-weight:500;cursor:pointer;transition:opacity .15s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px;line-height:60px;z-index:5;will-change:opacity,left}
+.gantt-booking-bar{position:absolute;height:60px;top:0;border-radius:4px;font-size:12px;font-weight:500;cursor:pointer;transition:opacity .15s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px;line-height:60px;z-index:5;will-change:opacity,left;color:var(--on-primary)}
 .gantt-booking-bar:hover{opacity:.8}
-.gantt-booking-bar.pending{background-color:#d9a441;background:#d9a441;color:#fff!important}
-.gantt-booking-bar.confirmed{background-color:#254fad;background:#254fad;color:#fff!important}
-.gantt-booking-bar.in-use{background-color:#006400;background:#006400;color:#fff!important}
-.gantt-booking-bar.returned{background-color:#41454d;background:#41454d;color:#fff!important}
-.gantt-booking-bar.cancelled{background-color:#b91c1c;background:#b91c1c;color:#fff!important;opacity:.6;text-decoration:line-through}
+.gantt-booking-bar.pending{background:var(--gantt-pending)}
+.gantt-booking-bar.confirmed{background:var(--gantt-confirmed)}
+.gantt-booking-bar.in-use{background:var(--gantt-in-use)}
+.gantt-booking-bar.returned{background:var(--gantt-returned)}
+.gantt-booking-bar.cancelled{background:var(--gantt-cancelled);opacity:.6;text-decoration:line-through}
 .gantt-nav-controls{display:flex;gap:4px;margin-left:auto}
 .gantt-view-toggle{display:flex;gap:4px;margin-left:8px}
 .dashboard-gantt{max-height:340px;overflow:auto;border:1px solid var(--hairline);border-radius:var(--radius-sm);margin-bottom:16px}
@@ -381,6 +410,10 @@ select.form-input{cursor:pointer}
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
       <span id="lock-badge-text">Unlocked</span>
     </span>
+    <button class="theme-toggle" id="theme-toggle" data-tooltip="Toggle dark mode" onclick="toggleTheme()">
+      <svg id="theme-icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+      <svg id="theme-icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+    </button>
     <div class="header-actions">
       <button class="btn btn-sm" onclick="exportJSON()" data-tooltip="Export JSON">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -424,7 +457,7 @@ select.form-input{cursor:pointer}
 <div class="toast-container" id="toast-container"></div>
 
 <!-- Gantt Tooltip -->
-<div id="gantt-tooltip" style="position:fixed;display:none;padding:8px 12px;background:var(--ink);color:#fff;font-size:12px;border-radius:4px;pointer-events:none;z-index:10000;max-width:300px;white-space:normal"></div>
+<div id="gantt-tooltip" style="position:fixed;display:none;padding:8px 12px;background:var(--ink);color:var(--canvas);font-size:12px;border-radius:4px;pointer-events:none;z-index:10000;max-width:300px;white-space:normal"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/sql-wasm.js"></script>
 <script>
@@ -1275,7 +1308,7 @@ async function saveFile(silent = false) {
   updateSaveIndicator();
   try {
     // Check for external modifications before mutating in-memory state
-    if (S.fileLastModified !== null) {
+    if (S.fileLastModified !== null && !silent) {
       try {
         const current = await S.fileHandle.getFile();
         if (current.lastModified !== S.fileLastModified) {
@@ -1507,6 +1540,7 @@ function initLock() {
     }
     S._lockReady = true;
     updateLockBadge();
+    updateSaveIndicator();
   })();
 
   // Heartbeat: refresh lock timestamp every 60s to prevent stale detection
@@ -1540,6 +1574,17 @@ async function checkLock() {
   }
 
   if (lockedBy && lockedBy !== S.lockId && lockedAt) {
+    // If a previous session posted a release intent before closing, honor it
+    const releasePending = (function() { try { return localStorage.getItem('fleethub_release_pending'); } catch(e) { return null; } })();
+    if (releasePending === lockedBy) {
+      try { localStorage.removeItem('fleethub_release_pending'); } catch(e) {}
+      clearLockState();
+      S.lockedBy = null;
+      S.lockedUser = null;
+      hideLockAlert();
+      updateLockBadge();
+      return;
+    }
     const elapsed = Date.now() - new Date(lockedAt).getTime();
     if (elapsed < CONST.LOCK_STALE_MS) {
       S.lockedBy = lockedBy;
@@ -1590,7 +1635,7 @@ async function acquireLock() {
   try { if (S.bc) S.bc.postMessage('lock-acquired'); } catch(e) {}
 }
 
-async function releaseLock() {
+async function releaseLock(fromUnload = false) {
   const lockData = readLockState();
   const owned = lockData?.lockedBy === S.lockId;
 
@@ -1599,8 +1644,13 @@ async function releaseLock() {
     S.lockedBy = null;
     S.lockedUser = null;
     try { if (S.bc) S.bc.postMessage('lock-released'); } catch(e) {}
-    // Persist to disk so other OneDrive users see the release
-    try { await saveFile(true); } catch(e) {}
+    if (fromUnload) {
+      // beforeunload: saveFile async won't complete before page dies.
+      // Persist the release intent in localStorage so the next session can auto-release.
+      try { localStorage.setItem('fleethub_release_pending', S.lockId); } catch(e) {}
+    } else {
+      try { await saveFile(true); } catch(e) {}
+    }
   }
 
   hideLockAlert();
@@ -1617,18 +1667,18 @@ function showLockAlert(lockedBy, lockedUser, elapsed) {
 
 function hideLockAlert() { document.getElementById('lock-alert').style.display = 'none'; }
 
+function ownsLock() { return S._lockReady && (!S.lockedBy || S.lockedBy === S.lockId); }
+
+function lockGate(operation) {
+  if (!ownsLock()) { showToast('View-only: take over the lock to ' + operation, 'warning'); return false; }
+  return true;
+}
+
 // ===================== APP LIFECYCLE =====================
 function enterApp() {
   document.getElementById('landing').style.display = 'none';
   document.getElementById('app').classList.add('active');
   document.getElementById('header-filename').textContent = S.fileName;
-  initLock();
-  // if no lock, acquire
-  if (!getMeta('lockedBy')) {
-    setMeta('lockedBy', S.lockId);
-    setMeta('lockedAt', new Date().toISOString());
-    markDirty();
-  }
   initLock();
   render();
   const saved = loadChatHistory();
@@ -1665,7 +1715,7 @@ window.addEventListener('beforeunload', (e) => {
   // Note: async operations may not complete, but we try our best
   // Stale lock detection (15 min) is the safety net if release doesn't complete
   if (S.lockedBy === S.lockId) {
-    releaseLock(); // Fire and forget - browser may not wait
+    releaseLock(true); // Fire and forget - browser may not wait
     // Prompt user so async release has a better chance to complete
     if (!S.dirty) {
       e.preventDefault();
@@ -1702,7 +1752,7 @@ function renderNav() {
     </button>`;
   }).join('');
   // Add New Booking button after nav items
-  const newBookingBtn = `<button class="sidebar-nav-item" onclick="newBooking()" style="margin-top:8px;color:var(--primary)">
+  const newBookingBtn = `<button class="sidebar-nav-item" onclick="${ownsLock() ? 'newBooking()' : 'lockGate(\'create bookings\')'}" style="margin-top:8px;color:var(--primary)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
     New Booking
     <span class="nav-shortcut">[N]</span>
@@ -1778,7 +1828,9 @@ async function toggleLock() {
 function updateSaveIndicator() {
   const el = document.getElementById('save-indicator');
   if (S.saving) { el.className = 'save-indicator saving'; el.textContent = 'Saving...'; }
-  else if (S.dirty) { el.className = 'save-indicator unsaved'; el.textContent = 'Unsaved changes'; }
+  else if (!S._lockReady) { el.className = 'save-indicator'; el.textContent = 'Saved'; }
+  else if (S.dirty && ownsLock()) { el.className = 'save-indicator unsaved'; el.textContent = 'Unsaved changes'; }
+  else if (!ownsLock()) { el.className = 'save-indicator unsaved'; el.textContent = 'View-only'; }
   else { el.className = 'save-indicator'; el.textContent = 'Saved'; }
 }
 
@@ -1825,7 +1877,7 @@ function goToToday() {
 // ===================== DASHBOARD =====================
 // Get fleet icon - same sports car icon as Vehicles menu
 function getFleetIconSvg(vehicles) {
-  return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M14 10l-2-6"/><path d="M18 10h2"/></svg>`;
+  return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M14 10l-2-6"/><path d="M18 10h2"/></svg>`;
 }
 
 function renderDashboard() {
@@ -1934,20 +1986,19 @@ function renderDashboard() {
       const leftPos = startOffset * (dayWidth / 24);
       const width = Math.max(duration * (dayWidth / 24), 4);
 
-      // Status color mapping for inline styles (ensures colors always render)
       const statusColors = {
-        'pending': '#d9a441',
-        'confirmed': '#254fad',
-        'in-use': '#006400',
-        'returned': '#41454d',
-        'cancelled': '#b91c1c'
+        'pending': 'var(--gantt-pending)',
+        'confirmed': 'var(--gantt-confirmed)',
+        'in-use': 'var(--gantt-in-use)',
+        'returned': 'var(--gantt-returned)',
+        'cancelled': 'var(--gantt-cancelled)'
       };
-      const barColor = statusColors[b.status] || '#d9a441';
+      const barColor = statusColors[b.status] || 'var(--gantt-pending)';
       const overlapIndex = slotAssignments.get(b.id) || 0;
       const topOffset = 4 + overlapIndex * (barHeight + barSpacing);
 
       return `<div class="gantt-booking-bar ${esc(b.status)}"
-        style="left:${leftPos}px;width:${width}px;height:${barHeight}px;top:${topOffset}px;background-color:${barColor}!important;color:#fff!important;font-size:11px;line-height:${barHeight}px;"
+        style="left:${leftPos}px;width:${width}px;height:${barHeight}px;top:${topOffset}px;background-color:${barColor}!important;color:var(--on-primary)!important;font-size:11px;line-height:${barHeight}px;"
         data-tooltip="${escAttr(b.userName)} - ${escAttr(b.purpose)}"
         onclick="editBooking(this.dataset.id)"
         data-id="${escAttr(b.id)}"
@@ -2040,11 +2091,11 @@ function renderDashboard() {
     <div class="tab-header"><h2>${TABS[0].icon} Dashboard</h2></div>
     <div class="stats-grid">
       <div class="stat-card"><div class="stat-icon" style="background:var(--primary)">${getFleetIconSvg(vehicles)}</div><div class="stat-value">${vehicles.length}</div><div class="stat-label">Total Vehicles</div></div>
-      ${availableNow.length ? '<div class="stat-card"><div class="stat-icon" style="background:var(--success)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div class="stat-value">' + availableNow.length + '</div><div class="stat-label">Available Now</div></div>' : ''}
-      ${todayBookings.length ? '<div class="stat-card"><div class="stat-icon" style="background:var(--link)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></div><div class="stat-value">' + todayBookings.length + '</div><div class="stat-label">Today\'s Bookings</div></div>' : ''}
-      ${pendingCount ? '<div class="stat-card"><div class="stat-icon" style="background:var(--mustard)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="stat-value">' + pendingCount + '</div><div class="stat-label">Pending Approval</div></div>' : ''}
-      ${activeUsers ? '<div class="stat-card"><div class="stat-icon" style="background:var(--forest)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="stat-value">' + activeUsers + '</div><div class="stat-label">Active Users</div></div>' : ''}
-      ${sharedCount ? '<div class="stat-card"><div class="stat-icon" style="background:var(--coral)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="stat-value">' + sharedCount + '</div><div class="stat-label">Shared Rides</div></div>' : ''}
+      ${availableNow.length ? '<div class="stat-card"><div class="stat-icon" style="background:var(--success)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div class="stat-value">' + availableNow.length + '</div><div class="stat-label">Available Now</div></div>' : ''}
+      ${todayBookings.length ? '<div class="stat-card"><div class="stat-icon" style="background:var(--link)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></div><div class="stat-value">' + todayBookings.length + '</div><div class="stat-label">Today\'s Bookings</div></div>' : ''}
+      ${pendingCount ? '<div class="stat-card"><div class="stat-icon" style="background:var(--mustard)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="stat-value">' + pendingCount + '</div><div class="stat-label">Pending Approval</div></div>' : ''}
+      ${activeUsers ? '<div class="stat-card"><div class="stat-icon" style="background:var(--forest)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="stat-value">' + activeUsers + '</div><div class="stat-label">Active Users</div></div>' : ''}
+      ${sharedCount ? '<div class="stat-card"><div class="stat-icon" style="background:var(--coral)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="stat-value">' + sharedCount + '</div><div class="stat-label">Shared Rides</div></div>' : ''}
     </div>
     ${dashboardGanttHtml}
     <div class="two-col">
@@ -2107,7 +2158,7 @@ function renderCalendar() {
         holidayClass = ' holiday-nationwide';
         holidayTitle = `data-tooltip="${escAttr(holiday.name)} (Nationwide holiday)"`;
       } else {
-        bgStyle = 'background:#ffe4e6!important;border-color:#e8744f!important;';
+        bgStyle = 'background:var(--holiday-state-bg)!important;border-color:var(--holiday-state-border)!important;';
         holidayClass = ' holiday-state';
         holidayTitle = `data-tooltip="${escAttr(holiday.name)} (State-specific holiday)"`;
       }
@@ -2189,18 +2240,17 @@ function renderCalendar() {
       const overlapIndex = slotAssignments.get(b.id) || 0;
       const topOffset = overlapIndex * 64; // 60px bar height + 4px spacing
 
-      // Status color mapping for inline styles (ensures colors always render)
       const statusColors = {
-        'pending': '#d9a441',
-        'confirmed': '#254fad',
-        'in-use': '#006400',
-        'returned': '#41454d',
-        'cancelled': '#b91c1c'
+        'pending': 'var(--gantt-pending)',
+        'confirmed': 'var(--gantt-confirmed)',
+        'in-use': 'var(--gantt-in-use)',
+        'returned': 'var(--gantt-returned)',
+        'cancelled': 'var(--gantt-cancelled)'
       };
-      const barColor = statusColors[b.status] || '#d9a441';
+      const barColor = statusColors[b.status] || 'var(--gantt-pending)';
 
       return `<div class="gantt-booking-bar ${esc(b.status)}"
-        style="left:${leftOffset}px;width:${Math.max(barWidth, 4)}px;top:${topOffset}px;background-color:${barColor}!important;color:#fff!important;"
+        style="left:${leftOffset}px;width:${Math.max(barWidth, 4)}px;top:${topOffset}px;background-color:${barColor}!important;color:var(--on-primary)!important;"
         data-tooltip="${escAttr(b.userName)} - ${escAttr(b.purpose)} (${fmtDateTimeISO(b.periodStart)} to ${fmtDateTimeISO(b.periodEnd)})"
         onclick="editBooking(this.dataset.id)"
         data-id="${escAttr(b.id)}"
@@ -2275,9 +2325,15 @@ function renderVehicles() {
       <td>${esc(v.licensePlate || '—')}</td>
       <td style="color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escAttr(v.notes || '')}">${esc(v.notes || '')}</td>
       <td style="white-space:nowrap">
-        <button class="btn-icon btn-sm" onclick="event.stopPropagation();moveVehicleUp(${idx})" data-tooltip="Move up" ${isFirst ? 'disabled' : ''}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg></button>
-        <button class="btn-icon btn-sm" onclick="event.stopPropagation();moveVehicleDown(${idx})" data-tooltip="Move down" ${isLast ? 'disabled' : ''}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
-        <button class="btn-icon btn-sm" onclick="event.stopPropagation();confirmDeleteVehicle('${v.id}')" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();moveVehicleUp(${idx})" data-tooltip="Move up" ${isFirst || !ownsLock() ? 'disabled' : ''}${ownsLock() ? '' : ' title="View-only — take over lock"'}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+        </button>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();moveVehicleDown(${idx})" data-tooltip="Move down" ${isLast || !ownsLock() ? 'disabled' : ''}${ownsLock() ? '' : ' title="View-only — take over lock"'}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();confirmDeleteVehicle('${v.id}')" data-tooltip="Delete" style="color:var(--destructive)"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+        </button>
       </td>
     </tr>`;
   }).join('') : '';
@@ -2285,7 +2341,7 @@ function renderVehicles() {
   return `<div class="fade-in">
     <div class="tab-header"><h2>${TABS[2].icon} Vehicles</h2>
       <div class="tab-header-actions">
-        <button class="btn btn-primary btn-sm" onclick="editVehicle(null)">
+        <button class="btn btn-primary btn-sm" onclick="editVehicle(null)"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
           Add Vehicle
         </button>
@@ -2426,7 +2482,7 @@ function renderBookings() {
       <td style="white-space:nowrap;font-size:12px;color:var(--muted)">${fmtDateTime(b.createdAt)}</td>
       <td style="white-space:nowrap;font-size:12px;color:var(--muted)">${fmtDateTime(b.updatedAt)}</td>
       <td style="white-space:nowrap">
-        <button class="btn-icon btn-sm" onclick="event.stopPropagation();confirmDeleteBooking(this.dataset.id)" data-tooltip="Delete" data-id="${escAttr(b.id)}" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();confirmDeleteBooking(this.dataset.id)" data-tooltip="Delete" data-id="${escAttr(b.id)}" style="color:var(--destructive)"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
       </td>
     </tr>`;
   }).join('');
@@ -2810,27 +2866,28 @@ function renderSettings() {
   };
 
   // Booking Statuses Section
-  const statusTags = (settings.statuses || []).map(s => `<span class="tag-item">${esc(s)}<button onclick="removeSettingItem('statuses','${esc(s)}')">×</button></span>`).join('');
+  const statusTags = (settings.statuses || []).map(s => `<span class="tag-item">${esc(s)}<button onclick="removeSettingItem('statuses','${esc(s)}')"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>×</button></span>`).join('');
   const statusesContent = `<div>
     <h4 style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px">Booking Statuses</h4>
     <div class="tag-list">${statusTags || '<span style="font-size:13px;color:var(--muted)">No statuses defined</span>'}</div>
-    <div class="tag-input-row"><input id="settings-input-statuses" placeholder="Add status (e.g. approved)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('statuses')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('statuses')">Add</button></div>
+    <div class="tag-input-row"><input id="settings-input-statuses" placeholder="Add status (e.g. approved)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('statuses')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('statuses')"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>Add</button></div>
   </div>`;
 
   // Vehicle Types Section
-  const typeTags = (settings.vehicleTypes || []).map(t => `<span class="tag-item">${esc(t)}<button onclick="removeSettingItem('vehicleTypes','${esc(t)}')">×</button></span>`).join('');
+  const typeTags = (settings.vehicleTypes || []).map(t => `<span class="tag-item">${esc(t)}<button onclick="removeSettingItem('vehicleTypes','${esc(t)}')"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>×</button></span>`).join('');
   const typesContent = `<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--hairline)">
     <h4 style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px">Vehicle Types</h4>
     <div class="tag-list">${typeTags || '<span style="font-size:13px;color:var(--muted)">No vehicle types defined</span>'}</div>
-    <div class="tag-input-row"><input id="settings-input-types" placeholder="Add type (e.g. truck)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('vehicleTypes')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('vehicleTypes')">Add</button></div>
+    <div class="tag-input-row"><input id="settings-input-types" placeholder="Add type (e.g. truck)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('vehicleTypes')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('vehicleTypes')"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>Add</button></div>
   </div>`;
 
   // Custom Fields Section
   const cols = settings.customColumns || [];
   const userNameConfig = settings.userNameConfig || { type: 'text', options: [] };
   const customFieldsContent = `<div style="margin-bottom:12px"><table class="cf-table"><thead><tr><th>Label</th><th>Key</th><th>Type</th><th>Options</th><th></th></tr></thead><tbody>
-    <tr style="background:var(--highlight-bg)"><td><strong>User Name</strong> <span style="font-size:11px;color:var(--muted);margin-left:4px">(built-in)</span></td><td style="color:var(--muted)">userName</td><td>${esc(userNameConfig.type)}</td><td style="color:var(--muted)">${userNameConfig.options ? esc(userNameConfig.options.join(', ')) : '—'}</td><td><button class="btn-icon btn-sm" onclick="editUserNameConfig()" style="color:var(--link)" data-tooltip="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button></td></tr>
-    ${cols.length ? cols.map(c => `<tr><td>${esc(c.label)}</td><td style="color:var(--muted)">${esc(c.key)}</td><td>${esc(c.type)}</td><td style="color:var(--muted)">${esc((c.options || []).join(', '))}</td><td><button class="btn-icon btn-sm" onclick="editCustomField('${esc(c.key)}')" style="color:var(--link)" data-tooltip="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button> <button class="btn-icon btn-sm" onclick="removeCustomField('${esc(c.key)}')" style="color:var(--destructive)" data-tooltip="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></td></tr>`).join('') : ''}
+    <tr style="background:var(--highlight-bg)"><td><strong>User Name</strong> <span style="font-size:11px;color:var(--muted);margin-left:4px">(built-in)</span></td><td style="color:var(--muted)">userName</td><td>${esc(userNameConfig.type)}</td><td style="color:var(--muted)">${userNameConfig.options ? esc(userNameConfig.options.join(', ')) : '—'}</td><td><button class="btn-icon btn-sm" onclick="editUserNameConfig()" style="color:var(--link)" data-tooltip="Edit"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button></td></tr>
+    ${cols.length ? cols.map(c => `<tr><td>${esc(c.label)}</td><td style="color:var(--muted)">${esc(c.key)}</td><td>${esc(c.type)}</td><td style="color:var(--muted)">${esc((c.options || []).join(', '))}</td><td><button class="btn-icon btn-sm" onclick="editCustomField('${esc(c.key)}')" style="color:var(--link)" data-tooltip="Edit"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button> <button class="btn-icon btn-sm" onclick="removeCustomField('${esc(c.key)}')" style="color:var(--destructive)" data-tooltip="Delete"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></td></tr>`).join('') : ''}
   </tbody></table></div>
     <div style="padding:12px;border:1px solid var(--hairline);border-radius:var(--radius-sm)" id="cf-form">
       <div class="form-row" style="margin-bottom:8px">
@@ -2841,7 +2898,7 @@ function renderSettings() {
         <div class="form-group" style="margin-bottom:0"><label class="form-label">Type</label><select class="form-input" id="cf-type" onchange="toggleCfOptions()"><option value="text">Text</option><option value="number">Number</option><option value="date">Date</option><option value="select">Select (single)</option><option value="multiselect">Multi-select</option></select></div>
         <div class="form-group" style="margin-bottom:0;display:none" id="cf-options-group"><label class="form-label">Options (comma-separated)</label><input class="form-input" id="cf-options" placeholder="opt1, opt2, opt3"></div>
       </div>
-      <button class="btn btn-sm btn-primary" onclick="addCustomField()" style="margin-top:10px" id="cf-submit-btn">Add Field</button>
+      <button class="btn btn-sm btn-primary" onclick="addCustomField()" style="margin-top:10px" id="cf-submit-btn"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>Add Field</button>
       <button class="btn btn-sm" onclick="cancelEditCustomField()" style="margin-top:10px;display:none" id="cf-cancel-btn">Cancel</button>
     </div>`;
 
@@ -2933,21 +2990,21 @@ function renderSettings() {
             <td style="white-space:nowrap">${fmtDate(b.periodStart)}</td>
             <td><span class="badge badge-${b.status}">${esc(b.status)}</span></td>
             <td style="white-space:nowrap">
-              <button class="btn-icon btn-sm" onclick="restoreArchivedBooking(this.dataset.id)" data-id="${escAttr(b.id)}" data-tooltip="Restore" style="color:var(--link)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
-              <button class="btn-icon btn-sm" onclick="deleteArchivedBooking(this.dataset.id)" data-id="${escAttr(b.id)}" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+              <button class="btn-icon btn-sm" onclick="restoreArchivedBooking(this.dataset.id)" data-id="${escAttr(b.id)}" data-tooltip="Restore" style="color:var(--link)"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+              <button class="btn-icon btn-sm" onclick="deleteArchivedBooking(this.dataset.id)" data-id="${escAttr(b.id)}" data-tooltip="Delete" style="color:var(--destructive)"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
             </td></tr>`;
         });
         archiveBrowseHtml += `</tbody></table></div>
           <div style="display:flex;gap:8px;margin-top:8px">
-            <button class="btn btn-sm" onclick="exportArchiveYear(${selectedArchiveYear})">
+            <button class="btn btn-sm" onclick="exportArchiveYear(${selectedArchiveYear})"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Export ${selectedArchiveYear} (JSON)
             </button>
-            <button class="btn btn-sm" onclick="exportArchiveYearSQL(${selectedArchiveYear})">
+            <button class="btn btn-sm" onclick="exportArchiveYearSQL(${selectedArchiveYear})"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Export ${selectedArchiveYear} (SQL)
             </button>
-            <button class="btn btn-sm btn-danger" onclick="confirmPurgeArchiveYear(${selectedArchiveYear})">
+            <button class="btn btn-sm btn-danger" onclick="confirmPurgeArchiveYear(${selectedArchiveYear})"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
               Purge ${selectedArchiveYear}
             </button>
@@ -2974,15 +3031,15 @@ function renderSettings() {
         <div class="form-hint">Archived bookings are moved out of the active list and can be restored later.</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-sm" onclick="runAutoArchiveNow()">
+        <button class="btn btn-sm" onclick="runAutoArchiveNow()"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
           Run Archive Now
         </button>
-        <button class="btn btn-sm btn-primary" onclick="archiveAndExportSQL()">
+        <button class="btn btn-sm btn-primary" onclick="archiveAndExportSQL()"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Archive & Export SQL
         </button>
-        <button class="btn btn-sm" onclick="archiveAndExportJSON()">
+        <button class="btn btn-sm" onclick="archiveAndExportJSON()"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Archive & Export JSON
         </button>
@@ -3015,11 +3072,11 @@ function renderSettings() {
       ${section('archive', '<svg viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>', 'Archive', archiveContent)}
       ${section('data', '<svg viewBox="0 0 24 24" fill="none" stroke="var(--link)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 15 7 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>', 'Data Actions', `
         <div style="display:flex;flex-direction:column;gap:8px">
-          <button class="btn" onclick="exportJSON()" style="width:100%;justify-content:center">
+          <button class="btn" onclick="exportJSON()" style="width:100%;justify-content:center"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Export Fleet Data (JSON)
           </button>
-          <button class="btn" onclick="importJSON()" style="width:100%;justify-content:center">
+          <button class="btn" onclick="importJSON()" style="width:100%;justify-content:center"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 15 7 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Import Fleet Data (JSON)
           </button>
@@ -3032,7 +3089,7 @@ function renderSettings() {
           <span style="color:var(--destructive)">Danger Zone</span>
         </button>
         <div class="settings-section-body" style="display:${isOpen('danger') ? 'block' : 'none'}">
-          <button class="btn btn-danger" onclick="confirmClearAll()" style="width:100%">Clear All Data</button>
+          <button class="btn btn-danger" onclick="confirmClearAll()" style="width:100%"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>Clear All Data</button>
         </div>
       </div>
     </div>
@@ -3395,7 +3452,7 @@ function renderChatMessages() {
     let extra = '';
     if (m.confirmation) {
       extra = `<div class="chat-confirmation" style="margin-top:8px;display:flex;gap:8px;">
-        <button onclick="confirmToolAction('${m.id}')" style="padding:4px 12px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;">Confirm</button>
+        <button onclick="confirmToolAction('${m.id}')" style="padding:4px 12px;background:var(--primary);color:var(--on-primary);border:none;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;">Confirm</button>
         <button onclick="cancelToolAction('${m.id}')" style="padding:4px 12px;background:var(--surface-strong);color:var(--ink);border:1px solid var(--hairline);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;">Cancel</button>
       </div>`;
     }
@@ -4145,6 +4202,36 @@ document.addEventListener('keydown', (e) => {
   // N for new booking
   if (key === 'n') {
     newBooking();
+  }
+});
+
+// ===================== THEME =====================
+function getTheme() {
+  const stored = localStorage.getItem('fleethub_theme');
+  if (stored) return stored;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('theme-icon-sun').style.display = theme === 'dark' ? 'none' : '';
+  document.getElementById('theme-icon-moon').style.display = theme === 'dark' ? '' : 'none';
+}
+
+function toggleTheme() {
+  const current = getTheme();
+  const next = current === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('fleethub_theme', next);
+  applyTheme(next);
+}
+
+// Apply theme on startup
+applyTheme(getTheme());
+
+// Listen for system theme changes (only if user hasn't manually set)
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+  if (!localStorage.getItem('fleethub_theme')) {
+    applyTheme(e.matches ? 'dark' : 'light');
   }
 });
 
