@@ -792,6 +792,7 @@ function getArchivedBookings(year) {
 }
 
 function restoreArchivedBooking(id) {
+  if (!lockGate('restore bookings')) return;
   const rows = dbQuery("SELECT * FROM archived_bookings WHERE id = ?", [id]);
   if (!rows.length) return;
   const b = rows[0];
@@ -810,6 +811,7 @@ function restoreArchivedBooking(id) {
 }
 
 function deleteArchivedBooking(id) {
+  if (!lockGate('delete bookings')) return;
   db.run("DELETE FROM archived_bookings WHERE id = ?", [id]);
   markDirty(); render(); showToast('Archived booking deleted', 'success');
 }
@@ -820,6 +822,7 @@ function purgeArchiveYear(year) {
 }
 
 function exportArchiveYear(year) {
+  if (!lockGate('export archive')) return;
   const archived = getArchivedBookings(year);
   if (!archived.length) { showToast('No archived bookings for ' + year, 'warning'); return; }
   const envelope = {
@@ -837,6 +840,7 @@ function exportArchiveYear(year) {
 }
 
 function archiveAndExportJSON() {
+  if (!lockGate('archive bookings')) return;
   const count = runAutoArchive();
   const years = getArchivedYears();
   if (!years.length) {
@@ -868,6 +872,7 @@ function archiveAndExportJSON() {
 }
 
 function exportArchiveYearSQL(year) {
+  if (!lockGate('export archive')) return;
   const archived = getArchivedBookings(year);
   if (!archived.length) { showToast('No archived bookings for ' + year, 'warning'); return; }
   const now = new Date().toISOString();
@@ -923,6 +928,7 @@ function sqlEscape(str) {
 }
 
 function archiveAndExportSQL() {
+  if (!lockGate('archive bookings')) return;
   const count = runAutoArchive();
   const years = getArchivedYears();
   if (!years.length) {
@@ -954,6 +960,7 @@ function archiveAndExportSQL() {
 }
 
 function toggleArchiveEnabled() {
+  if (!lockGate('edit settings')) return;
   const enabled = document.getElementById('archive-enabled').checked;
   setSetting('archiveEnabled', enabled);
   const opts = document.getElementById('archive-options');
@@ -962,6 +969,7 @@ function toggleArchiveEnabled() {
 }
 
 function updateArchiveRetention() {
+  if (!lockGate('edit settings')) return;
   const val = parseInt(document.getElementById('archive-retention').value);
   if (!val || val < 1) { showToast('Retention must be at least 1 month', 'error'); return; }
   setSetting('archiveRetentionMonths', Math.min(val, CONST.MAX_ARCHIVE_MONTHS));
@@ -969,12 +977,14 @@ function updateArchiveRetention() {
 }
 
 function runAutoArchiveNow() {
+  if (!lockGate('archive bookings')) return;
   const count = runAutoArchive();
   if (count > 0) { showToast(`${count} booking(s) archived`, 'success'); render(); }
   else { showToast('No bookings to archive', 'info'); }
 }
 
 function confirmPurgeArchiveYear(year) {
+  if (!lockGate('purge archive')) return;
   openDialog('Purge Archived Bookings', `<p>Are you sure you want to permanently delete <strong>all archived bookings from ${year}</strong>? This cannot be undone.</p>`, () => {
     purgeArchiveYear(year);
     S.archiveYear = null;
@@ -1521,6 +1531,8 @@ function getMyLockId() {
 }
 
 function initLock() {
+  // Clean up any orphaned release intent from previous session
+  try { localStorage.removeItem('fleethub_release_pending'); } catch(e) {}
   // Clean up previous interval and channel to prevent leaks on re-open
   if (S.lockInterval) { clearInterval(S.lockInterval); S.lockInterval = null; }
   if (S.bc) { try { S.bc.close(); } catch(e) {} S.bc = null; }
@@ -1541,6 +1553,7 @@ function initLock() {
     S._lockReady = true;
     updateLockBadge();
     updateSaveIndicator();
+    renderNav(); // Re-bake onclick handlers now that ownsLock() is correct
   })();
 
   // Heartbeat: refresh lock timestamp every 60s to prevent stale detection
@@ -2369,6 +2382,7 @@ function editVehicle(id) {
     <div class="form-group"><label class="form-label">License Plate</label><input class="form-input" id="v-plate" value="${esc(v ? v.licensePlate || '' : '')}" placeholder="ABC-1234"></div>
     <div class="form-group"><label class="form-label">Notes</label><textarea class="form-input" id="v-notes" rows="2" placeholder="Optional notes...">${esc(v ? v.notes || '' : '')}</textarea></div>
   `, () => {
+    if (!lockGate('save vehicles')) return false;
     const name = document.getElementById('v-name').value.trim();
     if (!name) { showToast('Vehicle name is required', 'error'); return false; }
     const data = {
@@ -2394,6 +2408,7 @@ function editVehicle(id) {
 }
 
 function moveVehicleUp(idx) {
+  if (!lockGate('reorder vehicles')) return;
   if (idx <= 0) return;
   const vehicles = [...getVehicles()].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   vehicles.forEach((v, i) => { v.sortOrder = i; });
@@ -2406,6 +2421,7 @@ function moveVehicleUp(idx) {
 }
 
 function moveVehicleDown(idx) {
+  if (!lockGate('reorder vehicles')) return;
   // First get all vehicles (needed to check boundaries and reorder)
   const vehicles = [...getVehicles()].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   if (idx >= vehicles.length - 1) return;
@@ -2420,6 +2436,7 @@ function moveVehicleDown(idx) {
 }
 
 function confirmDeleteVehicle(id) {
+  if (!lockGate('delete vehicles')) return;
   const v = getVehicles().find(v => v.id === id);
   if (!v) { showToast('Vehicle not found', 'error'); return; }
   const bookingCount = getBookings().filter(b => b.vehicleId === id).length;
@@ -2649,6 +2666,7 @@ function editBooking(id, preselectedVehicleId) {
       <div class="form-group" style="margin-top:8px;margin-bottom:0"><label class="form-label">Share Note</label><textarea class="form-input" id="share-note" rows="2" placeholder="Optional note for co-passengers...">${esc(eb.shareNote || '')}</textarea></div>
     </div>
   `, () => {
+    if (!lockGate('save bookings')) return false;
     const vehicleId = document.getElementById('b-vehicle').value;
     // Handle userName - could be text, select, or multiselect
     const userNameConfig = getSettings().userNameConfig || { type: 'text' };
@@ -2846,6 +2864,7 @@ function removeShareDialogName(btn, name) {
 
 // Legacy reference
 function confirmDeleteBooking(id) {
+  if (!lockGate('delete bookings')) return;
   const b = getBookings().find(b => b.id === id);
   if (!b) { showToast('Booking not found', 'error'); return; }
   openDialog('Delete Booking', `<p>Are you sure you want to delete the booking by <strong>${esc(b.userName)}</strong> for <strong>${esc(b.purpose)}</strong>?</p>`, () => {
@@ -2870,7 +2889,7 @@ function renderSettings() {
   const statusesContent = `<div>
     <h4 style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px">Booking Statuses</h4>
     <div class="tag-list">${statusTags || '<span style="font-size:13px;color:var(--muted)">No statuses defined</span>'}</div>
-    <div class="tag-input-row"><input id="settings-input-statuses" placeholder="Add status (e.g. approved)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('statuses')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('statuses')"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>Add</button></div>
+    <div class="tag-input-row"><input id="settings-input-statuses" placeholder="Add status (e.g. approved)"${ownsLock() ? '' : ' disabled'} onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('statuses')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('statuses')"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>Add</button></div>
   </div>`;
 
   // Vehicle Types Section
@@ -2878,7 +2897,7 @@ function renderSettings() {
   const typesContent = `<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--hairline)">
     <h4 style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px">Vehicle Types</h4>
     <div class="tag-list">${typeTags || '<span style="font-size:13px;color:var(--muted)">No vehicle types defined</span>'}</div>
-    <div class="tag-input-row"><input id="settings-input-types" placeholder="Add type (e.g. truck)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('vehicleTypes')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('vehicleTypes')"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>Add</button></div>
+    <div class="tag-input-row"><input id="settings-input-types" placeholder="Add type (e.g. truck)"${ownsLock() ? '' : ' disabled'} onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('vehicleTypes')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('vehicleTypes')"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>Add</button></div>
   </div>`;
 
   // Custom Fields Section
@@ -2925,7 +2944,7 @@ function renderSettings() {
   ];
   const stateOptions = germanStates.map(s => `<option value="${esc(s.value)}"${currentState === s.value ? ' selected' : ''}>${esc(s.label)}</option>`).join('');
   const calendarContent = `<div style="margin-bottom:14px">
-    <div class="form-group"><label class="form-label">German State (Bundesland)</label><select class="form-input" id="german-state" onchange="saveGermanState()">${stateOptions}</select><div class="form-hint">Select a German state to show state-specific holidays on the calendar. Nationwide holidays are always shown.</div></div>
+    <div class="form-group"><label class="form-label">German State (Bundesland)</label><select class="form-input" id="german-state" onchange="saveGermanState()"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>${stateOptions}</select><div class="form-hint">Select a German state to show state-specific holidays on the calendar. Nationwide holidays are always shown.</div></div>
     <div style="margin-top:12px;padding:10px;border:1px solid var(--hairline);border-radius:var(--radius-sm);background:var(--surface-soft)">
       <span style="display:inline-flex;align-items:center;gap:6px;margin-right:12px;font-size:12px"><span style="width:10px;height:10px;background:var(--warning);border-radius:2px"></span> Nationwide</span>
       <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px"><span style="width:10px;height:10px;background:var(--coral);border-radius:2px"></span> State-specific</span>
@@ -3018,14 +3037,14 @@ function renderSettings() {
   const archiveContent = `<div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;font-size:14px">
-        <input type="checkbox" id="archive-enabled" ${archiveEnabled ? 'checked' : ''} onchange="toggleArchiveEnabled()" style="width:16px;height:16px;cursor:pointer">
+        <input type="checkbox" id="archive-enabled" ${archiveEnabled ? 'checked' : ''} onchange="toggleArchiveEnabled()"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'} style="width:16px;height:16px;cursor:pointer">
         Auto-archive old bookings
       </label>
     </div>
     <div id="archive-options" style="${archiveEnabled ? 'block' : 'opacity:0.5;pointer-events:none'}">
       <div class="form-group"><label class="form-label">Retention Period (months)</label>
         <div style="display:flex;align-items:center;gap:8px">
-          <input class="form-input" id="archive-retention" type="number" min="1" max="${CONST.MAX_ARCHIVE_MONTHS}" value="${archiveRetentionMonths}" style="width:80px" onchange="updateArchiveRetention()">
+          <input class="form-input" id="archive-retention" type="number" min="1" max="${CONST.MAX_ARCHIVE_MONTHS}" value="${archiveRetentionMonths}" style="width:80px" onchange="updateArchiveRetention()"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
           <span style="font-size:13px;color:var(--muted)">Bookings ending more than this many months ago will be archived on save.</span>
         </div>
         <div class="form-hint">Archived bookings are moved out of the active list and can be restored later.</div>
@@ -3104,6 +3123,7 @@ function toggleSettingsSection(id) {
 }
 
 function addSettingItem(key) {
+  if (!lockGate('add settings')) return;
   const input = document.getElementById('settings-input-' + (key === 'statuses' ? 'statuses' : 'types'));
   const val = input.value.trim();
   if (!val) return;
@@ -3116,12 +3136,14 @@ function addSettingItem(key) {
 }
 
 function removeSettingItem(key, val) {
+  if (!lockGate('remove settings')) return;
   const current = getSetting(key, []).filter(v => v !== val);
   setSetting(key, current);
   markDirty(); render(); showToast(`Removed "${val}"`, 'success');
 }
 
 function saveGermanState() {
+  if (!lockGate('edit settings')) return;
   const state = document.getElementById('german-state').value;
   setSetting('germanState', state || null);
   markDirty(); render(); showToast(`German state updated`, 'success');
@@ -3152,6 +3174,7 @@ function editUserNameConfig() {
   `;
 
   openDialog('Configure User Name Field', dialogHtml, () => {
+    if (!lockGate('edit settings')) return false;
     const type = document.getElementById('un-type').value;
     const optionsStr = document.getElementById('un-options').value;
     const options = optionsStr.split(',').map(o => o.trim()).filter(Boolean);
@@ -3174,6 +3197,7 @@ function toggleUnOptions() {
 }
 
 function addCustomField() {
+  if (!lockGate('add custom fields')) return;
   const label = document.getElementById('cf-label').value.trim();
   const key = document.getElementById('cf-key').value.trim().replace(/[^a-zA-Z0-9_]/g, '');
   const type = document.getElementById('cf-type').value;
@@ -3194,6 +3218,7 @@ function addCustomField() {
 }
 
 function removeCustomField(key) {
+  if (!lockGate('delete custom fields')) return;
   const customColumns = getSetting('customColumns', []).filter(c => c.key !== key);
   setSetting('customColumns', customColumns);
   markDirty(); render(); showToast('Custom field removed', 'success');
@@ -3340,6 +3365,7 @@ async function testApiConfig() {
 }
 
 function confirmClearAll() {
+  if (!lockGate('clear all data')) return;
   openDialog('Clear All Data', '<p style="color:var(--destructive)">This will permanently delete all vehicles and bookings. This cannot be undone.</p>', () => {
     try {
       db.run("BEGIN TRANSACTION;");
@@ -4155,9 +4181,9 @@ function showToast(msg, type = 'info') {
 // ===================== KEYBOARD SHORTCUTS (consolidated) =====================
 document.addEventListener('keydown', e => {
   // Ctrl/Cmd+S to save (always active, even in inputs)
-  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveFile(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); if (!ownsLock()) { showToast('View-only: take over the lock to save', 'warning'); return; } saveFile(); }
   // Ctrl/Cmd+N for new booking (not in inputs, not during dialog)
-  if ((e.ctrlKey || e.metaKey) && e.key === 'n' && !isFormElement(e.target) && !document.getElementById('dialog-overlay')?.classList.contains('active')) { e.preventDefault(); newBooking(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'n' && !isFormElement(e.target) && !document.getElementById('dialog-overlay')?.classList.contains('active')) { e.preventDefault(); if (lockGate('create bookings')) newBooking(); }
 });
 
 function isFormElement(el) {
