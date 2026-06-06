@@ -1317,10 +1317,15 @@ async function saveFile(silent = false) {
   updateSaveIndicator();
   try {
     // Check for external modifications before mutating in-memory state
-    if (S.fileLastModified !== null && !silent) {
+    if (S.fileLastModified !== null) {
       try {
         const current = await S.fileHandle.getFile();
         if (current.lastModified !== S.fileLastModified) {
+          if (silent) {
+            // Silent saves (heartbeat, lock release) must abort if file changed externally
+            // to prevent silent data loss from overwriting another user's changes
+            throw new DOMException('Save cancelled — file changed externally', 'AbortError');
+          }
           if (!confirm('This file has been modified by another process since you opened it. Overwrite anyway?')) {
             throw new DOMException('Save cancelled — file changed externally', 'AbortError');
           }
@@ -1559,8 +1564,13 @@ function initLock() {
     try {
       await checkLock();
       // Persist lock state to disk so other users see the updated timestamp
-      if (ownsLock() && S.fileHandle) {
-        await saveFile(true);
+      // Only save if: we own lock, have file handle, DB not dirty (don't auto-save drafts),
+      // and file not externally modified (prevent silent overwrite)
+      if (ownsLock() && S.fileHandle && !S.dirty) {
+        const current = await S.fileHandle.getFile();
+        if (current.lastModified === S.fileLastModified) {
+          await saveFile(true);
+        }
       }
     } catch(e) {}
   }, CONST.HEARTBEAT_MS);
