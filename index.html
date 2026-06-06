@@ -1542,6 +1542,17 @@ async function checkLock() {
   }
 
   if (lockedBy && lockedBy !== S.lockId && lockedAt) {
+    // If a previous session posted a release intent before closing, honor it
+    const releasePending = (function() { try { return localStorage.getItem('fleethub_release_pending'); } catch(e) { return null; } })();
+    if (releasePending === lockedBy) {
+      try { localStorage.removeItem('fleethub_release_pending'); } catch(e) {}
+      clearLockState();
+      S.lockedBy = null;
+      S.lockedUser = null;
+      hideLockAlert();
+      updateLockBadge();
+      return;
+    }
     const elapsed = Date.now() - new Date(lockedAt).getTime();
     if (elapsed < CONST.LOCK_STALE_MS) {
       S.lockedBy = lockedBy;
@@ -1601,7 +1612,7 @@ async function acquireLock() {
   try { if (S.bc) S.bc.postMessage('lock-acquired'); } catch(e) {}
 }
 
-async function releaseLock() {
+async function releaseLock(fromUnload = false) {
   const lockData = readLockState();
   const owned = lockData?.lockedBy === S.lockId;
 
@@ -1610,8 +1621,13 @@ async function releaseLock() {
     S.lockedBy = null;
     S.lockedUser = null;
     try { if (S.bc) S.bc.postMessage('lock-released'); } catch(e) {}
-    // Persist to disk so other OneDrive users see the release
-    try { await saveFile(true); } catch(e) {}
+    if (fromUnload) {
+      // beforeunload: saveFile async won't complete before page dies.
+      // Persist the release intent in localStorage so the next session can auto-release.
+      try { localStorage.setItem('fleethub_release_pending', S.lockId); } catch(e) {}
+    } else {
+      try { await saveFile(true); } catch(e) {}
+    }
   }
 
   hideLockAlert();
@@ -1676,7 +1692,7 @@ window.addEventListener('beforeunload', (e) => {
   // Note: async operations may not complete, but we try our best
   // Stale lock detection (15 min) is the safety net if release doesn't complete
   if (S.lockedBy === S.lockId) {
-    releaseLock(); // Fire and forget - browser may not wait
+    releaseLock(true); // Fire and forget - browser may not wait
     // Prompt user so async release has a better chance to complete
     if (!S.dirty) {
       e.preventDefault();
