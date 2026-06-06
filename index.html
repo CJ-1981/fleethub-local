@@ -3483,7 +3483,7 @@ function renderChatMessages() {
     }
     let copyBtn = '';
     if (m.content && m.role === 'assistant') {
-      copyBtn = `<button class="chat-copy-btn" onclick="copyChatMsg('${m.id}')" title="Copy to clipboard" style="position:absolute;top:4px;right:4px;background:var(--surface-soft);border:1px solid var(--hairline);border-radius:var(--radius-sm);cursor:pointer;padding:4px 6px;line-height:1;opacity:0.5;transition:opacity 0.15s" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.5'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>`;
+      copyBtn = `<button class="chat-copy-btn" onclick="copyChatMsg('${m.id}')" title="Copy to clipboard" style="position:absolute;top:4px;right:4px;background:var(--surface-soft);border:1px solid var(--hairline);border-radius:var(--radius-sm);cursor:pointer;padding:4px 6px;line-height:1;opacity:0.5;transition:opacity 0.15s;color:var(--ink)" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.5'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>`;
     }
     return `<div class="chat-msg ${m.role}" data-msg-id="${m.id}"><div class="chat-msg-avatar">${avatar}</div><div class="chat-msg-bubble" style="position:relative">${copyBtn}${display}${extra}</div></div>`;
   }).join('');
