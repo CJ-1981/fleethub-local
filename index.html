@@ -1508,6 +1508,7 @@ function initLock() {
     }
     S._lockReady = true;
     updateLockBadge();
+    updateSaveIndicator();
   })();
 
   // Heartbeat: refresh lock timestamp every 60s to prevent stale detection
@@ -1788,6 +1789,7 @@ async function toggleLock() {
 function updateSaveIndicator() {
   const el = document.getElementById('save-indicator');
   if (S.saving) { el.className = 'save-indicator saving'; el.textContent = 'Saving...'; }
+  else if (!S._lockReady) { el.className = 'save-indicator'; el.textContent = 'Saved'; }
   else if (S.dirty && ownsLock()) { el.className = 'save-indicator unsaved'; el.textContent = 'Unsaved changes'; }
   else if (!ownsLock()) { el.className = 'save-indicator unsaved'; el.textContent = 'View-only'; }
   else { el.className = 'save-indicator'; el.textContent = 'Saved'; }
