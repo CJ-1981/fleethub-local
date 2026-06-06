@@ -1298,7 +1298,7 @@ function getDemoData() {
 
 async function saveFile(silent = false) {
   if (S.demoMode) { showToast('Demo mode — use Export to save a copy', 'info'); return; }
-  if (!ownsLock()) { showToast('View-only: take over the lock to save', 'warning'); return; }
+  if (!silent && !ownsLock()) { showToast('View-only: take over the lock to save', 'warning'); return; }
   if (!db) { showToast('No database — cannot save', 'error'); return; }
   if (!S.fileHandle) {
     // No file handle — prompt Save As
