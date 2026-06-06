@@ -1564,13 +1564,10 @@ function initLock() {
     try {
       await checkLock();
       // Persist lock state to disk so other users see the updated timestamp
-      // Only save if: we own lock, have file handle, DB not dirty (don't auto-save drafts),
-      // and file not externally modified (prevent silent overwrite)
+      // Only save if: we own lock, have file handle, and DB not dirty (don't auto-save drafts)
+      // saveFile(true) handles external modification check internally
       if (ownsLock() && S.fileHandle && !S.dirty) {
-        const current = await S.fileHandle.getFile();
-        if (current.lastModified === S.fileLastModified) {
-          await saveFile(true);
-        }
+        await saveFile(true);
       }
     } catch(e) {}
   }, CONST.HEARTBEAT_MS);
@@ -2850,6 +2847,7 @@ function openShareDialog(id) {
     <div class="form-group" style="margin-top:8px;margin-bottom:0"><label class="form-label">Share Note</label><textarea class="form-input" id="share-dialog-note" rows="2" placeholder="Optional note...">${esc(b.shareNote || '')}</textarea></div>
   </div>`;
   openDialog('Share Ride', html, () => {
+    if (!lockGate('share bookings')) return false;
     db.run("UPDATE bookings SET share_with=?, share_note=?, updated_at=? WHERE id=?",
       [JSON.stringify(S.shareDialogBooking.shareWith || []), document.getElementById('share-dialog-note').value.trim() || null, new Date().toISOString(), b.id]);
     markDirty(); render(); showToast('Share details updated', 'success'); return true;
@@ -3257,6 +3255,7 @@ function editCustomField(key) {
 }
 
 function updateCustomField() {
+  if (!lockGate('edit custom fields')) return false;
   if (!editingCustomFieldKey) return;
   const label = document.getElementById('cf-label').value.trim();
   const newKey = document.getElementById('cf-key').value.trim().replace(/[^a-zA-Z0-9_]/g, '');
