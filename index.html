@@ -1556,7 +1556,13 @@ function initLock() {
 
   // Heartbeat: refresh lock timestamp every 60s to prevent stale detection
   S.lockInterval = setInterval(async () => {
-    try { await checkLock(); } catch(e) {}
+    try {
+      await checkLock();
+      // Persist lock state to disk so other users see the updated timestamp
+      if (ownsLock() && S.fileHandle) {
+        await saveFile(true);
+      }
+    } catch(e) {}
   }, CONST.HEARTBEAT_MS);
   try {
     const bc = new BroadcastChannel('fleethub-lock');
@@ -4225,7 +4231,7 @@ document.addEventListener('keydown', (e) => {
 
   // N for new booking
   if (key === 'n') {
-    newBooking();
+    if (lockGate('create bookings')) newBooking();
   }
 });
 
