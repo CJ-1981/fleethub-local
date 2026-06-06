@@ -1626,6 +1626,13 @@ function showLockAlert(lockedBy, lockedUser, elapsed) {
 
 function hideLockAlert() { document.getElementById('lock-alert').style.display = 'none'; }
 
+function ownsLock() { return S._lockReady && (!S.lockedBy || S.lockedBy === S.lockId); }
+
+function lockGate(operation) {
+  if (!ownsLock()) { showToast('View-only: take over the lock to ' + operation, 'warning'); return false; }
+  return true;
+}
+
 // ===================== APP LIFECYCLE =====================
 function enterApp() {
   document.getElementById('landing').style.display = 'none';
@@ -1711,7 +1718,7 @@ function renderNav() {
     </button>`;
   }).join('');
   // Add New Booking button after nav items
-  const newBookingBtn = `<button class="sidebar-nav-item" onclick="newBooking()" style="margin-top:8px;color:var(--primary)">
+  const newBookingBtn = `<button class="sidebar-nav-item" onclick="${ownsLock() ? 'newBooking()' : 'lockGate(\'create bookings\')'}" style="margin-top:8px;color:var(--primary)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
     New Booking
     <span class="nav-shortcut">[N]</span>
@@ -1787,7 +1794,8 @@ async function toggleLock() {
 function updateSaveIndicator() {
   const el = document.getElementById('save-indicator');
   if (S.saving) { el.className = 'save-indicator saving'; el.textContent = 'Saving...'; }
-  else if (S.dirty) { el.className = 'save-indicator unsaved'; el.textContent = 'Unsaved changes'; }
+  else if (S.dirty && ownsLock()) { el.className = 'save-indicator unsaved'; el.textContent = 'Unsaved changes'; }
+  else if (!ownsLock()) { el.className = 'save-indicator unsaved'; el.textContent = 'View-only'; }
   else { el.className = 'save-indicator'; el.textContent = 'Saved'; }
 }
 
@@ -2284,9 +2292,15 @@ function renderVehicles() {
       <td>${esc(v.licensePlate || '—')}</td>
       <td style="color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escAttr(v.notes || '')}">${esc(v.notes || '')}</td>
       <td style="white-space:nowrap">
-        <button class="btn-icon btn-sm" onclick="event.stopPropagation();moveVehicleUp(${idx})" data-tooltip="Move up" ${isFirst ? 'disabled' : ''}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg></button>
-        <button class="btn-icon btn-sm" onclick="event.stopPropagation();moveVehicleDown(${idx})" data-tooltip="Move down" ${isLast ? 'disabled' : ''}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
-        <button class="btn-icon btn-sm" onclick="event.stopPropagation();confirmDeleteVehicle('${v.id}')" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();moveVehicleUp(${idx})" data-tooltip="Move up" ${isFirst || !ownsLock() ? 'disabled' : ''}${ownsLock() ? '' : ' title="View-only — take over lock"'}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+        </button>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();moveVehicleDown(${idx})" data-tooltip="Move down" ${isLast || !ownsLock() ? 'disabled' : ''}${ownsLock() ? '' : ' title="View-only — take over lock"'}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();confirmDeleteVehicle('${v.id}')" data-tooltip="Delete" style="color:var(--destructive)"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+        </button>
       </td>
     </tr>`;
   }).join('') : '';
@@ -2294,7 +2308,7 @@ function renderVehicles() {
   return `<div class="fade-in">
     <div class="tab-header"><h2>${TABS[2].icon} Vehicles</h2>
       <div class="tab-header-actions">
-        <button class="btn btn-primary btn-sm" onclick="editVehicle(null)">
+        <button class="btn btn-primary btn-sm" onclick="editVehicle(null)"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
           Add Vehicle
         </button>
@@ -2435,7 +2449,7 @@ function renderBookings() {
       <td style="white-space:nowrap;font-size:12px;color:var(--muted)">${fmtDateTime(b.createdAt)}</td>
       <td style="white-space:nowrap;font-size:12px;color:var(--muted)">${fmtDateTime(b.updatedAt)}</td>
       <td style="white-space:nowrap">
-        <button class="btn-icon btn-sm" onclick="event.stopPropagation();confirmDeleteBooking(this.dataset.id)" data-tooltip="Delete" data-id="${escAttr(b.id)}" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();confirmDeleteBooking(this.dataset.id)" data-tooltip="Delete" data-id="${escAttr(b.id)}" style="color:var(--destructive)"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
       </td>
     </tr>`;
   }).join('');
@@ -2819,27 +2833,28 @@ function renderSettings() {
   };
 
   // Booking Statuses Section
-  const statusTags = (settings.statuses || []).map(s => `<span class="tag-item">${esc(s)}<button onclick="removeSettingItem('statuses','${esc(s)}')">×</button></span>`).join('');
+  const statusTags = (settings.statuses || []).map(s => `<span class="tag-item">${esc(s)}<button onclick="removeSettingItem('statuses','${esc(s)}')"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>×</button></span>`).join('');
   const statusesContent = `<div>
     <h4 style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px">Booking Statuses</h4>
     <div class="tag-list">${statusTags || '<span style="font-size:13px;color:var(--muted)">No statuses defined</span>'}</div>
-    <div class="tag-input-row"><input id="settings-input-statuses" placeholder="Add status (e.g. approved)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('statuses')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('statuses')">Add</button></div>
+    <div class="tag-input-row"><input id="settings-input-statuses" placeholder="Add status (e.g. approved)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('statuses')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('statuses')"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>Add</button></div>
   </div>`;
 
   // Vehicle Types Section
-  const typeTags = (settings.vehicleTypes || []).map(t => `<span class="tag-item">${esc(t)}<button onclick="removeSettingItem('vehicleTypes','${esc(t)}')">×</button></span>`).join('');
+  const typeTags = (settings.vehicleTypes || []).map(t => `<span class="tag-item">${esc(t)}<button onclick="removeSettingItem('vehicleTypes','${esc(t)}')"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>×</button></span>`).join('');
   const typesContent = `<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--hairline)">
     <h4 style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px">Vehicle Types</h4>
     <div class="tag-list">${typeTags || '<span style="font-size:13px;color:var(--muted)">No vehicle types defined</span>'}</div>
-    <div class="tag-input-row"><input id="settings-input-types" placeholder="Add type (e.g. truck)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('vehicleTypes')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('vehicleTypes')">Add</button></div>
+    <div class="tag-input-row"><input id="settings-input-types" placeholder="Add type (e.g. truck)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingItem('vehicleTypes')}"><button class="btn btn-sm btn-primary" onclick="addSettingItem('vehicleTypes')"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>Add</button></div>
   </div>`;
 
   // Custom Fields Section
   const cols = settings.customColumns || [];
   const userNameConfig = settings.userNameConfig || { type: 'text', options: [] };
   const customFieldsContent = `<div style="margin-bottom:12px"><table class="cf-table"><thead><tr><th>Label</th><th>Key</th><th>Type</th><th>Options</th><th></th></tr></thead><tbody>
-    <tr style="background:var(--highlight-bg)"><td><strong>User Name</strong> <span style="font-size:11px;color:var(--muted);margin-left:4px">(built-in)</span></td><td style="color:var(--muted)">userName</td><td>${esc(userNameConfig.type)}</td><td style="color:var(--muted)">${userNameConfig.options ? esc(userNameConfig.options.join(', ')) : '—'}</td><td><button class="btn-icon btn-sm" onclick="editUserNameConfig()" style="color:var(--link)" data-tooltip="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button></td></tr>
-    ${cols.length ? cols.map(c => `<tr><td>${esc(c.label)}</td><td style="color:var(--muted)">${esc(c.key)}</td><td>${esc(c.type)}</td><td style="color:var(--muted)">${esc((c.options || []).join(', '))}</td><td><button class="btn-icon btn-sm" onclick="editCustomField('${esc(c.key)}')" style="color:var(--link)" data-tooltip="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button> <button class="btn-icon btn-sm" onclick="removeCustomField('${esc(c.key)}')" style="color:var(--destructive)" data-tooltip="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></td></tr>`).join('') : ''}
+    <tr style="background:var(--highlight-bg)"><td><strong>User Name</strong> <span style="font-size:11px;color:var(--muted);margin-left:4px">(built-in)</span></td><td style="color:var(--muted)">userName</td><td>${esc(userNameConfig.type)}</td><td style="color:var(--muted)">${userNameConfig.options ? esc(userNameConfig.options.join(', ')) : '—'}</td><td><button class="btn-icon btn-sm" onclick="editUserNameConfig()" style="color:var(--link)" data-tooltip="Edit"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button></td></tr>
+    ${cols.length ? cols.map(c => `<tr><td>${esc(c.label)}</td><td style="color:var(--muted)">${esc(c.key)}</td><td>${esc(c.type)}</td><td style="color:var(--muted)">${esc((c.options || []).join(', '))}</td><td><button class="btn-icon btn-sm" onclick="editCustomField('${esc(c.key)}')" style="color:var(--link)" data-tooltip="Edit"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button> <button class="btn-icon btn-sm" onclick="removeCustomField('${esc(c.key)}')" style="color:var(--destructive)" data-tooltip="Delete"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></td></tr>`).join('') : ''}
   </tbody></table></div>
     <div style="padding:12px;border:1px solid var(--hairline);border-radius:var(--radius-sm)" id="cf-form">
       <div class="form-row" style="margin-bottom:8px">
@@ -2850,7 +2865,7 @@ function renderSettings() {
         <div class="form-group" style="margin-bottom:0"><label class="form-label">Type</label><select class="form-input" id="cf-type" onchange="toggleCfOptions()"><option value="text">Text</option><option value="number">Number</option><option value="date">Date</option><option value="select">Select (single)</option><option value="multiselect">Multi-select</option></select></div>
         <div class="form-group" style="margin-bottom:0;display:none" id="cf-options-group"><label class="form-label">Options (comma-separated)</label><input class="form-input" id="cf-options" placeholder="opt1, opt2, opt3"></div>
       </div>
-      <button class="btn btn-sm btn-primary" onclick="addCustomField()" style="margin-top:10px" id="cf-submit-btn">Add Field</button>
+      <button class="btn btn-sm btn-primary" onclick="addCustomField()" style="margin-top:10px" id="cf-submit-btn"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>Add Field</button>
       <button class="btn btn-sm" onclick="cancelEditCustomField()" style="margin-top:10px;display:none" id="cf-cancel-btn">Cancel</button>
     </div>`;
 
@@ -2942,21 +2957,21 @@ function renderSettings() {
             <td style="white-space:nowrap">${fmtDate(b.periodStart)}</td>
             <td><span class="badge badge-${b.status}">${esc(b.status)}</span></td>
             <td style="white-space:nowrap">
-              <button class="btn-icon btn-sm" onclick="restoreArchivedBooking(this.dataset.id)" data-id="${escAttr(b.id)}" data-tooltip="Restore" style="color:var(--link)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
-              <button class="btn-icon btn-sm" onclick="deleteArchivedBooking(this.dataset.id)" data-id="${escAttr(b.id)}" data-tooltip="Delete" style="color:var(--destructive)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+              <button class="btn-icon btn-sm" onclick="restoreArchivedBooking(this.dataset.id)" data-id="${escAttr(b.id)}" data-tooltip="Restore" style="color:var(--link)"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+              <button class="btn-icon btn-sm" onclick="deleteArchivedBooking(this.dataset.id)" data-id="${escAttr(b.id)}" data-tooltip="Delete" style="color:var(--destructive)"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
             </td></tr>`;
         });
         archiveBrowseHtml += `</tbody></table></div>
           <div style="display:flex;gap:8px;margin-top:8px">
-            <button class="btn btn-sm" onclick="exportArchiveYear(${selectedArchiveYear})">
+            <button class="btn btn-sm" onclick="exportArchiveYear(${selectedArchiveYear})"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Export ${selectedArchiveYear} (JSON)
             </button>
-            <button class="btn btn-sm" onclick="exportArchiveYearSQL(${selectedArchiveYear})">
+            <button class="btn btn-sm" onclick="exportArchiveYearSQL(${selectedArchiveYear})"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Export ${selectedArchiveYear} (SQL)
             </button>
-            <button class="btn btn-sm btn-danger" onclick="confirmPurgeArchiveYear(${selectedArchiveYear})">
+            <button class="btn btn-sm btn-danger" onclick="confirmPurgeArchiveYear(${selectedArchiveYear})"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
               Purge ${selectedArchiveYear}
             </button>
@@ -2983,15 +2998,15 @@ function renderSettings() {
         <div class="form-hint">Archived bookings are moved out of the active list and can be restored later.</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-sm" onclick="runAutoArchiveNow()">
+        <button class="btn btn-sm" onclick="runAutoArchiveNow()"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
           Run Archive Now
         </button>
-        <button class="btn btn-sm btn-primary" onclick="archiveAndExportSQL()">
+        <button class="btn btn-sm btn-primary" onclick="archiveAndExportSQL()"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Archive & Export SQL
         </button>
-        <button class="btn btn-sm" onclick="archiveAndExportJSON()">
+        <button class="btn btn-sm" onclick="archiveAndExportJSON()"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Archive & Export JSON
         </button>
@@ -3024,11 +3039,11 @@ function renderSettings() {
       ${section('archive', '<svg viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>', 'Archive', archiveContent)}
       ${section('data', '<svg viewBox="0 0 24 24" fill="none" stroke="var(--link)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 15 7 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>', 'Data Actions', `
         <div style="display:flex;flex-direction:column;gap:8px">
-          <button class="btn" onclick="exportJSON()" style="width:100%;justify-content:center">
+          <button class="btn" onclick="exportJSON()" style="width:100%;justify-content:center"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Export Fleet Data (JSON)
           </button>
-          <button class="btn" onclick="importJSON()" style="width:100%;justify-content:center">
+          <button class="btn" onclick="importJSON()" style="width:100%;justify-content:center"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 15 7 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Import Fleet Data (JSON)
           </button>
@@ -3041,7 +3056,7 @@ function renderSettings() {
           <span style="color:var(--destructive)">Danger Zone</span>
         </button>
         <div class="settings-section-body" style="display:${isOpen('danger') ? 'block' : 'none'}">
-          <button class="btn btn-danger" onclick="confirmClearAll()" style="width:100%">Clear All Data</button>
+          <button class="btn btn-danger" onclick="confirmClearAll()" style="width:100%"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>Clear All Data</button>
         </div>
       </div>
     </div>
