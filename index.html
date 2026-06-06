@@ -1569,7 +1569,18 @@ function initLock() {
       if (ownsLock() && S.fileHandle && !S.dirty) {
         await saveFile(true);
       }
-    } catch(e) {}
+    } catch(e) {
+      if (e.name === 'AbortError') {
+        // File changed externally - clear lock state and warn user
+        S.lockedBy = null;
+        S.lockedUser = null;
+        updateLockBadge();
+        updateSaveIndicator();
+        showToast('File changed externally. Reopen or reload before continuing.', 'warning');
+        return;
+      }
+      console.warn('Lock heartbeat failed:', e);
+    }
   }, CONST.HEARTBEAT_MS);
   try {
     const bc = new BroadcastChannel('fleethub-lock');
