@@ -1530,8 +1530,6 @@ function getMyLockId() {
 }
 
 function initLock() {
-  // Clean up any orphaned release intent from previous session
-  try { localStorage.removeItem('fleethub_release_pending'); } catch(e) {}
   // Clean up previous interval and channel to prevent leaks on re-open
   if (S.lockInterval) { clearInterval(S.lockInterval); S.lockInterval = null; }
   if (S.bc) { try { S.bc.close(); } catch(e) {} S.bc = null; }
@@ -1553,6 +1551,7 @@ function initLock() {
     updateLockBadge();
     updateSaveIndicator();
     renderNav(); // Re-bake onclick handlers now that ownsLock() is correct
+    render();    // Re-render active tab so controls reflect updated ownsLock() state
   })();
 
   // Heartbeat: refresh lock timestamp every 60s to prevent stale detection
