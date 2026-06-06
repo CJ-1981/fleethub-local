@@ -1639,13 +1639,6 @@ function enterApp() {
   document.getElementById('app').classList.add('active');
   document.getElementById('header-filename').textContent = S.fileName;
   initLock();
-  // if no lock, acquire
-  if (!getMeta('lockedBy')) {
-    setMeta('lockedBy', S.lockId);
-    setMeta('lockedAt', new Date().toISOString());
-    markDirty();
-  }
-  initLock();
   render();
   const saved = loadChatHistory();
   if (saved) {
