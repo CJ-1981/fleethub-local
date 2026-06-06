@@ -822,7 +822,6 @@ function purgeArchiveYear(year) {
 }
 
 function exportArchiveYear(year) {
-  if (!lockGate('export archive')) return;
   const archived = getArchivedBookings(year);
   if (!archived.length) { showToast('No archived bookings for ' + year, 'warning'); return; }
   const envelope = {
@@ -872,7 +871,6 @@ function archiveAndExportJSON() {
 }
 
 function exportArchiveYearSQL(year) {
-  if (!lockGate('export archive')) return;
   const archived = getArchivedBookings(year);
   if (!archived.length) { showToast('No archived bookings for ' + year, 'warning'); return; }
   const now = new Date().toISOString();
@@ -1300,6 +1298,7 @@ function getDemoData() {
 
 async function saveFile(silent = false) {
   if (S.demoMode) { showToast('Demo mode — use Export to save a copy', 'info'); return; }
+  if (!ownsLock()) { showToast('View-only: take over the lock to save', 'warning'); return; }
   if (!db) { showToast('No database — cannot save', 'error'); return; }
   if (!S.fileHandle) {
     // No file handle — prompt Save As
@@ -3015,11 +3014,11 @@ function renderSettings() {
         });
         archiveBrowseHtml += `</tbody></table></div>
           <div style="display:flex;gap:8px;margin-top:8px">
-            <button class="btn btn-sm" onclick="exportArchiveYear(${selectedArchiveYear})"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
+            <button class="btn btn-sm" onclick="exportArchiveYear(${selectedArchiveYear})">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Export ${selectedArchiveYear} (JSON)
             </button>
-            <button class="btn btn-sm" onclick="exportArchiveYearSQL(${selectedArchiveYear})"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
+            <button class="btn btn-sm" onclick="exportArchiveYearSQL(${selectedArchiveYear})">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Export ${selectedArchiveYear} (SQL)
             </button>
@@ -4181,7 +4180,7 @@ function showToast(msg, type = 'info') {
 // ===================== KEYBOARD SHORTCUTS (consolidated) =====================
 document.addEventListener('keydown', e => {
   // Ctrl/Cmd+S to save (always active, even in inputs)
-  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); if (!ownsLock()) { showToast('View-only: take over the lock to save', 'warning'); return; } saveFile(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveFile(); }
   // Ctrl/Cmd+N for new booking (not in inputs, not during dialog)
   if ((e.ctrlKey || e.metaKey) && e.key === 'n' && !isFormElement(e.target) && !document.getElementById('dialog-overlay')?.classList.contains('active')) { e.preventDefault(); if (lockGate('create bookings')) newBooking(); }
 });
