@@ -1276,7 +1276,7 @@ async function saveFile(silent = false) {
   updateSaveIndicator();
   try {
     // Check for external modifications before mutating in-memory state
-    if (S.fileLastModified !== null) {
+    if (S.fileLastModified !== null && !silent) {
       try {
         const current = await S.fileHandle.getFile();
         if (current.lastModified !== S.fileLastModified) {
