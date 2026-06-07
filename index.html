@@ -4586,6 +4586,9 @@ function executeToolCall(name, args) {
       // Default userName to current user if not provided
       const defaultUser = S.lockUser || localStorage.getItem('fleethub_user_name') || '';
       const userName = args.userName || defaultUser;
+      if (!userName) {
+        return 'Error: userName is required but no current user name is configured. Please set your name in Settings or provide userName explicitly.';
+      }
       // Normalize bare dates (YYYY-MM-DD) to ISO datetime for datetime-local compatibility
       let ps = args.periodStart, pe = args.periodEnd;
       if (ps && ps.length === 10) ps = ps + 'T00:00:00';
