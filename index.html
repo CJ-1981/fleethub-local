@@ -3617,7 +3617,7 @@ function executeCSVImport(mapping, customKeys, rows, fileName) {
   });
   if (errors.length > 0) {
     showCSVValidationError(errors, fileName);
-    return;
+    return false;
   }
 
   // Detect date formats
@@ -3651,12 +3651,14 @@ function executeCSVImport(mapping, customKeys, rows, fileName) {
   // Build custom columns
   const usedKeys = new Set();
   const customCols = [];
+  const customKeyByIndex = {};
   for (const [idx, label] of Object.entries(customKeys)) {
     let key = csvSlugify(label);
     let finalKey = key;
     let suffix = 2;
     while (usedKeys.has(finalKey)) { finalKey = key + '_' + suffix; suffix++; }
     usedKeys.add(finalKey);
+    customKeyByIndex[idx] = finalKey;
     customCols.push({ id: genId(), key: finalKey, label: label, type: 'text' });
   }
 
@@ -3695,11 +3697,11 @@ function executeCSVImport(mapping, customKeys, rows, fileName) {
 
       // Build custom fields object
       const customFields = {};
-      for (const [idx, label] of Object.entries(customKeys)) {
-        const colKey = customCols.find(c => c.label === label);
-        if (colKey) {
-          const val = (row[parseInt(idx)] || '').trim();
-          customFields[colKey.key] = val;
+      for (const [idx] of Object.entries(customKeys)) {
+        const key = customKeyByIndex[idx];
+        if (key) {
+          const val = (row[parseInt(idx, 10)] || '').trim();
+          customFields[key] = val;
         }
       }
 
@@ -3715,11 +3717,12 @@ function executeCSVImport(mapping, customKeys, rows, fileName) {
   } catch(e) {
     db.run("ROLLBACK;");
     showToast('CSV import failed: ' + e.message, 'error');
-    return;
+    return false;
   }
 
   markDirty(); render();
   showToast(`CSV imported: ${rows.length} bookings, ${Object.keys(vehicleMap).length} vehicles`, 'success');
+  return true;
 }
 
 async function importCSV(text, fileName, onComplete) {
@@ -3739,8 +3742,8 @@ async function importCSV(text, fileName, onComplete) {
 
   // Show mapping wizard
   showCSVMappingWizard(headers, autoMapping, rows, fileName, (userMapping, customKeys) => {
-    executeCSVImport(userMapping, customKeys, rows, fileName);
-    if (onComplete) onComplete();
+    const ok = executeCSVImport(userMapping, customKeys, rows, fileName);
+    if (ok && onComplete) onComplete();
   });
 }
 
@@ -3763,6 +3766,7 @@ async function importFileCombined() {
     });
     const file = await handle.getFile();
     const text = await file.text();
+    await initSqlJsModule();
 
     if (file.name.toLowerCase().endsWith('.csv')) {
       const fName = file.name;
