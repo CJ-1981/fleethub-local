@@ -96,6 +96,11 @@ body{background:var(--surface-soft)}
 .header-filename{color:var(--muted);font-size:13px;padding:4px 10px;background:var(--surface-soft);border-radius:var(--radius-sm);border:1px solid var(--hairline);max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:help}
 .header-spacer{flex:1}
 .header-actions{display:flex;align-items:center;gap:4px}
+.user-badge{display:flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--hairline);background:var(--surface-soft);color:var(--ink);transition:background 0.15s}
+.user-badge:hover{background:var(--surface-strong)}
+.user-badge-avatar{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;background:var(--primary);color:var(--on-primary);flex-shrink:0}
+.user-badge.unset{color:var(--muted);border-style:dashed}
+.user-badge.unset .user-badge-avatar{background:var(--surface-strong);color:var(--muted)}
 .lock-badge{display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:500;border:1px solid;cursor:pointer}
 .lock-badge svg{pointer-events:none}
 .lock-badge.locked{color:var(--warning);background:var(--warning-bg);border-color:var(--warning-border)}
@@ -406,6 +411,10 @@ select.form-input{cursor:pointer}
     <span class="header-filename" id="header-filename">fleet-data.sqlite</span>
     <span class="save-indicator" id="save-indicator">Saved</span>
     <div class="header-spacer"></div>
+    <span class="user-badge unset" id="user-badge" onclick="editUserName()" title="Click to set your name">
+      <span class="user-badge-avatar" id="user-badge-avatar">?</span>
+      <span id="user-badge-text">Set name</span>
+    </span>
     <span class="lock-badge unlocked" id="lock-badge">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
       <span id="lock-badge-text">Unlocked</span>
@@ -520,6 +529,8 @@ const S = {
   bookingVehicleFilter: '',
   bookingStatusFilter: '',
   bookingPage: 1,
+  bookingSortCol: 'updatedAt',
+  bookingSortDir: 'desc',
   pageSize: 10,
   chatMessages: [],
   chatLoading: false,
@@ -533,6 +544,7 @@ const S = {
 
 const DEFAULT_SETTINGS = {
   statuses: ['pending', 'confirmed', 'in-use', 'returned', 'cancelled'],
+  statusColors: { 'pending': '#d9a441', 'confirmed': '#254fad', 'in-use': '#16a34a', 'returned': '#6b7280', 'cancelled': '#b91c1c' },
   vehicleTypes: ['sedan', 'suv', 'pickup', 'van', 'bus', 'motorcycle', 'other'],
   customColumns: [],
   shareMessage: 'Hi, I would like to share this ride with you. Is that possible?',
@@ -542,9 +554,9 @@ const DEFAULT_SETTINGS = {
 const CSV_HEADER_ALIASES = {
   vehicle:       ['vehicle', 'vehicle_name', 'vehicle name', 'car', 'fleet vehicle'],
   user_name:     ['user', 'user_name', 'username', 'driver', 'operator', 'user name'],
-  purpose:       ['purpose', 'reason', 'trip purpose', 'usage'],
-  period_start:  ['period_start', 'start', 'start_date', 'from', 'date_start', 'begin'],
-  period_end:    ['period_end', 'end', 'end_date', 'to', 'date_end'],
+  purpose:       ['purpose', 'reason', 'trip purpose', 'usage', 'activity'],
+  period_start:  ['period_start', 'start', 'start_date', 'from', 'date_start', 'begin', 'start_time', 'start time'],
+  period_end:    ['period_end', 'end', 'end_date', 'to', 'date_end', 'end_time', 'end time'],
   status:        ['status', 'booking_status', 'state'],
   remarks:       ['remarks', 'notes', 'comments', 'note', 'remark'],
   type:          ['type', 'vehicle_type', 'vehicle type', 'category'],
@@ -637,6 +649,7 @@ function setMeta(key, value) {
 
 function initDefaultSettings() {
   setSetting('statuses', DEFAULT_SETTINGS.statuses);
+  setSetting('statusColors', DEFAULT_SETTINGS.statusColors);
   setSetting('vehicleTypes', DEFAULT_SETTINGS.vehicleTypes);
   setSetting('customColumns', []);
   setSetting('shareMessage', DEFAULT_SETTINGS.shareMessage);
@@ -767,10 +780,10 @@ function parseCSV(text) {
     fields.push(field);
     rows.push(fields);
   }
-  // Filter out completely empty trailing rows
-  while (rows.length > 0 && rows[rows.length - 1].every(f => f.trim() === '')) rows.pop();
-  if (rows.length === 0) return { headers: [], rows: [], delimiter };
-  return { headers: rows[0].map(h => h.trim()), rows: rows.slice(1), delimiter };
+  // Filter out completely empty rows (trailing or mid-file)
+  const filtered = rows.filter(r => !r.every(f => f.trim() === ''));
+  if (filtered.length === 0) return { headers: [], rows: [], delimiter };
+  return { headers: filtered[0].map(h => h.trim()), rows: filtered.slice(1), delimiter };
 }
 
 function detectDateFormat(values) {
@@ -794,8 +807,15 @@ function normalizeCSVDate(value, detectedFormat) {
   if (!value || typeof value !== 'string') return '';
   const v = value.trim();
   if (!v) return '';
-  // Already ISO
-  if (/^\d{4}-\d{2}-\d{2}/.test(v)) return v.replace(' ', 'T');
+  // Already ISO — normalize through Date to ensure consistent format (handles Z suffix, milliseconds, etc.)
+  if (/^\d{4}-\d{2}-\d{2}/.test(v)) {
+    // Date-only (YYYY-MM-DD) — return as-is, normalizePeriodDate will add time
+    if (v.length <= 10) return v.replace(' ', 'T');
+    // Has time component — parse and re-serialize for consistent format
+    const d = new Date(v.includes(' ') ? v.replace(' ', 'T') : v);
+    if (!isNaN(d.getTime())) return d.toISOString();
+    return v.replace(' ', 'T');
+  }
   let day, month, year, time = '';
   // Extract time portion if present
   const timeMatch = v.match(/\s+(\d{1,2}:\d{2}(:\d{2})?)$/);
@@ -826,10 +846,19 @@ function mapCSVHeaders(headers) {
   const customKeys = {};   // csvIndex → rawHeader
   const usedBuiltIn = new Set();
 
+  // Normalize for comparison: lowercase, collapse spaces/underscores/hyphens
+  const canon = (s) => s.toLowerCase().replace(/[\s_\-]+/g, '');
+
+  // Pre-compute canonical aliases
+  const canonAliases = {};
+  for (const [builtIn, aliases] of Object.entries(CSV_HEADER_ALIASES)) {
+    canonAliases[builtIn] = aliases.map(canon);
+  }
+
   for (let i = 0; i < headers.length; i++) {
-    const normalized = headers[i].toLowerCase();
+    const normalized = canon(headers[i]);
     let matched = null;
-    for (const [builtIn, aliases] of Object.entries(CSV_HEADER_ALIASES)) {
+    for (const [builtIn, aliases] of Object.entries(canonAliases)) {
       if (aliases.includes(normalized) && !usedBuiltIn.has(builtIn)) {
         matched = builtIn;
         break;
@@ -875,8 +904,35 @@ function getSettings() {
   const rows = dbQuery("SELECT key, value FROM settings");
   const map = {};
   rows.forEach(r => { try { map[r.key] = JSON.parse(r.value); } catch(e) { map[r.key] = r.value; } });
+  // Migrate: ensure statusColors has entries for all statuses
+  const statuses = map.statuses || DEFAULT_SETTINGS.statuses;
+  let statusColors = map.statusColors;
+  const FALLBACK_COLORS = ['#d9a441','#254fad','#16a34a','#6b7280','#b91c1c','#8b5cf6','#0891b2','#c2410c','#be185d','#4f46e5'];
+  let migrated = false;
+  // If statusColors doesn't exist or is empty, initialize it
+  if (!statusColors || typeof statusColors !== 'object' || Object.keys(statusColors).length === 0) {
+    statusColors = {};
+    for (let i = 0; i < statuses.length; i++) {
+      statusColors[statuses[i]] = FALLBACK_COLORS[i % FALLBACK_COLORS.length];
+    }
+    migrated = true;
+  } else {
+    // Ensure all current statuses have colors
+    for (let i = 0; i < statuses.length; i++) {
+      if (!statusColors[statuses[i]]) {
+        statusColors[statuses[i]] = FALLBACK_COLORS[i % FALLBACK_COLORS.length];
+        migrated = true;
+      }
+    }
+    // Clean up colors for removed statuses
+    for (const k of Object.keys(statusColors)) {
+      if (!statuses.includes(k)) { delete statusColors[k]; migrated = true; }
+    }
+  }
+  if (migrated) { try { setSetting('statusColors', statusColors); } catch(e) {} }
   return {
-    statuses: map.statuses || DEFAULT_SETTINGS.statuses,
+    statuses,
+    statusColors,
     vehicleTypes: map.vehicleTypes || DEFAULT_SETTINGS.vehicleTypes,
     customColumns: map.customColumns || [],
     shareMessage: map.shareMessage || DEFAULT_SETTINGS.shareMessage,
@@ -1165,8 +1221,39 @@ function getDefaultData() {
 function genId() { return Date.now().toString(36) + Math.random().toString(36).substr(2, 9); }
 const _escDiv = document.createElement('div');
 function esc(s) { if (s == null || s === '') return ''; _escDiv.textContent = String(s); return _escDiv.innerHTML; }
-function escAttr(s) { if (s == null || s === '') return ''; return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function escAttr(s) { if (s == null || s === '') return ''; return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+function getStatusColor(status) {
+  if (!status) return '#6b7280';
+  const s = String(status).toLowerCase().trim();
+  try {
+    const colors = getSettings().statusColors || {};
+    // Direct match first
+    if (colors[s]) return colors[s];
+    // Case-insensitive match
+    for (const key of Object.keys(colors)) {
+      if (key.toLowerCase().trim() === s) return colors[key];
+    }
+    return '#6b7280';
+  } catch(e) { return '#6b7280'; }
+}
+function hexToRgba(hex, alpha) {
+  if (!hex || typeof hex !== 'string') return `rgba(107,114,128,${alpha})`;
+  let h = hex.replace('#', '');
+  // Handle short hex (#fff -> #ffffff)
+  if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+  // Handle invalid hex
+  if (h.length !== 6 || !/^[0-9a-fA-F]{6}$/.test(h)) return `rgba(107,114,128,${alpha})`;
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+function statusPillHtml(status) {
+  const s = (status || 'pending').toLowerCase().trim();
+  const c = getStatusColor(s);
+  if (s === 'cancelled') return `<span class="badge" style="color:${hexToRgba(c,0.85)}!important;background:${hexToRgba(c,0.12)}!important;border-color:${hexToRgba(c,0.35)}!important;text-decoration:line-through;opacity:.75">${esc(s)}</span>`;
+  return `<span class="badge" style="color:${c}!important;background:${hexToRgba(c,0.12)}!important;border-color:${hexToRgba(c,0.35)}!important">${esc(s)}</span>`;
+}
 function fmtDate(d) { if (!d) return '—'; const dt = typeof d === 'string' && d.length === 10 ? new Date(d + 'T00:00') : new Date(d); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
 function fmtDateTime(d) { if (!d) return '—'; const dt = typeof d === 'string' && d.length === 10 ? new Date(d + 'T00:00') : new Date(d); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
 function fmtDateTimeISO(d) { if (!d) return '—'; const dt = typeof d === 'string' && d.length === 10 ? new Date(d + 'T00:00') : new Date(d); if (isNaN(dt.getTime())) return '—'; const p = (n) => String(n).padStart(2, '0'); return `${dt.getFullYear()}-${p(dt.getMonth()+1)}-${p(dt.getDate())} ${p(dt.getHours())}:${p(dt.getMinutes())}`; }
@@ -1446,6 +1533,7 @@ function getDemoData() {
     ],
     settings: {
       statuses: ['pending', 'confirmed', 'in-use', 'returned', 'cancelled'],
+      statusColors: { 'pending': '#d9a441', 'confirmed': '#254fad', 'in-use': '#16a34a', 'returned': '#6b7280', 'cancelled': '#b91c1c' },
       vehicleTypes: ['sedan', 'suv', 'pickup', 'van', 'bus', 'motorcycle', 'other'],
       customColumns: [
         { id: 'cc01', key: 'department', label: 'Department', type: 'select', options: ['Sales', 'Operations', 'Procurement', 'Executive', 'IT', 'Marketing', 'Engineering', 'HR'] },
@@ -1874,6 +1962,7 @@ function enterApp() {
   document.getElementById('landing').style.display = 'none';
   document.getElementById('app').classList.add('active');
   document.getElementById('header-filename').textContent = S.fileName;
+  updateUserNameBadge();
   initLock();
   render();
   const saved = loadChatHistory();
@@ -1960,6 +2049,64 @@ function renderNav() {
     </button>`;
   }).join('')}</div>`;
   updateLockBadge();
+}
+
+function updateUserNameBadge() {
+  const badge = document.getElementById('user-badge');
+  const avatar = document.getElementById('user-badge-avatar');
+  const text = document.getElementById('user-badge-text');
+  const name = S.lockUser || localStorage.getItem('fleethub_user_name') || '';
+  if (name) {
+    S.lockUser = name;
+    badge.classList.remove('unset');
+    // Use initials (up to 2 characters from first letters of words)
+    const parts = name.trim().split(/\s+/);
+    const initials = parts.length >= 2
+      ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+      : name.substring(0, 2).toUpperCase();
+    avatar.textContent = initials;
+    text.textContent = name;
+    badge.title = `Signed in as ${name}. Click to change.`;
+  } else {
+    badge.classList.add('unset');
+    avatar.textContent = '?';
+    text.textContent = 'Set name';
+    badge.title = 'Click to set your name';
+  }
+}
+
+function editUserName() {
+  const currentName = S.lockUser || localStorage.getItem('fleethub_user_name') || '';
+  openDialog('Set User Name', `
+    <p style="margin-bottom:12px;font-size:13px;color:var(--muted)">This name is shown to other users when you lock a file, and appears in AI chat messages.</p>
+    <div class="form-group">
+      <label class="form-label">Your Name</label>
+      <input class="form-input" id="user-name-input" value="${esc(currentName)}" placeholder="e.g. John Doe" autofocus>
+    </div>
+  `, () => {
+    const input = document.getElementById('user-name-input');
+    const newName = input ? input.value.trim() : '';
+    if (newName) {
+      S.lockUser = newName;
+      localStorage.setItem('fleethub_user_name', newName);
+      updateUserNameBadge();
+      updateLockBadge();
+      showToast('User name updated', 'success');
+    } else if (!newName && currentName) {
+      // Allow clearing
+      S.lockUser = '';
+      localStorage.removeItem('fleethub_user_name');
+      updateUserNameBadge();
+      updateLockBadge();
+      showToast('User name cleared', 'info');
+    }
+    return true;
+  });
+  // Change confirm button text
+  setTimeout(() => {
+    const btn = document.getElementById('dialog-confirm');
+    if (btn) btn.textContent = 'Save';
+  }, 0);
 }
 
 function updateLockBadge() {
@@ -2181,14 +2328,7 @@ function renderDashboard() {
       const leftPos = startOffset * (dayWidth / 24);
       const width = Math.max(duration * (dayWidth / 24), 4);
 
-      const statusColors = {
-        'pending': 'var(--gantt-pending)',
-        'confirmed': 'var(--gantt-confirmed)',
-        'in-use': 'var(--gantt-in-use)',
-        'returned': 'var(--gantt-returned)',
-        'cancelled': 'var(--gantt-cancelled)'
-      };
-      const barColor = statusColors[b.status] || 'var(--gantt-pending)';
+      const barColor = getStatusColor(b.status);
       const overlapIndex = slotAssignments.get(b.id) || 0;
       const topOffset = 4 + overlapIndex * (barHeight + barSpacing);
 
@@ -2276,7 +2416,7 @@ function renderDashboard() {
         <div style="font-weight:500;color:var(--ink)">${esc(v ? v.name : 'Unknown')}</div>
         <div style="font-size:12px;color:var(--muted)">${esc(b.userName)}</div>
       </div>
-      <span class="badge badge-${esc(b.status)}">${esc(b.status)}</span>
+      ${statusPillHtml(b.status)}
       <span style="font-size:12px;color:var(--muted)">${fmtDate(b.periodStart)} — ${fmtDate(b.periodEnd)}</span>
       ${b.shareWith && b.shareWith.length ? '<span class="badge badge-shared" style="margin-left:auto">Shared</span>' : ''}
     </div>`;
@@ -2435,14 +2575,7 @@ function renderCalendar() {
       const overlapIndex = slotAssignments.get(b.id) || 0;
       const topOffset = overlapIndex * 64; // 60px bar height + 4px spacing
 
-      const statusColors = {
-        'pending': 'var(--gantt-pending)',
-        'confirmed': 'var(--gantt-confirmed)',
-        'in-use': 'var(--gantt-in-use)',
-        'returned': 'var(--gantt-returned)',
-        'cancelled': 'var(--gantt-cancelled)'
-      };
-      const barColor = statusColors[b.status] || 'var(--gantt-pending)';
+      const barColor = getStatusColor(b.status);
 
       return `<div class="gantt-booking-bar ${esc(b.status)}"
         style="left:${leftOffset}px;width:${Math.max(barWidth, 4)}px;top:${topOffset}px;background-color:${barColor}!important;color:var(--on-primary)!important;"
@@ -2633,9 +2766,60 @@ function confirmDeleteVehicle(id) {
 }
 
 // ===================== BOOKINGS =====================
+function toggleBookingSort(col) {
+  if (S.bookingSortCol === col) {
+    S.bookingSortDir = S.bookingSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    S.bookingSortCol = col;
+    S.bookingSortDir = 'asc';
+  }
+  S.bookingPage = 1;
+  render();
+}
+
+function sortableHeader(label, col) {
+  const active = S.bookingSortCol === col;
+  const arrow = active ? (S.bookingSortDir === 'asc' ? ' ↑' : ' ↓') : '';
+  return `<th style="cursor:pointer;user-select:none" onclick="toggleBookingSort('${col}')">${esc(label)}${arrow}</th>`;
+}
+
 function renderBookings() {
   const vehicles = getVehicles();
-  const allBookings = getBookings().sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  const allBookings = getBookings().sort((a, b) => {
+    let va, vb;
+    switch (S.bookingSortCol) {
+      case 'vehicle': {
+        const va_v = vehicles.find(v => v.id === a.vehicleId);
+        const vb_v = vehicles.find(v => v.id === b.vehicleId);
+        va = va_v ? va_v.name.toLowerCase() : '';
+        vb = vb_v ? vb_v.name.toLowerCase() : '';
+        break;
+      }
+      case 'userName': va = (a.userName || '').toLowerCase(); vb = (b.userName || '').toLowerCase(); break;
+      case 'purpose': va = (a.purpose || '').toLowerCase(); vb = (b.purpose || '').toLowerCase(); break;
+      case 'periodStart': va = new Date(a.periodStart).getTime() || 0; vb = new Date(b.periodStart).getTime() || 0; break;
+      case 'periodEnd': va = new Date(a.periodEnd).getTime() || 0; vb = new Date(b.periodEnd).getTime() || 0; break;
+      case 'status': va = (a.status || '').toLowerCase(); vb = (b.status || '').toLowerCase(); break;
+      case 'createdAt': va = new Date(a.createdAt).getTime() || 0; vb = new Date(b.createdAt).getTime() || 0; break;
+      case 'updatedAt': va = new Date(a.updatedAt).getTime() || 0; vb = new Date(b.updatedAt).getTime() || 0; break;
+      default:
+        // Custom column
+        if (S.bookingSortCol.startsWith('cf_')) {
+          const cfKey = S.bookingSortCol;
+          va = ((a.customFields || {})[cfKey] || '').toString().toLowerCase();
+          vb = ((b.customFields || {})[cfKey] || '').toString().toLowerCase();
+        } else {
+          va = a.id || ''; vb = b.id || '';
+        }
+    }
+    let cmp = 0;
+    if (typeof va === 'number' && typeof vb === 'number') {
+      cmp = va - vb;
+    } else {
+      cmp = String(va).localeCompare(String(vb));
+    }
+    return S.bookingSortDir === 'desc' ? -cmp : cmp;
+  });
 
   // Filter
   let filtered = allBookings;
@@ -2674,8 +2858,9 @@ function renderBookings() {
       <td style="font-weight:500;color:var(--ink)" title="${escAttr(v ? v.name : 'Unknown')}">${esc(v ? v.name : 'Unknown')}</td>
       <td title="${escAttr(b.userName)}">${esc(b.userName)}</td>
       <td title="${escAttr(b.purpose)}">${esc(b.purpose)}</td>
-      <td style="white-space:nowrap;font-size:13px" title="${escAttr(fmtDateTimeISO(b.periodStart) + ' to ' + fmtDateTimeISO(b.periodEnd))}">${fmtDate(b.periodStart)}<br>${fmtDate(b.periodEnd)}</td>
-      <td><span class="badge badge-${esc(b.status)}">${esc(b.status)}</span></td>
+      <td style="white-space:nowrap;font-size:13px">${fmtDate(b.periodStart)}</td>
+      <td style="white-space:nowrap;font-size:13px">${fmtDate(b.periodEnd)}</td>
+      <td>${statusPillHtml(b.status)}</td>
       ${cfHtml}
       <td>${shareCount ? `<span class="badge badge-shared" style="cursor:pointer" onclick="event.stopPropagation();openShareDialog('${b.id}')">${shareCount}</span>` : '—'}</td>
       <td style="white-space:nowrap;font-size:12px;color:var(--muted)">${fmtDateTime(b.createdAt)}</td>
@@ -2699,13 +2884,17 @@ function renderBookings() {
         <select onchange="S.bookingStatusFilter=this.value;S.bookingPage=1;render()"><option value="">All Statuses</option>${statusOptions}</select>
       </div>
     </div>
-    <div id="bookings-table-area">${pageItems.length ? `<div class="card"><div class="table-wrap"><table><thead><tr><th>Vehicle</th><th>User</th><th>Purpose</th><th>Period</th><th>Status</th>${customCols.map(c => `<th>${esc(c.label)}</th>`).join('')}<th>Share</th><th>Created</th><th>Updated</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div id="bookings-table-area">${pageItems.length ? `<div class="card"><div class="table-wrap"><table><thead><tr>${sortableHeader('Vehicle', 'vehicle')}${sortableHeader('User', 'userName')}${sortableHeader('Purpose', 'purpose')}${sortableHeader('Period Start', 'periodStart')}${sortableHeader('Period End', 'periodEnd')}${sortableHeader('Status', 'status')}${customCols.map(c => sortableHeader(c.label, c.key)).join('')}<th>Share</th>${sortableHeader('Created', 'createdAt')}${sortableHeader('Updated', 'updatedAt')}<th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="pagination" style="padding:8px 12px">
         <span>Showing ${start + 1}–${Math.min(start + S.pageSize, filtered.length)} of ${filtered.length}</span>
-        <div style="display:flex;gap:4px">
-          <button ${S.bookingPage <= 1 ? 'disabled' : ''} onclick="S.bookingPage--;render()">Prev</button>
-          <span style="padding:4px 8px;font-size:13px">${S.bookingPage} / ${totalPages}</span>
-          <button ${S.bookingPage >= totalPages ? 'disabled' : ''} onclick="S.bookingPage++;render()">Next</button>
+        <div style="display:flex;gap:4px;align-items:center">
+          <button ${S.bookingPage <= 1 ? 'disabled' : ''} onclick="S.bookingPage=1;render()" title="First page">⟨⟨</button>
+          <button ${S.bookingPage <= 1 ? 'disabled' : ''} onclick="S.bookingPage--;render()" title="Previous page">⟨</button>
+          <span style="padding:4px 8px;font-size:13px">Page</span>
+          <input type="number" min="1" max="${totalPages}" value="${S.bookingPage}" style="width:50px;padding:4px 6px;font-size:13px;border:1px solid var(--hairline);border-radius:var(--radius-sm);text-align:center;background:var(--surface);color:var(--ink)" onkeydown="if(event.key==='Enter'){let v=parseInt(this.value);if(v>=1&&v<=${totalPages}){S.bookingPage=v;render()}}" onchange="let v=parseInt(this.value);if(v>=1&&v<=${totalPages}){S.bookingPage=v;render()}else{this.value=S.bookingPage}">
+          <span style="padding:4px;font-size:13px">/ ${totalPages}</span>
+          <button ${S.bookingPage >= totalPages ? 'disabled' : ''} onclick="S.bookingPage++;render()" title="Next page">⟩</button>
+          <button ${S.bookingPage >= totalPages ? 'disabled' : ''} onclick="S.bookingPage=${totalPages};render()" title="Last page">⟩⟩</button>
         </div>
       </div>
     </div>` :
@@ -3068,7 +3257,11 @@ function renderSettings() {
   };
 
   // Booking Statuses Section
-  const statusTags = (settings.statuses || []).map(s => `<span class="tag-item">${esc(s)}<button onclick="removeSettingItem('statuses','${esc(s)}')"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>×</button></span>`).join('');
+  const statusColors = settings.statusColors || {};
+  const statusTags = (settings.statuses || []).map(s => {
+    const c = statusColors[s] || '#6b7280';
+    return `<span class="tag-item" style="display:inline-flex;align-items:center;gap:6px">${esc(s)}<input type="color" value="${c}" onchange="setStatusColor('${esc(s)}',this.value)" title="Status color"${ownsLock() ? '' : ' disabled'} style="width:22px;height:22px;padding:0;border:1px solid var(--hairline);border-radius:4px;cursor:pointer;vertical-align:middle;background:none"><button onclick="removeSettingItem('statuses','${esc(s)}')"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>×</button></span>`;
+  }).join('');
   const statusesContent = `<div>
     <h4 style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px">Booking Statuses</h4>
     <div class="tag-list">${statusTags || '<span style="font-size:13px;color:var(--muted)">No statuses defined</span>'}</div>
@@ -3190,7 +3383,7 @@ function renderSettings() {
             <td>${esc(b.purpose)}</td>
             <td style="color:var(--muted)">${esc(b.vehicleName || b.vehicleId)}</td>
             <td style="white-space:nowrap">${fmtDate(b.periodStart)}</td>
-            <td><span class="badge badge-${b.status}">${esc(b.status)}</span></td>
+            <td>${statusPillHtml(b.status)}</td>
             <td style="white-space:nowrap">
               <button class="btn-icon btn-sm" onclick="restoreArchivedBooking(this.dataset.id)" data-id="${escAttr(b.id)}" data-tooltip="Restore" style="color:var(--link)"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
               <button class="btn-icon btn-sm" onclick="deleteArchivedBooking(this.dataset.id)" data-id="${escAttr(b.id)}" data-tooltip="Delete" style="color:var(--destructive)"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
@@ -3282,6 +3475,10 @@ function renderSettings() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 15 7 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Import Fleet Data (JSON)
           </button>
+          <button class="btn" onclick="importCSVFromSettings()" style="width:100%;justify-content:center"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            Import Fleet Data (CSV)
+          </button>
         </div>
       `)}
       <div class="settings-section danger">
@@ -3314,6 +3511,14 @@ function addSettingItem(key) {
   if (!current.includes(val)) {
     current.push(val);
     setSetting(key, current);
+    if (key === 'statuses') {
+      const FALLBACK_COLORS = ['#d9a441','#254fad','#16a34a','#6b7280','#b91c1c','#8b5cf6','#0891b2','#c2410c','#be185d','#4f46e5'];
+      const colors = getSetting('statusColors', {});
+      if (!colors[val]) {
+        colors[val] = FALLBACK_COLORS[Object.keys(colors).length % FALLBACK_COLORS.length];
+        setSetting('statusColors', colors);
+      }
+    }
     markDirty(); render(); showToast(`Added "${val}"`, 'success');
   }
 }
@@ -3322,7 +3527,20 @@ function removeSettingItem(key, val) {
   if (!lockGate('remove settings')) return;
   const current = getSetting(key, []).filter(v => v !== val);
   setSetting(key, current);
+  if (key === 'statuses') {
+    const colors = getSetting('statusColors', {});
+    delete colors[val];
+    setSetting('statusColors', colors);
+  }
   markDirty(); render(); showToast(`Removed "${val}"`, 'success');
+}
+
+function setStatusColor(status, color) {
+  if (!lockGate('edit status colors')) return;
+  const colors = getSetting('statusColors', {});
+  colors[status] = color;
+  setSetting('statusColors', colors);
+  markDirty(); render();
 }
 
 function saveGermanState() {
@@ -3476,6 +3694,20 @@ async function importJSON() {
   } catch (e) { if (e.name !== 'AbortError') showToast('Import failed: ' + e.message, 'error'); }
 }
 
+async function importCSVFromSettings() {
+  try {
+    const [handle] = await window.showOpenFilePicker({ types: [{ description: 'CSV', accept: { 'text/csv': ['.csv'] } }] });
+    const file = await handle.getFile();
+    const text = await file.text();
+    await importCSV(text, file.name, () => {
+      S.fileName = file.name.replace(/\.csv$/i, '') + '.sqlite';
+      S.fileHandle = null;
+      saveRecentFile(S.fileName);
+      markDirty(); render();
+    });
+  } catch (e) { if (e.name !== 'AbortError') showToast('Import failed: ' + e.message, 'error'); }
+}
+
 function showCSVValidationError(errors, fileName) {
   const maxShow = 20;
   const shown = errors.slice(0, maxShow);
@@ -3590,8 +3822,8 @@ function showCSVMappingWizard(headers, autoMapping, rows, fileName, onConfirm) {
     }
 
     // Proceed with import
-    onConfirm(userMapping, customKeys);
-    return true;
+    const proceed = onConfirm(userMapping, customKeys);
+    return proceed !== false;
   }, true);
 
   // Change confirm button text
@@ -3601,7 +3833,146 @@ function showCSVMappingWizard(headers, autoMapping, rows, fileName, onConfirm) {
   }, 0);
 }
 
-function executeCSVImport(mapping, customKeys, rows, fileName) {
+function showVehicleDetailsWizard(vehicleMap, bookingCount, onConfirm) {
+  const vehicleNames = Object.keys(vehicleMap);
+  const types = (getSettings().vehicleTypes || DEFAULT_SETTINGS.vehicleTypes);
+  const vehicleStatuses = ['available', 'in-use', 'maintenance', 'reserved', 'deregistered'];
+
+  const vehicleRows = vehicleNames.map((name, idx) => {
+    const v = vehicleMap[name];
+    const nameVal = esc(name);
+    const plateVal = esc(v.plate || '');
+    const statusVal = v.status || 'available';
+    const notesVal = esc(v.notes || '');
+    // Pre-select the matching type option
+    const typeOptsHtml = ['<option value="">-- None --</option>'].concat(
+      types.map(t => `<option value="${esc(t)}"${t === (v.type || '') ? ' selected' : ''}>${esc(t)}</option>`)
+    ).join('');
+    const statusOptsHtml = vehicleStatuses.map(s => `<option value="${s}"${s === statusVal ? ' selected' : ''}>${s}</option>`).join('');
+    return `
+      <tr style="border-bottom:1px solid var(--hairline)">
+        <td style="padding:6px">
+          <input type="text" id="veh-name-${idx}" class="form-input" value="${nameVal}" placeholder="Vehicle name" style="padding:4px 6px;font-size:12px;min-width:120px;font-weight:500">
+        </td>
+        <td style="padding:6px">
+          <select id="veh-type-${idx}" class="form-input" style="padding:4px 6px;font-size:12px;min-width:100px">${typeOptsHtml}</select>
+        </td>
+        <td style="padding:6px">
+          <input type="text" id="veh-plate-${idx}" class="form-input" value="${plateVal}" placeholder="ABC-1234" style="padding:4px 6px;font-size:12px;min-width:100px">
+        </td>
+        <td style="padding:6px">
+          <select id="veh-status-${idx}" class="form-input" style="padding:4px 6px;font-size:12px;min-width:110px">${statusOptsHtml}</select>
+        </td>
+        <td style="padding:6px">
+          <input type="text" id="veh-notes-${idx}" class="form-input" value="${notesVal}" placeholder="Optional notes" style="padding:4px 6px;font-size:12px;min-width:150px">
+        </td>
+      </tr>`;
+  }).join('');
+
+  const bodyHtml = `
+    <div style="font-size:13px;margin-bottom:12px">
+      <p style="margin-bottom:8px"><strong>${vehicleNames.length}</strong> vehicle(s) identified in CSV. Review and fill in details before importing.</p>
+      <div style="padding:8px 12px;background:var(--info-bg);border:1px solid var(--info-border);border-radius:var(--radius-sm);font-size:12px;color:var(--info)">
+        <strong>Tip:</strong> Vehicle Name, Type, License Plate, Status, and Notes can be edited. Bookings will be linked to these vehicles automatically. Duplicate names are not allowed.
+      </div>
+    </div>
+    <div style="max-height:450px;overflow-y:auto;border:1px solid var(--hairline);border-radius:var(--radius-sm)">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:2px solid var(--hairline);background:var(--surface-soft)">
+            <th style="text-align:left;padding:8px;position:sticky;top:0;background:var(--surface-soft);min-width:120px">Vehicle Name</th>
+            <th style="text-align:left;padding:8px;position:sticky;top:0;background:var(--surface-soft)">Type</th>
+            <th style="text-align:left;padding:8px;position:sticky;top:0;background:var(--surface-soft)">License Plate</th>
+            <th style="text-align:left;padding:8px;position:sticky;top:0;background:var(--surface-soft)">Status</th>
+            <th style="text-align:left;padding:8px;position:sticky;top:0;background:var(--surface-soft)">Notes</th>
+          </tr>
+        </thead>
+        <tbody>${vehicleRows}</tbody>
+      </table>
+    </div>
+    <div style="margin-top:10px;padding:10px;background:var(--surface-soft);border-radius:var(--radius-sm);font-size:12px;color:var(--muted)">
+      ${vehicleNames.length} vehicle(s) will be created. ${bookingCount} booking(s) will be imported.
+    </div>
+  `;
+
+  openDialog('Vehicle Details', bodyHtml, () => {
+    // Read all form values back into vehicleMap, handling potential name changes
+    const newVehicleMap = {};
+    const nameMapping = {}; // original CSV name → new name (for booking linkage)
+    const usedNames = new Set();
+    const dupErrors = [];
+
+    vehicleNames.forEach((name, idx) => {
+      const nameEl = document.getElementById(`veh-name-${idx}`);
+      const typeEl = document.getElementById(`veh-type-${idx}`);
+      const plateEl = document.getElementById(`veh-plate-${idx}`);
+      const statusEl = document.getElementById(`veh-status-${idx}`);
+      const notesEl = document.getElementById(`veh-notes-${idx}`);
+
+      let newName = nameEl ? nameEl.value.trim() : name;
+      if (!newName) newName = name; // fallback to original if empty
+
+      if (usedNames.has(newName)) {
+        dupErrors.push(`Duplicate vehicle name "${newName}"`);
+        return;
+      }
+      usedNames.add(newName);
+
+      // Use new name as key, preserving vehicle data
+      newVehicleMap[newName] = {
+        id: vehicleMap[name].id,
+        type: typeEl ? typeEl.value.trim() : (vehicleMap[name].type || ''),
+        plate: plateEl ? plateEl.value.trim() : (vehicleMap[name].plate || ''),
+        status: statusEl ? statusEl.value : (vehicleMap[name].status || 'available'),
+        notes: notesEl ? notesEl.value.trim() : (vehicleMap[name].notes || '')
+      };
+      // Map original CSV name to (possibly renamed) key
+      nameMapping[name] = newName;
+    });
+
+    if (dupErrors.length > 0) {
+      showToast(dupErrors.join('. '), 'error');
+      return false;
+    }
+
+    // Proceed with import, passing the name mapping
+    onConfirm(newVehicleMap, nameMapping);
+    return true;
+  }, true);
+
+  // Change confirm button text
+  setTimeout(() => {
+    const btn = document.getElementById('dialog-confirm');
+    if (btn) btn.textContent = 'Continue Import';
+  }, 0);
+}
+
+function buildVehicleMapFromCSV(rows, colByBuiltIn) {
+  const vehicleMap = {};
+  const uniqueStatuses = new Set();
+  const uniqueTypes = new Set();
+
+  for (const row of rows) {
+    const vName = (row[colByBuiltIn.vehicle] || '').trim();
+    if (!vehicleMap[vName]) {
+      vehicleMap[vName] = { id: genId(), type: '', plate: '', status: 'available', notes: '' };
+    }
+    if (colByBuiltIn.type !== undefined) {
+      const vType = (row[colByBuiltIn.type] || '').trim();
+      if (vType) { uniqueTypes.add(vType); if (!vehicleMap[vName].type) vehicleMap[vName].type = vType; }
+    }
+    if (colByBuiltIn.license_plate !== undefined) {
+      const vPlate = (row[colByBuiltIn.license_plate] || '').trim();
+      if (vPlate && !vehicleMap[vName].plate) vehicleMap[vName].plate = vPlate;
+    }
+    const status = (row[colByBuiltIn.status] || '').trim() || 'pending';
+    uniqueStatuses.add(status);
+  }
+
+  return { vehicleMap, uniqueStatuses, uniqueTypes };
+}
+
+function executeCSVImport(mapping, customKeys, rows, fileName, existingVehicleMap, nameMapping) {
   // Build reverse mapping for quick lookup
   const colByBuiltIn = {};
   for (const [idx, key] of Object.entries(mapping)) { colByBuiltIn[key] = parseInt(idx); }
@@ -3615,16 +3986,19 @@ function executeCSVImport(mapping, customKeys, rows, fileName) {
   const endFmt = detectDateFormat(rows.map(r => r[endColIdx] || ''));
 
   // Row-level validation
+  // Filter out rows with no dates (not bookings, just info/task records)
+  const bookableRows = [];
   rows.forEach((row, idx) => {
     const rowNum = idx + 2;
+    const startVal = (row[colByBuiltIn.period_start] || '').trim();
+    const endVal = (row[colByBuiltIn.period_end] || '').trim();
+    if (!startVal && !endVal) return; // skip rows without any dates
+    bookableRows.push({ row, rowNum, startVal, endVal });
+  });
+
+  bookableRows.forEach(({ row, rowNum, startVal, endVal }) => {
     const vehicleVal = (row[colByBuiltIn.vehicle] || '').trim();
     if (!vehicleVal) errors.push(`Row ${rowNum}: missing vehicle name`);
-    const userName = (row[colByBuiltIn.user_name] || '').trim();
-    if (!userName) errors.push(`Row ${rowNum}: missing user name`);
-    const purpose = (row[colByBuiltIn.purpose] || '').trim();
-    if (!purpose) errors.push(`Row ${rowNum}: missing purpose`);
-
-    const startVal = (row[colByBuiltIn.period_start] || '').trim();
     let validStart = false;
     let startDateObj;
     if (!startVal) {
@@ -3639,7 +4013,6 @@ function executeCSVImport(mapping, customKeys, rows, fileName) {
       }
     }
 
-    const endVal = (row[colByBuiltIn.period_end] || '').trim();
     let validEnd = false;
     let endDateObj;
     if (!endVal) {
@@ -3663,26 +4036,22 @@ function executeCSVImport(mapping, customKeys, rows, fileName) {
     return false;
   }
 
-  // Collect unique vehicles and statuses
-  const vehicleMap = {};
-  const uniqueStatuses = new Set();
-  const uniqueTypes = new Set();
-
-  for (const row of rows) {
-    const vName = (row[colByBuiltIn.vehicle] || '').trim();
-    if (!vehicleMap[vName]) {
-      vehicleMap[vName] = { id: genId(), type: '', plate: '' };
+  // Collect unique vehicles and statuses (use passed-in map if available, otherwise build from CSV)
+  let vehicleMap, uniqueStatuses, uniqueTypes;
+  if (existingVehicleMap) {
+    vehicleMap = existingVehicleMap;
+    uniqueStatuses = new Set();
+    uniqueTypes = new Set();
+    for (const row of rows) {
+      const status = (row[colByBuiltIn.status] || '').trim() || 'pending';
+      uniqueStatuses.add(status);
+      if (colByBuiltIn.type !== undefined) {
+        const vType = (row[colByBuiltIn.type] || '').trim();
+        if (vType) uniqueTypes.add(vType);
+      }
     }
-    if (colByBuiltIn.type !== undefined) {
-      const vType = (row[colByBuiltIn.type] || '').trim();
-      if (vType) { uniqueTypes.add(vType); if (!vehicleMap[vName].type) vehicleMap[vName].type = vType; }
-    }
-    if (colByBuiltIn.license_plate !== undefined) {
-      const vPlate = (row[colByBuiltIn.license_plate] || '').trim();
-      if (vPlate && !vehicleMap[vName].plate) vehicleMap[vName].plate = vPlate;
-    }
-    const status = (row[colByBuiltIn.status] || '').trim() || 'pending';
-    uniqueStatuses.add(status);
+  } else {
+    ({ vehicleMap, uniqueStatuses, uniqueTypes } = buildVehicleMapFromCSV(rows, colByBuiltIn));
   }
 
   // Build custom columns
@@ -3709,22 +4078,35 @@ function executeCSVImport(mapping, customKeys, rows, fileName) {
     let sortIdx = 0;
     for (const [vName, vData] of Object.entries(vehicleMap)) {
       const now = new Date().toISOString();
+      const vStatus = vData.status || 'available';
+      const vNotes = vData.notes || '';
       db.run("INSERT OR REPLACE INTO vehicles (id, name, type, license_plate, status, notes, sort_order, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
-        [vData.id, vName, vData.type, vData.plate, 'available', '', sortIdx++, now, now]);
+        [vData.id, vName, vData.type, vData.plate, vStatus, vNotes, sortIdx++, now, now]);
     }
 
     // Set derived settings
     const statusList = [...uniqueStatuses].filter(s => s);
-    if (statusList.length > 0) setSetting('statuses', statusList);
+    if (statusList.length > 0) {
+      setSetting('statuses', statusList);
+      const FALLBACK_COLORS = ['#d9a441','#254fad','#16a34a','#6b7280','#b91c1c','#8b5cf6','#0891b2','#c2410c','#be185d','#4f46e5'];
+      const existingColors = getSetting('statusColors', {});
+      const newColors = {};
+      statusList.forEach((s, i) => { newColors[s] = existingColors[s] || FALLBACK_COLORS[i % FALLBACK_COLORS.length]; });
+      setSetting('statusColors', newColors);
+    }
     const typeList = [...uniqueTypes].filter(t => t);
     if (typeList.length > 0) setSetting('vehicleTypes', typeList);
     if (customCols.length > 0) setSetting('customColumns', customCols);
 
-    // Insert bookings
-    for (const row of rows) {
+    // Insert bookings (only rows with dates)
+    // Use incrementing timestamps so each booking has a unique updated_at for stable sorting
+    const importBaseTime = Date.now();
+    for (let i = 0; i < bookableRows.length; i++) {
+      const { row } = bookableRows[i];
       const id = genId();
       const vName = (row[colByBuiltIn.vehicle] || '').trim();
-      const vehicleId = vehicleMap[vName] ? vehicleMap[vName].id : '';
+      const resolvedName = nameMapping ? (nameMapping[vName] || vName) : vName;
+      const vehicleId = vehicleMap[resolvedName] ? vehicleMap[resolvedName].id : '';
       const periodStart = normalizePeriodDate(normalizeCSVDate(row[colByBuiltIn.period_start] || '', startFmt), false);
       const periodEnd = normalizePeriodDate(normalizeCSVDate(row[colByBuiltIn.period_end] || '', endFmt), true);
       const userName = (row[colByBuiltIn.user_name] || '').trim();
@@ -3742,7 +4124,7 @@ function executeCSVImport(mapping, customKeys, rows, fileName) {
         }
       }
 
-      const now = new Date().toISOString();
+      const now = new Date(importBaseTime + i).toISOString();
       db.run("INSERT OR REPLACE INTO bookings (id, vehicle_id, period_start, period_end, user_name, purpose, status, remarks, custom_fields, share_with, share_note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         [id, vehicleId, periodStart, periodEnd, userName, purpose, status, remarks,
          JSON.stringify(customFields), JSON.stringify([]), '', now, now]);
@@ -3758,7 +4140,10 @@ function executeCSVImport(mapping, customKeys, rows, fileName) {
   }
 
   markDirty(); render();
-  showToast(`CSV imported: ${rows.length} bookings, ${Object.keys(vehicleMap).length} vehicles`, 'success');
+  showToast(`CSV imported: ${bookableRows.length} bookings, ${Object.keys(vehicleMap).length} vehicles`, 'success');
+  if (rows.length - bookableRows.length > 0) {
+    showToast(`${rows.length - bookableRows.length} rows skipped (no dates)`, 'info');
+  }
   return true;
 }
 
@@ -3779,8 +4164,21 @@ async function importCSV(text, fileName, onComplete) {
 
   // Show mapping wizard
   showCSVMappingWizard(headers, autoMapping, rows, fileName, (userMapping, customKeys) => {
-    const ok = executeCSVImport(userMapping, customKeys, rows, fileName);
-    if (ok && onComplete) onComplete();
+    // Build colByBuiltIn and vehicleMap to pass to vehicle details wizard
+    const colByBuiltIn = {};
+    for (const [idx, key] of Object.entries(userMapping)) { colByBuiltIn[key] = parseInt(idx); }
+    const { vehicleMap } = buildVehicleMapFromCSV(rows, colByBuiltIn);
+
+    // Return false to keep this dialog open (prevents dialogCallback from being cleared),
+    // then close it and open the vehicle wizard on the next tick
+    setTimeout(() => {
+      closeDialog();
+      showVehicleDetailsWizard(vehicleMap, rows.length, (editedVehicleMap, nameMapping) => {
+        const ok = executeCSVImport(userMapping, customKeys, rows, fileName, editedVehicleMap, nameMapping);
+        if (ok && onComplete) onComplete();
+      });
+    }, 0);
+    return false;
   });
 }
 
@@ -4015,8 +4413,16 @@ function describeToolAction(name, args) {
 function renderChatMessages() {
   const el = document.getElementById('chat-messages');
   if (!el) return;
+  const userName = S.lockUser || localStorage.getItem('fleethub_user_name') || '';
+  const userInitials = userName
+    ? (userName.trim().split(/\s+/).length >= 2
+        ? (userName.trim().split(/\s+/)[0][0] + userName.trim().split(/\s+/).pop()[0]).toUpperCase()
+        : userName.substring(0, 2).toUpperCase())
+    : 'U';
   el.innerHTML = S.chatMessages.map(m => {
-    const avatar = m.role === 'assistant' ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>' : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+    const avatar = m.role === 'assistant'
+      ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>'
+      : esc(userInitials);
     const raw = m.role === 'assistant' ? (m.content || '') : null;
     const html = raw && typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(marked.parse(raw)) : esc(m.content);
     const display = m.content ? html : '<span class="pulse" style="color:var(--muted)">Thinking...</span>';
