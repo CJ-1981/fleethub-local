@@ -4125,9 +4125,12 @@ function executeCSVImport(mapping, customKeys, rows, fileName, existingVehicleMa
       }
 
       const now = new Date(importBaseTime + i).toISOString();
+      // Use periodEnd as updated_at so descending sort by updatedAt reflects chronological order
+      // Add incrementing ms to ensure unique timestamps for stable sorting when end dates match
+      const updatedAt = periodEnd ? new Date(new Date(periodEnd).getTime() + i).toISOString() : now;
       db.run("INSERT OR REPLACE INTO bookings (id, vehicle_id, period_start, period_end, user_name, purpose, status, remarks, custom_fields, share_with, share_note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         [id, vehicleId, periodStart, periodEnd, userName, purpose, status, remarks,
-         JSON.stringify(customFields), JSON.stringify([]), '', now, now]);
+         JSON.stringify(customFields), JSON.stringify([]), '', now, updatedAt]);
     }
 
     setMeta('version', '1.0');
@@ -4404,6 +4407,11 @@ function toolRequiresConfirmation(name, args) {
 }
 
 function describeToolAction(name, args) {
+  if (name === 'create_booking') {
+    const defaultUser = S.lockUser || localStorage.getItem('fleethub_user_name') || '';
+    const userName = args.userName || defaultUser || '(no name)';
+    return `Create booking: "${args.vehicleName || '(unknown)'}" for ${userName}, ${args.periodStart || '?'} to ${args.periodEnd || '?'}, purpose: ${args.purpose || '(none)'}`;
+  }
   if (name === 'cancel_booking') return `Cancel booking ${args.bookingId || '(unknown)'}`;
   if (name === 'delete_vehicle') return `Delete vehicle "${args.vehicleName || '(unknown)'}" and all its bookings`;
   if (name === 'update_vehicle_status' && args.status === 'deregistered') return `Deregister vehicle "${args.vehicleName || '(unknown)'}"`;
@@ -4538,7 +4546,7 @@ function getAITools() {
   const statuses = getSetting('statuses', ['pending','confirmed','in-use','returned','cancelled']);
   const vehicleStatuses = getSetting('vehicleStatuses', ['available','in-use','maintenance','reserved','deregistered']);
   return [
-    { type: 'function', function: { name: 'create_booking', description: 'Create a new vehicle booking.', parameters: { type: 'object', properties: { vehicleName: { type: 'string', description: 'Vehicle name' }, userName: { type: 'string', description: 'Name of the person' }, purpose: { type: 'string', description: 'Purpose' }, periodStart: { type: 'string', description: 'YYYY-MM-DD' }, periodEnd: { type: 'string', description: 'YYYY-MM-DD' }, status: { type: 'string', enum: statuses } }, required: ['vehicleName','userName','purpose','periodStart','periodEnd'] } } },
+    { type: 'function', function: { name: 'create_booking', description: 'Create a new vehicle booking. If userName is omitted, the current user\'s configured name is used automatically.', parameters: { type: 'object', properties: { vehicleName: { type: 'string', description: 'Vehicle name' }, userName: { type: 'string', description: 'Name of the person (optional — defaults to current user if omitted)' }, purpose: { type: 'string', description: 'Purpose' }, periodStart: { type: 'string', description: 'YYYY-MM-DD' }, periodEnd: { type: 'string', description: 'YYYY-MM-DD' }, status: { type: 'string', enum: statuses } }, required: ['vehicleName','purpose','periodStart','periodEnd'] } } },
     { type: 'function', function: { name: 'update_vehicle_status', description: 'Change a vehicle status.', parameters: { type: 'object', properties: { vehicleName: { type: 'string' }, status: { type: 'string', enum: vehicleStatuses } }, required: ['vehicleName','status'] } } },
     { type: 'function', function: { name: 'cancel_booking', description: 'Cancel a booking by ID.', parameters: { type: 'object', properties: { bookingId: { type: 'string' } }, required: ['bookingId'] } } },
     { type: 'function', function: { name: 'update_booking', description: 'Update a booking status or other fields by ID.', parameters: { type: 'object', properties: { bookingId: { type: 'string', description: 'Booking ID' }, status: { type: 'string', enum: statuses, description: 'New status' }, userName: { type: 'string', description: 'Updated user name' }, purpose: { type: 'string', description: 'Updated purpose' }, periodStart: { type: 'string', description: 'Updated start (YYYY-MM-DD)' }, periodEnd: { type: 'string', description: 'Updated end (YYYY-MM-DD)' } }, required: ['bookingId'] } } },
@@ -4563,6 +4571,9 @@ function executeToolCall(name, args) {
       const fuzzyNote = found.matchType !== 'exact' ? ` (matched "${vehicle.name}")` : '';
       const nowISO = new Date().toISOString();
       const id = genId();
+      // Default userName to current user if not provided
+      const defaultUser = S.lockUser || localStorage.getItem('fleethub_user_name') || '';
+      const userName = args.userName || defaultUser;
       // Normalize bare dates (YYYY-MM-DD) to ISO datetime for datetime-local compatibility
       let ps = args.periodStart, pe = args.periodEnd;
       if (ps && ps.length === 10) ps = ps + 'T00:00:00';
@@ -4580,9 +4591,9 @@ function executeToolCall(name, args) {
       const status = args.status || validStatuses[0] || 'pending';
       if (!validStatuses.includes(status)) return `Error: Invalid status "${status}". Must be one of: ${validStatuses.join(', ')}`;
       db.run("INSERT INTO bookings (id, vehicle_id, user_name, purpose, period_start, period_end, status, remarks, custom_fields, share_with, share_note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        [id, vehicle.id, args.userName||'', args.purpose||'', ps, pe, status, args.remarks||'', JSON.stringify(args.customFields||{}), JSON.stringify(args.shareWith||[]), args.shareNote||'', nowISO, nowISO]);
+        [id, vehicle.id, userName, args.purpose||'', ps, pe, status, args.remarks||'', JSON.stringify(args.customFields||{}), JSON.stringify(args.shareWith||[]), args.shareNote||'', nowISO, nowISO]);
       markDirty(); render();
-      return `Booking created. ID: ${id}, Vehicle: ${vehicle.name}, User: ${args.userName}, ${ps} to ${pe}${fuzzyNote}`;
+      return `Booking created. ID: ${id}, Vehicle: ${vehicle.name}, User: ${userName}, ${ps} to ${pe}${fuzzyNote}`;
     }
     case 'update_vehicle_status': {
       const validStatuses = getSetting('vehicleStatuses', ['available','in-use','maintenance','reserved','deregistered']);
@@ -4834,8 +4845,10 @@ async function callAIWithTools(apiEndpoint, apiKey, userText, streamMsgId) {
   const vehicles = getVehicles();
   const bookings = getBookings();
   const context = `Fleet data: ${vehicles.length} vehicles, ${bookings.length} bookings. Vehicles: ${vehicles.map(v=>v.name+' ('+v.status+')').join(', ')}. Recent bookings: ${bookings.slice(0,10).map(b=>{const v=vehicles.find(x=>x.id===b.vehicleId);return b.userName+' - '+(v?v.name:'Unknown')+' - '+b.purpose+' ('+b.status+')'}).join(';')}. Today is ${new Date().toISOString().split('T')[0]}.`;
+  const currentUserName = S.lockUser || localStorage.getItem('fleethub_user_name') || '';
+  const userContext = currentUserName ? `\nCurrent user: "${currentUserName}" — use this as the default userName for create_booking when the user is booking for themselves.` : '';
   const messages = [
-    { role: 'system', content: `You are a fleet management AI assistant embedded in FleetHub. You can answer questions AND take actions using the available tools.\n\nTools: create_booking, update_booking (change status, dates, etc.), cancel_booking, update_vehicle_status, list_vehicles, list_bookings, list_vehicle_bookings.\n\nIMPORTANT: Before calling create_booking, you MUST have ALL required fields (vehicleName, userName, purpose, periodStart, periodEnd). If ANY is missing, ASK the user. Use update_booking to change a booking status (e.g. pending→confirmed). Always confirm what you did.\n\nBe concise. ${context}` },
+    { role: 'system', content: `You are a fleet management AI assistant embedded in FleetHub. You can answer questions AND take actions using the available tools.\n\nTools: create_booking, update_booking (change status, dates, etc.), cancel_booking, update_vehicle_status, list_vehicles, list_bookings, list_vehicle_bookings.\n\nIMPORTANT: Before calling create_booking, you MUST have ALL required fields (vehicleName, purpose, periodStart, periodEnd). If ANY is missing, ASK the user. The userName field is optional — if the current user is booking for themselves, omit it or use the current user name provided below. Use update_booking to change a booking status (e.g. pending→confirmed). Always confirm what you did.\n\nBe concise.${userContext} ${context}` },
     ...S.chatMessages.filter(m => m.content).map(m => ({ role: m.role, content: m.content }))
   ];
   const MAX_ROUNDS = 5;
