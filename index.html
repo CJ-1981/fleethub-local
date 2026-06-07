@@ -2081,7 +2081,7 @@ function editUserName() {
     <p style="margin-bottom:12px;font-size:13px;color:var(--muted)">This name is shown to other users when you lock a file, and appears in AI chat messages.</p>
     <div class="form-group">
       <label class="form-label">Your Name</label>
-      <input class="form-input" id="user-name-input" value="${esc(currentName)}" placeholder="e.g. John Doe" autofocus>
+      <input class="form-input" id="user-name-input" value="${escAttr(currentName)}" placeholder="e.g. John Doe" autofocus>
     </div>
   `, () => {
     const input = document.getElementById('user-name-input');
@@ -2685,16 +2685,16 @@ function editVehicle(id) {
   S.editingVehicle = v;
   const isEdit = !!v;
   const types = getSettings().vehicleTypes || DEFAULT_SETTINGS.vehicleTypes;
-  const typeOptions = types.map(t => `<option value="${esc(t)}"${v && v.type === t ? ' selected' : ''}>${esc(t)}</option>`).join('');
+  const typeOptions = types.map(t => `<option value="${escAttr(t)}"${v && v.type === t ? ' selected' : ''}>${esc(t)}</option>`).join('');
   const statuses = ['available', 'in-use', 'maintenance', 'reserved', 'deregistered'];
 
   openDialog(isEdit ? 'Edit Vehicle' : 'Add Vehicle', `
-    <div class="form-group"><label class="form-label">Name *</label><input class="form-input" id="v-name" value="${esc(v ? v.name : '')}" placeholder="e.g. Toyota Hilux #1"></div>
+    <div class="form-group"><label class="form-label">Name *</label><input class="form-input" id="v-name" value="${escAttr(v ? v.name : '')}" placeholder="e.g. Toyota Hilux #1"></div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Type</label><select class="form-input" id="v-type">${typeOptions}</select></div>
-      <div class="form-group"><label class="form-label">Status</label><select class="form-input" id="v-status">${statuses.map(s => `<option value="${s}"${v && v.status === s ? ' selected' : ''}>${s}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">Status</label><select class="form-input" id="v-status">${statuses.map(s => `<option value="${escAttr(s)}"${v && v.status === s ? ' selected' : ''}>${esc(s)}</option>`).join('')}</select></div>
     </div>
-    <div class="form-group"><label class="form-label">License Plate</label><input class="form-input" id="v-plate" value="${esc(v ? v.licensePlate || '' : '')}" placeholder="ABC-1234"></div>
+    <div class="form-group"><label class="form-label">License Plate</label><input class="form-input" id="v-plate" value="${escAttr(v ? v.licensePlate || '' : '')}" placeholder="ABC-1234"></div>
     <div class="form-group"><label class="form-label">Notes</label><textarea class="form-input" id="v-notes" rows="2" placeholder="Optional notes...">${esc(v ? v.notes || '' : '')}</textarea></div>
   `, () => {
     if (!lockGate('save vehicles')) return false;
@@ -2803,9 +2803,9 @@ function renderBookings() {
       case 'createdAt': va = new Date(a.createdAt).getTime() || 0; vb = new Date(b.createdAt).getTime() || 0; break;
       case 'updatedAt': va = new Date(a.updatedAt).getTime() || 0; vb = new Date(b.updatedAt).getTime() || 0; break;
       default:
-        // Custom column
+        // Custom column (prefixed with 'cf_' to avoid collisions with built-in columns)
         if (S.bookingSortCol.startsWith('cf_')) {
-          const cfKey = S.bookingSortCol;
+          const cfKey = S.bookingSortCol.slice(3);
           va = ((a.customFields || {})[cfKey] || '').toString().toLowerCase();
           vb = ((b.customFields || {})[cfKey] || '').toString().toLowerCase();
         } else {
@@ -2841,7 +2841,7 @@ function renderBookings() {
   const statuses = getSettings().statuses || DEFAULT_SETTINGS.statuses;
 
   const vehicleOptions = vehicles.map(v => `<option value="${v.id}"${S.bookingVehicleFilter === v.id ? ' selected' : ''}>${esc(v.name)}</option>`).join('');
-  const statusOptions = statuses.map(s => `<option value="${s}"${S.bookingStatusFilter === s ? ' selected' : ''}>${s}</option>`).join('');
+  const statusOptions = statuses.map(s => `<option value="${escAttr(s)}"${S.bookingStatusFilter === s ? ' selected' : ''}>${esc(s)}</option>`).join('');
   const customCols = getSettings().customColumns || [];
 
   const conflictWarning = S.editingBooking ? renderConflictWarning(S.editingBooking) : '';
@@ -2877,14 +2877,14 @@ function renderBookings() {
     <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
       <div class="search-bar" style="flex:1;min-width:200px">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-        <input id="booking-search-input" placeholder="Search bookings..." value="${esc(S.bookingSearch)}" oninput="S.bookingSearch=this.value;S.bookingPage=1;renderBookingsTable()">
+        <input id="booking-search-input" placeholder="Search bookings..." value="${escAttr(S.bookingSearch)}" oninput="S.bookingSearch=this.value;S.bookingPage=1;renderBookingsTable()">
       </div>
       <div class="filters">
         <select onchange="S.bookingVehicleFilter=this.value;S.bookingPage=1;render()"><option value="">All Vehicles</option>${vehicleOptions}</select>
         <select onchange="S.bookingStatusFilter=this.value;S.bookingPage=1;render()"><option value="">All Statuses</option>${statusOptions}</select>
       </div>
     </div>
-    <div id="bookings-table-area">${pageItems.length ? `<div class="card"><div class="table-wrap"><table><thead><tr>${sortableHeader('Vehicle', 'vehicle')}${sortableHeader('User', 'userName')}${sortableHeader('Purpose', 'purpose')}${sortableHeader('Period Start', 'periodStart')}${sortableHeader('Period End', 'periodEnd')}${sortableHeader('Status', 'status')}${customCols.map(c => sortableHeader(c.label, c.key)).join('')}<th>Share</th>${sortableHeader('Created', 'createdAt')}${sortableHeader('Updated', 'updatedAt')}<th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div id="bookings-table-area">${pageItems.length ? `<div class="card"><div class="table-wrap"><table><thead><tr>${sortableHeader('Vehicle', 'vehicle')}${sortableHeader('User', 'userName')}${sortableHeader('Purpose', 'purpose')}${sortableHeader('Period Start', 'periodStart')}${sortableHeader('Period End', 'periodEnd')}${sortableHeader('Status', 'status')}${customCols.map(c => sortableHeader(c.label, 'cf_' + c.key)).join('')}<th>Share</th>${sortableHeader('Created', 'createdAt')}${sortableHeader('Updated', 'updatedAt')}<th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="pagination" style="padding:8px 12px">
         <span>Showing ${start + 1}–${Math.min(start + S.pageSize, filtered.length)} of ${filtered.length}</span>
         <div style="display:flex;gap:4px;align-items:center">
@@ -2983,7 +2983,7 @@ function editBooking(id, preselectedVehicleId) {
   const eb = S.editingBooking;
 
   const vehicleOptions = vehicles.map(v => `<option value="${v.id}"${eb.vehicleId === v.id ? ' selected' : ''}>${esc(v.name)}</option>`).join('');
-  const statusOptions = statuses.map(s => `<option value="${s}"${eb.status === s ? ' selected' : ''}>${s}</option>`).join('');
+  const statusOptions = statuses.map(s => `<option value="${escAttr(s)}"${eb.status === s ? ' selected' : ''}>${esc(s)}</option>`).join('');
   const shareTags = (eb.shareWith || []).map(name => `<span class="share-tag">${esc(name)}<button data-name="${escAttr(name)}" onclick="removeShareName(this,this.dataset.name)">×</button></span>`).join('');
   const customFieldsHtml = customCols.map(col => {
     const val = (eb.customFields || {})[col.key] ?? '';
@@ -3010,7 +3010,7 @@ function editBooking(id, preselectedVehicleId) {
     ${b ? `<div style="font-size:12px;color:var(--muted);margin-bottom:12px">ID: <code style="background:var(--surface-soft);padding:2px 6px;border-radius:var(--radius-sm);font-family:monospace">${esc(b.id)}</code></div>` : ''}
     <div class="form-group"><label class="form-label">Vehicle *</label><select class="form-input" id="b-vehicle" onchange="checkConflicts()"><option value="">Select vehicle...</option>${vehicleOptions}</select></div>
     ${renderUserNameField(eb.userName)}
-    <div class="form-group"><label class="form-label">Purpose *</label><input class="form-input" id="b-purpose" value="${esc(eb.purpose)}" placeholder="e.g. Client meeting"></div>
+    <div class="form-group"><label class="form-label">Purpose *</label><input class="form-input" id="b-purpose" value="${escAttr(eb.purpose)}" placeholder="e.g. Client meeting"></div>
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Period</label>
@@ -3260,7 +3260,7 @@ function renderSettings() {
   const statusColors = settings.statusColors || {};
   const statusTags = (settings.statuses || []).map(s => {
     const c = statusColors[s] || '#6b7280';
-    return `<span class="tag-item" style="display:inline-flex;align-items:center;gap:6px">${esc(s)}<input type="color" value="${c}" onchange="setStatusColor('${esc(s)}',this.value)" title="Status color"${ownsLock() ? '' : ' disabled'} style="width:22px;height:22px;padding:0;border:1px solid var(--hairline);border-radius:4px;cursor:pointer;vertical-align:middle;background:none"><button onclick="removeSettingItem('statuses','${esc(s)}')"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>×</button></span>`;
+    return `<span class="tag-item" style="display:inline-flex;align-items:center;gap:6px" data-status="${escAttr(s)}">${esc(s)}<input type="color" value="${escAttr(c)}" onchange="setStatusColor(this.parentElement.dataset.status,this.value)" title="Status color"${ownsLock() ? '' : ' disabled'} style="width:22px;height:22px;padding:0;border:1px solid var(--hairline);border-radius:4px;cursor:pointer;vertical-align:middle;background:none"><button onclick="removeSettingItem('statuses',this.parentElement.dataset.status)"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>×</button></span>`;
   }).join('');
   const statusesContent = `<div>
     <h4 style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px">Booking Statuses</h4>
@@ -3269,7 +3269,7 @@ function renderSettings() {
   </div>`;
 
   // Vehicle Types Section
-  const typeTags = (settings.vehicleTypes || []).map(t => `<span class="tag-item">${esc(t)}<button onclick="removeSettingItem('vehicleTypes','${esc(t)}')"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>×</button></span>`).join('');
+  const typeTags = (settings.vehicleTypes || []).map(t => `<span class="tag-item" data-type="${escAttr(t)}">${esc(t)}<button onclick="removeSettingItem('vehicleTypes',this.parentElement.dataset.type)"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>×</button></span>`).join('');
   const typesContent = `<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--hairline)">
     <h4 style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px">Vehicle Types</h4>
     <div class="tag-list">${typeTags || '<span style="font-size:13px;color:var(--muted)">No vehicle types defined</span>'}</div>
@@ -3318,7 +3318,7 @@ function renderSettings() {
     { value: 'Schleswig-Holstein', label: 'Schleswig-Holstein' },
     { value: 'Thüringen', label: 'Thüringen (Thuringia)' }
   ];
-  const stateOptions = germanStates.map(s => `<option value="${esc(s.value)}"${currentState === s.value ? ' selected' : ''}>${esc(s.label)}</option>`).join('');
+  const stateOptions = germanStates.map(s => `<option value="${escAttr(s.value)}"${currentState === s.value ? ' selected' : ''}>${esc(s.label)}</option>`).join('');
   const calendarContent = `<div style="margin-bottom:14px">
     <div class="form-group"><label class="form-label">German State (Bundesland)</label><select class="form-input" id="german-state" onchange="saveGermanState()"${ownsLock() ? '' : ' disabled title="View-only — take over lock"'}>${stateOptions}</select><div class="form-hint">Select a German state to show state-specific holidays on the calendar. Nationwide holidays are always shown.</div></div>
     <div style="margin-top:12px;padding:10px;border:1px solid var(--hairline);border-radius:var(--radius-sm);background:var(--surface-soft)">
@@ -3333,9 +3333,9 @@ function renderSettings() {
   const curModel = localStorage.getItem('fleethub_ai_model') || '';
   const maskedKey = curKey ? curKey.slice(0, 6) + '...' + curKey.slice(-4) : '';
   const apiContent = `<div style="margin-bottom:14px">
-    <div class="form-group"><label class="form-label">API Endpoint URL</label><input class="form-input" id="api-endpoint" placeholder="https://api.openai.com/v1" value="${esc(curEndpoint)}"><div class="form-hint">Base URL or full path (auto-appends /chat/completions)</div></div>
-    <div class="form-group"><label class="form-label">API Key</label><div style="position:relative"><input class="form-input" id="api-key" type="password" placeholder="sk-... or your API key" value="${esc(curKey)}" style="padding-right:40px"><button class="btn-icon" onclick="toggleApiKeyVisibility()" style="position:absolute;right:4px;top:50%;transform:translateY(-50%)"><svg id="api-key-eye" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>${maskedKey ? '<div class="form-hint">Current: ' + esc(maskedKey) + '</div>' : ''}<div class="form-hint" style="color:var(--warning)"><strong>Warning:</strong> API key is stored in browser localStorage in plaintext and may be accessible to browser extensions.</div></div>
-    <div class="form-group"><label class="form-label">Model Name</label><input class="form-input" id="api-model" placeholder="gpt-4o-mini" value="${esc(curModel)}"></div>
+    <div class="form-group"><label class="form-label">API Endpoint URL</label><input class="form-input" id="api-endpoint" placeholder="https://api.openai.com/v1" value="${escAttr(curEndpoint)}"><div class="form-hint">Base URL or full path (auto-appends /chat/completions)</div></div>
+    <div class="form-group"><label class="form-label">API Key</label><div style="position:relative"><input class="form-input" id="api-key" type="password" placeholder="sk-... or your API key" value="${escAttr(curKey)}" style="padding-right:40px"><button class="btn-icon" onclick="toggleApiKeyVisibility()" style="position:absolute;right:4px;top:50%;transform:translateY(-50%)"><svg id="api-key-eye" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>${maskedKey ? '<div class="form-hint">Current: ' + esc(maskedKey) + '</div>' : ''}<div class="form-hint" style="color:var(--warning)"><strong>Warning:</strong> API key is stored in browser localStorage in plaintext and may be accessible to browser extensions.</div></div>
+    <div class="form-group"><label class="form-label">Model Name</label><input class="form-input" id="api-model" placeholder="gpt-4o-mini" value="${escAttr(curModel)}"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-primary btn-sm" onclick="saveApiConfig()">Save</button>
       <button class="btn btn-sm" onclick="testApiConfig()">Test</button>
@@ -3840,15 +3840,15 @@ function showVehicleDetailsWizard(vehicleMap, bookingCount, onConfirm) {
 
   const vehicleRows = vehicleNames.map((name, idx) => {
     const v = vehicleMap[name];
-    const nameVal = esc(name);
-    const plateVal = esc(v.plate || '');
+    const nameVal = escAttr(name);
+    const plateVal = escAttr(v.plate || '');
     const statusVal = v.status || 'available';
-    const notesVal = esc(v.notes || '');
+    const notesVal = escAttr(v.notes || '');
     // Pre-select the matching type option
     const typeOptsHtml = ['<option value="">-- None --</option>'].concat(
-      types.map(t => `<option value="${esc(t)}"${t === (v.type || '') ? ' selected' : ''}>${esc(t)}</option>`)
+      types.map(t => `<option value="${escAttr(t)}"${t === (v.type || '') ? ' selected' : ''}>${esc(t)}</option>`)
     ).join('');
-    const statusOptsHtml = vehicleStatuses.map(s => `<option value="${s}"${s === statusVal ? ' selected' : ''}>${s}</option>`).join('');
+    const statusOptsHtml = vehicleStatuses.map(s => `<option value="${escAttr(s)}"${s === statusVal ? ' selected' : ''}>${esc(s)}</option>`).join('');
     return `
       <tr style="border-bottom:1px solid var(--hairline)">
         <td style="padding:6px">
@@ -3965,8 +3965,10 @@ function buildVehicleMapFromCSV(rows, colByBuiltIn) {
       const vPlate = (row[colByBuiltIn.license_plate] || '').trim();
       if (vPlate && !vehicleMap[vName].plate) vehicleMap[vName].plate = vPlate;
     }
-    const status = (row[colByBuiltIn.status] || '').trim() || 'pending';
-    uniqueStatuses.add(status);
+    if (colByBuiltIn.status !== undefined) {
+      const status = (row[colByBuiltIn.status] || '').trim() || 'pending';
+      uniqueStatuses.add(status);
+    }
   }
 
   return { vehicleMap, uniqueStatuses, uniqueTypes };
@@ -3999,6 +4001,14 @@ function executeCSVImport(mapping, customKeys, rows, fileName, existingVehicleMa
   bookableRows.forEach(({ row, rowNum, startVal, endVal }) => {
     const vehicleVal = (row[colByBuiltIn.vehicle] || '').trim();
     if (!vehicleVal) errors.push(`Row ${rowNum}: missing vehicle name`);
+    if (colByBuiltIn.user_name !== undefined) {
+      const userNameVal = (row[colByBuiltIn.user_name] || '').trim();
+      if (!userNameVal) errors.push(`Row ${rowNum}: missing user name`);
+    }
+    if (colByBuiltIn.purpose !== undefined) {
+      const purposeVal = (row[colByBuiltIn.purpose] || '').trim();
+      if (!purposeVal) errors.push(`Row ${rowNum}: missing purpose`);
+    }
     let validStart = false;
     let startDateObj;
     if (!startVal) {
@@ -4043,8 +4053,10 @@ function executeCSVImport(mapping, customKeys, rows, fileName, existingVehicleMa
     uniqueStatuses = new Set();
     uniqueTypes = new Set();
     for (const row of rows) {
-      const status = (row[colByBuiltIn.status] || '').trim() || 'pending';
-      uniqueStatuses.add(status);
+      if (colByBuiltIn.status !== undefined) {
+        const status = (row[colByBuiltIn.status] || '').trim() || 'pending';
+        uniqueStatuses.add(status);
+      }
       if (colByBuiltIn.type !== undefined) {
         const vType = (row[colByBuiltIn.type] || '').trim();
         if (vType) uniqueTypes.add(vType);
@@ -4111,7 +4123,7 @@ function executeCSVImport(mapping, customKeys, rows, fileName, existingVehicleMa
       const periodEnd = normalizePeriodDate(normalizeCSVDate(row[colByBuiltIn.period_end] || '', endFmt), true);
       const userName = (row[colByBuiltIn.user_name] || '').trim();
       const purpose = (row[colByBuiltIn.purpose] || '').trim();
-      const status = (row[colByBuiltIn.status] || '').trim() || 'pending';
+      const status = colByBuiltIn.status !== undefined ? ((row[colByBuiltIn.status] || '').trim() || 'pending') : 'pending';
       const remarks = colByBuiltIn.remarks !== undefined ? (row[colByBuiltIn.remarks] || '').trim() : '';
 
       // Build custom fields object
