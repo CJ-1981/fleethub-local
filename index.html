@@ -366,16 +366,16 @@ select.form-input{cursor:pointer}
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
         Create New File
       </button>
-      <button class="btn" onclick="document.getElementById('landing-file-input').click()" style="width:240px;justify-content:center;padding:10px 16px">
+      <button class="btn" onclick="importFileCombined()" style="width:240px;justify-content:center;padding:10px 16px">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 15 7 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Import JSON File
+        Import File
       </button>
       <button class="btn" onclick="startDemo()" style="width:240px;justify-content:center;padding:10px 16px;color:var(--link);border-color:var(--link)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
         Try Demo
       </button>
     </div>
-    <input type="file" id="landing-file-input" accept=".json,.sqlite,application/json,application/x-sqlite3,application/octet-stream,text/plain" style="position:absolute;opacity:0;pointer-events:none" onchange="loadFromInput(this)">
+    <input type="file" id="landing-file-input" accept=".json,.csv,.sqlite,application/json,text/csv,application/x-sqlite3,application/octet-stream,text/plain" style="position:absolute;opacity:0;pointer-events:none" onchange="loadFromInput(this)">
     <div id="recent-files" style="margin-top:24px;text-align:left"></div>
   </div>
 </div>
@@ -539,6 +539,30 @@ const DEFAULT_SETTINGS = {
   germanState: null
 };
 
+const CSV_HEADER_ALIASES = {
+  vehicle:       ['vehicle', 'vehicle_name', 'vehicle name', 'car', 'fleet vehicle'],
+  user_name:     ['user', 'user_name', 'username', 'driver', 'operator', 'user name'],
+  purpose:       ['purpose', 'reason', 'trip purpose', 'usage'],
+  period_start:  ['period_start', 'start', 'start_date', 'from', 'date_start', 'begin'],
+  period_end:    ['period_end', 'end', 'end_date', 'to', 'date_end'],
+  status:        ['status', 'booking_status', 'state'],
+  remarks:       ['remarks', 'notes', 'comments', 'note', 'remark'],
+  type:          ['type', 'vehicle_type', 'vehicle type', 'category'],
+  license_plate: ['license_plate', 'plate', 'registration', 'license plate', 'reg']
+};
+
+const CSV_BUILTIN_FIELDS = {
+  vehicle:       { label: 'Vehicle Name *', required: true },
+  user_name:     { label: 'User Name *', required: true },
+  purpose:       { label: 'Purpose *', required: true },
+  period_start:  { label: 'Start Date *', required: true },
+  period_end:    { label: 'End Date *', required: true },
+  status:        { label: 'Status', required: false },
+  remarks:       { label: 'Remarks / Notes', required: false },
+  type:          { label: 'Vehicle Type', required: false },
+  license_plate: { label: 'License Plate', required: false }
+};
+
 // ===================== SQLITE DATA LAYER =====================
 let db = null;
 let sqlJsModule = null;
@@ -693,6 +717,135 @@ function importJSONToSQLite(jsonData, appendMode = false) {
     if (jsonData.meta.version !== undefined) setMeta('version', jsonData.meta.version);
     if (jsonData.meta.lastModified !== undefined) setMeta('lastModified', jsonData.meta.lastModified);
   }
+}
+
+// ===================== CSV PARSING =====================
+
+function parseCSV(text) {
+  // Strip BOM
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  // Normalize line endings
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  // Detect delimiter from first line (ignore quoted content)
+  const firstLine = text.split('\n')[0] || '';
+  const stripped = firstLine.replace(/"[^"]*"/g, '');
+  const delimiter = (stripped.match(/;/g) || []).length > (stripped.match(/,/g) || []).length ? ';' : ',';
+
+  const rows = [];
+  let fields = [];
+  let field = '';
+  let inQuoted = false;
+  let i = 0;
+
+  while (i < text.length) {
+    const ch = text[i];
+    if (inQuoted) {
+      if (ch === '"') {
+        if (i + 1 < text.length && text[i + 1] === '"') {
+          field += '"'; i += 2;
+        } else {
+          inQuoted = false; i++;
+        }
+      } else {
+        field += ch; i++;
+      }
+    } else {
+      if (ch === '"') {
+        inQuoted = true; i++;
+      } else if (ch === delimiter) {
+        fields.push(field); field = ''; i++;
+      } else if (ch === '\n') {
+        fields.push(field); field = '';
+        rows.push(fields); fields = []; i++;
+      } else {
+        field += ch; i++;
+      }
+    }
+  }
+  // Last field/row
+  if (field.length > 0 || fields.length > 0) {
+    fields.push(field);
+    rows.push(fields);
+  }
+  // Filter out completely empty trailing rows
+  while (rows.length > 0 && rows[rows.length - 1].every(f => f.trim() === '')) rows.pop();
+  if (rows.length === 0) return { headers: [], rows: [], delimiter };
+  return { headers: rows[0].map(h => h.trim()), rows: rows.slice(1), delimiter };
+}
+
+function detectDateFormat(values) {
+  const patterns = {
+    iso: /^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2})?/,
+    dmy: /^\d{1,2}\.\d{1,2}\.\d{4}([ T]\d{2}:\d{2})?/,
+    mdy: /^\d{1,2}\/\d{1,2}\/\d{4}([ T]\d{2}:\d{2})?/
+  };
+  const scores = { iso: 0, dmy: 0, mdy: 0 };
+  const sample = values.filter(v => v && v.trim()).slice(0, 20);
+  for (const v of sample) {
+    for (const [fmt, re] of Object.entries(patterns)) {
+      if (re.test(v.trim())) { scores[fmt]++; break; }
+    }
+  }
+  const best = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
+  return best[1] > 0 ? best[0] : 'iso';
+}
+
+function normalizeCSVDate(value, detectedFormat) {
+  if (!value || typeof value !== 'string') return '';
+  const v = value.trim();
+  if (!v) return '';
+  // Already ISO
+  if (/^\d{4}-\d{2}-\d{2}/.test(v)) return v.replace(' ', 'T');
+  let day, month, year, time = '';
+  // Extract time portion if present
+  const timeMatch = v.match(/\s+(\d{1,2}:\d{2}(:\d{2})?)$/);
+  const dateStr = timeMatch ? v.replace(/\s+\d{1,2}:\d{2}(:\d{2})?$/, '') : v;
+  if (timeMatch) time = 'T' + (timeMatch[1].length === 5 ? timeMatch[1] + ':00' : timeMatch[1]);
+  if (detectedFormat === 'dmy') {
+    const parts = dateStr.split('.');
+    if (parts.length === 3) { day = parseInt(parts[0]); month = parseInt(parts[1]); year = parseInt(parts[2]); }
+  } else if (detectedFormat === 'mdy') {
+    const parts = dateStr.split('/');
+    if (parts.length === 3) { month = parseInt(parts[0]); day = parseInt(parts[1]); year = parseInt(parts[2]); }
+  } else {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) { year = parseInt(parts[0]); month = parseInt(parts[1]); day = parseInt(parts[2]); }
+  }
+  if (!year || !month || !day) return v; // return raw if unparseable
+  return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}${time}`;
+}
+
+function mapCSVHeaders(headers) {
+  const mapping = {};      // csvIndex → builtInKey
+  const customKeys = {};   // csvIndex → rawHeader
+  const usedBuiltIn = new Set();
+
+  for (let i = 0; i < headers.length; i++) {
+    const normalized = headers[i].toLowerCase();
+    let matched = null;
+    for (const [builtIn, aliases] of Object.entries(CSV_HEADER_ALIASES)) {
+      if (aliases.includes(normalized) && !usedBuiltIn.has(builtIn)) {
+        matched = builtIn;
+        break;
+      }
+    }
+    if (matched) {
+      mapping[i] = matched;
+      usedBuiltIn.add(matched);
+    } else {
+      customKeys[i] = headers[i];
+    }
+  }
+  return { mapping, customKeys };
+}
+
+function csvSlugify(str) {
+  let key = str.toLowerCase()
+    .replace(/[^a-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/_+/g, '_');
+  if (!key || /^\d/.test(key)) key = 'cf_' + key;
+  return key || 'cf_column';
 }
 
 function getVehicles() {
@@ -3316,6 +3469,333 @@ async function importJSON() {
   } catch (e) { if (e.name !== 'AbortError') showToast('Import failed: ' + e.message, 'error'); }
 }
 
+function showCSVValidationError(errors, fileName) {
+  const maxShow = 20;
+  const shown = errors.slice(0, maxShow);
+  const remaining = errors.length - shown.length;
+  const bodyHtml = `
+    <p>Import of <strong>${esc(fileName)}</strong> failed with ${errors.length} error(s):</p>
+    <ul style="margin:12px 0;padding-left:20px;color:var(--destructive);font-size:13px;line-height:1.8;max-height:300px;overflow-y:auto">
+      ${shown.map(e => `<li>${esc(e)}</li>`).join('')}
+      ${remaining > 0 ? `<li style="color:var(--muted)">...and ${remaining} more error(s)</li>` : ''}
+    </ul>
+    <p style="font-size:13px;color:var(--muted)">Please fix the CSV file and try again.</p>
+  `;
+  openDialog('CSV Import Error', bodyHtml, () => { return true; }, true);
+  setTimeout(() => {
+    const btn = document.getElementById('dialog-confirm');
+    if (btn) btn.textContent = 'OK';
+  }, 0);
+}
+
+function showCSVMappingWizard(headers, autoMapping, rows, fileName, onConfirm) {
+  // Build sample data preview (first data row)
+  const sample = rows[0] || [];
+
+  // Build dropdown options
+  const builtinOptions = Object.entries(CSV_BUILTIN_FIELDS).map(([key, field]) =>
+    `<option value="${key}">${esc(field.label)}</option>`
+  ).join('');
+
+  // Build table rows
+  const tableRows = headers.map((h, i) => {
+    const autoVal = autoMapping[i] || '';
+    const selectedVal = autoVal ? autoVal : 'custom';
+    const sampleText = sample[i] || '';
+    return `
+      <tr style="border-bottom:1px solid var(--hairline)">
+        <td style="padding:8px;font-weight:500;white-space:nowrap">${esc(h)}</td>
+        <td style="padding:8px;color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(sampleText)}">${esc(sampleText)}</td>
+        <td style="padding:8px">
+          <select id="csv-map-${i}" class="csv-map-select" style="width:100%;max-width:200px;padding:6px 8px;border:1px solid var(--hairline);border-radius:var(--radius-sm);font-size:13px;background:var(--surface)">
+            <option value="skip"${selectedVal === 'skip' ? ' selected' : ''}>-- Skip --</option>
+            ${builtinOptions.replace(`value="${selectedVal}"`, `value="${selectedVal}" selected`)}
+            <option value="custom"${selectedVal === 'custom' ? ' selected' : ''}>Custom Column</option>
+          </select>
+        </td>
+      </tr>`;
+  }).join('');
+
+  const bodyHtml = `
+    <div style="font-size:13px;margin-bottom:12px">
+      <p style="margin-bottom:8px">Map each CSV column to a FleetHub field. Columns marked with <strong>*</strong> are required.</p>
+      <div style="padding:8px 12px;background:var(--info-bg);border:1px solid var(--info-border);border-radius:var(--radius-sm);font-size:12px;color:var(--info)">
+        <strong>Tip:</strong> Columns mapped to <em>Custom Column</em> will be added as booking custom fields. Auto-detected mappings are pre-selected.
+      </div>
+    </div>
+    <div style="max-height:400px;overflow-y:auto;border:1px solid var(--hairline);border-radius:var(--radius-sm)">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:2px solid var(--hairline);background:var(--surface-soft)">
+            <th style="text-align:left;padding:8px;position:sticky;top:0;background:var(--surface-soft)">CSV Column</th>
+            <th style="text-align:left;padding:8px;position:sticky;top:0;background:var(--surface-soft)">Sample Data</th>
+            <th style="text-align:left;padding:8px;position:sticky;top:0;background:var(--surface-soft)">Map To</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+    <div id="csv-wizard-errors" style="display:none;margin-top:10px;padding:10px;background:#fef2f2;border:1px solid #fca5a5;border-radius:var(--radius-sm);font-size:12px;color:#991b1b;line-height:1.6"></div>
+    <div style="margin-top:10px;padding:10px;background:var(--warning-bg,#fffbeb);border:1px solid var(--warning-border,#fde68a);border-radius:var(--radius-sm);font-size:12px;color:var(--warning,#92400e)">
+      <strong>Warning:</strong> This will replace all existing data with ${rows.length} rows from <strong>${esc(fileName)}</strong>.
+    </div>
+  `;
+
+  openDialog('CSV Column Mapping Wizard', bodyHtml, () => {
+    // Read user mapping from dropdowns
+    const userMapping = {};
+    const customKeys = {};
+    const usedBuiltIn = new Set();
+    const errors = [];
+
+    for (let i = 0; i < headers.length; i++) {
+      const select = document.getElementById(`csv-map-${i}`);
+      const val = select ? select.value : 'skip';
+      if (val === 'skip') continue;
+      if (val === 'custom') {
+        customKeys[i] = headers[i];
+      } else {
+        if (usedBuiltIn.has(val)) {
+          const fieldLabel = CSV_BUILTIN_FIELDS[val]?.label || val;
+          errors.push(`"${fieldLabel}" is assigned to multiple columns. Each built-in field can only be mapped once.`);
+        }
+        userMapping[i] = val;
+        usedBuiltIn.add(val);
+      }
+    }
+
+    // Validate required fields
+    for (const [key, field] of Object.entries(CSV_BUILTIN_FIELDS)) {
+      if (field.required && !usedBuiltIn.has(key)) {
+        errors.push(`Required field "${field.label}" is not mapped to any column.`);
+      }
+    }
+
+    // Show errors inline or proceed
+    const errDiv = document.getElementById('csv-wizard-errors');
+    if (errors.length > 0) {
+      if (errDiv) {
+        errDiv.style.display = 'block';
+        errDiv.innerHTML = '<strong>Please fix the following:</strong><ul style="margin:6px 0 0;padding-left:18px">' +
+          errors.map(e => `<li>${esc(e)}</li>`).join('') + '</ul>';
+      }
+      return false; // keep dialog open
+    }
+
+    // Proceed with import
+    onConfirm(userMapping, customKeys);
+    return true;
+  }, true);
+
+  // Change confirm button text
+  setTimeout(() => {
+    const btn = document.getElementById('dialog-confirm');
+    if (btn) btn.textContent = 'Import Data';
+  }, 0);
+}
+
+function executeCSVImport(mapping, customKeys, rows, fileName) {
+  // Build reverse mapping for quick lookup
+  const colByBuiltIn = {};
+  for (const [idx, key] of Object.entries(mapping)) { colByBuiltIn[key] = parseInt(idx); }
+
+  const errors = [];
+
+  // Row-level validation
+  rows.forEach((row, idx) => {
+    const rowNum = idx + 2;
+    const vehicleVal = (row[colByBuiltIn.vehicle] || '').trim();
+    if (!vehicleVal) errors.push(`Row ${rowNum}: missing vehicle name`);
+    const userName = (row[colByBuiltIn.user_name] || '').trim();
+    if (!userName) errors.push(`Row ${rowNum}: missing user name`);
+    const purpose = (row[colByBuiltIn.purpose] || '').trim();
+    if (!purpose) errors.push(`Row ${rowNum}: missing purpose`);
+    const startVal = (row[colByBuiltIn.period_start] || '').trim();
+    if (!startVal) errors.push(`Row ${rowNum}: missing start date`);
+    const endVal = (row[colByBuiltIn.period_end] || '').trim();
+    if (!endVal) errors.push(`Row ${rowNum}: missing end date`);
+  });
+  if (errors.length > 0) {
+    showCSVValidationError(errors, fileName);
+    return;
+  }
+
+  // Detect date formats
+  const startColIdx = colByBuiltIn.period_start;
+  const endColIdx = colByBuiltIn.period_end;
+  const startFmt = detectDateFormat(rows.map(r => r[startColIdx] || ''));
+  const endFmt = detectDateFormat(rows.map(r => r[endColIdx] || ''));
+
+  // Collect unique vehicles and statuses
+  const vehicleMap = {};
+  const uniqueStatuses = new Set();
+  const uniqueTypes = new Set();
+
+  for (const row of rows) {
+    const vName = (row[colByBuiltIn.vehicle] || '').trim();
+    if (!vehicleMap[vName]) {
+      vehicleMap[vName] = { id: genId(), type: '', plate: '' };
+    }
+    if (colByBuiltIn.type !== undefined) {
+      const vType = (row[colByBuiltIn.type] || '').trim();
+      if (vType) { uniqueTypes.add(vType); if (!vehicleMap[vName].type) vehicleMap[vName].type = vType; }
+    }
+    if (colByBuiltIn.license_plate !== undefined) {
+      const vPlate = (row[colByBuiltIn.license_plate] || '').trim();
+      if (vPlate && !vehicleMap[vName].plate) vehicleMap[vName].plate = vPlate;
+    }
+    const status = (row[colByBuiltIn.status] || '').trim() || 'pending';
+    uniqueStatuses.add(status);
+  }
+
+  // Build custom columns
+  const usedKeys = new Set();
+  const customCols = [];
+  for (const [idx, label] of Object.entries(customKeys)) {
+    let key = csvSlugify(label);
+    let finalKey = key;
+    let suffix = 2;
+    while (usedKeys.has(finalKey)) { finalKey = key + '_' + suffix; suffix++; }
+    usedKeys.add(finalKey);
+    customCols.push({ id: genId(), key: finalKey, label: label, type: 'text' });
+  }
+
+  // Perform the import
+  createDatabase();
+  initDefaultSettings();
+
+  db.run("BEGIN TRANSACTION;");
+  try {
+    // Insert vehicles
+    let sortIdx = 0;
+    for (const [vName, vData] of Object.entries(vehicleMap)) {
+      const now = new Date().toISOString();
+      db.run("INSERT OR REPLACE INTO vehicles (id, name, type, license_plate, status, notes, sort_order, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        [vData.id, vName, vData.type, vData.plate, 'available', '', sortIdx++, now, now]);
+    }
+
+    // Set derived settings
+    const statusList = [...uniqueStatuses].filter(s => s);
+    if (statusList.length > 0) setSetting('statuses', statusList);
+    const typeList = [...uniqueTypes].filter(t => t);
+    if (typeList.length > 0) setSetting('vehicleTypes', typeList);
+    if (customCols.length > 0) setSetting('customColumns', customCols);
+
+    // Insert bookings
+    for (const row of rows) {
+      const id = genId();
+      const vName = (row[colByBuiltIn.vehicle] || '').trim();
+      const vehicleId = vehicleMap[vName] ? vehicleMap[vName].id : '';
+      const periodStart = normalizePeriodDate(normalizeCSVDate(row[colByBuiltIn.period_start] || '', startFmt), false);
+      const periodEnd = normalizePeriodDate(normalizeCSVDate(row[colByBuiltIn.period_end] || '', endFmt), true);
+      const userName = (row[colByBuiltIn.user_name] || '').trim();
+      const purpose = (row[colByBuiltIn.purpose] || '').trim();
+      const status = (row[colByBuiltIn.status] || '').trim() || 'pending';
+      const remarks = colByBuiltIn.remarks !== undefined ? (row[colByBuiltIn.remarks] || '').trim() : '';
+
+      // Build custom fields object
+      const customFields = {};
+      for (const [idx, label] of Object.entries(customKeys)) {
+        const colKey = customCols.find(c => c.label === label);
+        if (colKey) {
+          const val = (row[parseInt(idx)] || '').trim();
+          customFields[colKey.key] = val;
+        }
+      }
+
+      const now = new Date().toISOString();
+      db.run("INSERT OR REPLACE INTO bookings (id, vehicle_id, period_start, period_end, user_name, purpose, status, remarks, custom_fields, share_with, share_note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [id, vehicleId, periodStart, periodEnd, userName, purpose, status, remarks,
+         JSON.stringify(customFields), JSON.stringify([]), '', now, now]);
+    }
+
+    setMeta('version', '1.0');
+    setMeta('lastModified', new Date().toISOString());
+    db.run("COMMIT;");
+  } catch(e) {
+    db.run("ROLLBACK;");
+    showToast('CSV import failed: ' + e.message, 'error');
+    return;
+  }
+
+  markDirty(); render();
+  showToast(`CSV imported: ${rows.length} bookings, ${Object.keys(vehicleMap).length} vehicles`, 'success');
+}
+
+async function importCSV(text, fileName, onComplete) {
+  // Parse CSV
+  const { headers, rows } = parseCSV(text);
+  if (headers.length === 0) {
+    showCSVValidationError(['CSV file has no header row'], fileName);
+    return;
+  }
+  if (rows.length === 0) {
+    showCSVValidationError(['CSV file has no data rows'], fileName);
+    return;
+  }
+
+  // Auto-map headers (as suggestions for the wizard)
+  const { mapping: autoMapping } = mapCSVHeaders(headers);
+
+  // Show mapping wizard
+  showCSVMappingWizard(headers, autoMapping, rows, fileName, (userMapping, customKeys) => {
+    executeCSVImport(userMapping, customKeys, rows, fileName);
+    if (onComplete) onComplete();
+  });
+}
+
+async function importFileCombined() {
+  // Fallback for browsers without File System Access API
+  if (!('showOpenFilePicker' in window)) {
+    document.getElementById('landing-file-input').click();
+    return;
+  }
+  try {
+    const [handle] = await window.showOpenFilePicker({
+      types: [{
+        description: 'FleetHub Import',
+        accept: {
+          'application/json': ['.json'],
+          'text/csv': ['.csv']
+        }
+      }],
+      multiple: false
+    });
+    const file = await handle.getFile();
+    const text = await file.text();
+
+    if (file.name.toLowerCase().endsWith('.csv')) {
+      const fName = file.name;
+      await importCSV(text, file.name, () => {
+        // Called after user confirms the import dialog and data is loaded
+        S.fileName = fName.replace(/\.csv$/i, '') + '.sqlite';
+        S.fileHandle = null;
+        saveRecentFile(S.fileName);
+        enterApp();
+      });
+    } else {
+      // JSON path — existing behavior, then enter app
+      const jsonData = JSON.parse(text);
+      const fName = file.name;
+      openDialog('Import JSON Data', `
+        <p>This will replace all existing vehicles, bookings, and settings with the data from <strong>${esc(file.name)}</strong>.</p>
+        <p style="color:var(--warning);margin-top:8px;font-size:13px">This action cannot be undone.</p>
+      `, () => {
+        importJSONToSQLite(jsonData);
+        markDirty(); render();
+        showToast('Data imported successfully', 'success');
+        S.fileName = fName;
+        S.fileHandle = null;
+        saveRecentFile(fName);
+        enterApp();
+        return true;
+      }, true);
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') showToast('Import failed: ' + e.message, 'error');
+  }
+}
+
 function toggleApiKeyVisibility() {
   const input = document.getElementById('api-key');
   if (!input) return;
@@ -4302,7 +4782,7 @@ if (!hasFileAPI) {
     actions.querySelector('.btn-primary')?.classList.add('btn-primary');
     actions.insertAdjacentHTML('afterend',
       `<div style="margin-top:12px;padding:10px 14px;background:var(--info-bg);border:1px solid var(--info-border);border-radius:var(--radius-sm);font-size:13px;color:var(--info)">
-        <strong>Import/Export mode:</strong> Tap <strong>Import JSON File</strong> to load your data, and use <strong>Export</strong> to save changes back to a file.
+        <strong>Import/Export mode:</strong> Tap <strong>Import File</strong> to load your data (JSON or CSV), and use <strong>Export</strong> to save changes back to a file.
       </div>`
     );
   }
@@ -4312,6 +4792,7 @@ function loadFromInput(input) {
   const file = input.files[0];
   if (!file) return;
   const isSQLite = file.name.endsWith('.sqlite');
+  const isCSV = file.name.toLowerCase().endsWith('.csv');
   const reader = new FileReader();
   reader.onload = async () => {
     try {
@@ -4326,6 +4807,15 @@ function loadFromInput(input) {
         enterApp();
         if (!hasFileAPI) showToast('Import mode — use Export to save changes', 'info');
         else showToast('File loaded', 'success');
+      } else if (isCSV) {
+        // CSV import
+        const fName = file.name;
+        await importCSV(reader.result, file.name, () => {
+          S.fileName = fName.replace(/\.csv$/i, '') + '.sqlite';
+          S.fileHandle = null;
+          saveRecentFile(S.fileName);
+          enterApp();
+        });
       } else {
         // Load JSON and convert
         importJSONToSQLite(JSON.parse(reader.result));

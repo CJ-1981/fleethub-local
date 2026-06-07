@@ -1,0 +1,4 @@
+Fahrzeug;Benutzer;Zweck;Von;Bis;Status;Abteilung
+Auto Alpha;Max;Kundentermin;01.06.2026;02.06.2026;bestätigt;Vertrieb
+Auto Alpha;Lisa;Flughafen;03.06.2026;03.06.2026;aktiv;IT
+Auto Beta;Tom;Baustellenbesuch;04.06.2026;05.06.2026;zurück;Technik

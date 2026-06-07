@@ -1,0 +1,6 @@
+Vehicle,User,Purpose,Start,End,Status,Department,SW Version
+Car A,Alice,Client Meeting,2026-06-01,2026-06-02,confirmed,Sales,v2.1
+Car A,Bob,Airport Pickup,2026-06-03,2026-06-03,in-use,Operations,v2.1
+Car B,Charlie,Site Visit,2026-06-04,2026-06-05,returned,Engineering,v2.2
+Van 1,Diana,Delivery,2026-06-06,2026-06-07,pending,Logistics,v2.0
+Van 1,Eve,Team Outing,2026-06-10,2026-06-11,confirmed,HR,v2.1
