@@ -800,7 +800,13 @@ function normalizeCSVDate(value, detectedFormat) {
   // Extract time portion if present
   const timeMatch = v.match(/\s+(\d{1,2}:\d{2}(:\d{2})?)$/);
   const dateStr = timeMatch ? v.replace(/\s+\d{1,2}:\d{2}(:\d{2})?$/, '') : v;
-  if (timeMatch) time = 'T' + (timeMatch[1].length === 5 ? timeMatch[1] + ':00' : timeMatch[1]);
+  if (timeMatch) {
+    const tParts = timeMatch[1].split(':');
+    const hh = tParts[0].padStart(2, '0');
+    const mm = tParts[1].padStart(2, '0');
+    const ss = tParts[2] ? tParts[2].padStart(2, '0') : '00';
+    time = 'T' + hh + ':' + mm + ':' + ss;
+  }
   if (detectedFormat === 'dmy') {
     const parts = dateStr.split('.');
     if (parts.length === 3) { day = parseInt(parts[0]); month = parseInt(parts[1]); year = parseInt(parts[2]); }
@@ -1159,6 +1165,7 @@ function getDefaultData() {
 function genId() { return Date.now().toString(36) + Math.random().toString(36).substr(2, 9); }
 const _escDiv = document.createElement('div');
 function esc(s) { if (s == null || s === '') return ''; _escDiv.textContent = String(s); return _escDiv.innerHTML; }
+function escAttr(s) { if (s == null || s === '') return ''; return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function escAttr(s) { if (s == null || s === '') return ''; return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
 function fmtDate(d) { if (!d) return '—'; const dt = typeof d === 'string' && d.length === 10 ? new Date(d + 'T00:00') : new Date(d); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
 function fmtDateTime(d) { if (!d) return '—'; const dt = typeof d === 'string' && d.length === 10 ? new Date(d + 'T00:00') : new Date(d); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
@@ -3505,7 +3512,7 @@ function showCSVMappingWizard(headers, autoMapping, rows, fileName, onConfirm) {
     return `
       <tr style="border-bottom:1px solid var(--hairline)">
         <td style="padding:8px;font-weight:500;white-space:nowrap">${esc(h)}</td>
-        <td style="padding:8px;color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(sampleText)}">${esc(sampleText)}</td>
+        <td style="padding:8px;color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escAttr(sampleText)}">${esc(sampleText)}</td>
         <td style="padding:8px">
           <select id="csv-map-${i}" class="csv-map-select" style="width:100%;max-width:200px;padding:6px 8px;border:1px solid var(--hairline);border-radius:var(--radius-sm);font-size:13px;background:var(--surface)">
             <option value="skip"${selectedVal === 'skip' ? ' selected' : ''}>-- Skip --</option>
@@ -3601,6 +3608,12 @@ function executeCSVImport(mapping, customKeys, rows, fileName) {
 
   const errors = [];
 
+  // Detect date formats first (before validation)
+  const startColIdx = colByBuiltIn.period_start;
+  const endColIdx = colByBuiltIn.period_end;
+  const startFmt = detectDateFormat(rows.map(r => r[startColIdx] || ''));
+  const endFmt = detectDateFormat(rows.map(r => r[endColIdx] || ''));
+
   // Row-level validation
   rows.forEach((row, idx) => {
     const rowNum = idx + 2;
@@ -3610,21 +3623,45 @@ function executeCSVImport(mapping, customKeys, rows, fileName) {
     if (!userName) errors.push(`Row ${rowNum}: missing user name`);
     const purpose = (row[colByBuiltIn.purpose] || '').trim();
     if (!purpose) errors.push(`Row ${rowNum}: missing purpose`);
+
     const startVal = (row[colByBuiltIn.period_start] || '').trim();
-    if (!startVal) errors.push(`Row ${rowNum}: missing start date`);
+    let validStart = false;
+    let startDateObj;
+    if (!startVal) {
+      errors.push(`Row ${rowNum}: missing start date`);
+    } else {
+      const normalizedStart = normalizeCSVDate(startVal, startFmt);
+      startDateObj = new Date(normalizedStart);
+      if (isNaN(startDateObj.getTime())) {
+        errors.push(`Row ${rowNum}: invalid start date format ("${startVal}")`);
+      } else {
+        validStart = true;
+      }
+    }
+
     const endVal = (row[colByBuiltIn.period_end] || '').trim();
-    if (!endVal) errors.push(`Row ${rowNum}: missing end date`);
+    let validEnd = false;
+    let endDateObj;
+    if (!endVal) {
+      errors.push(`Row ${rowNum}: missing end date`);
+    } else {
+      const normalizedEnd = normalizeCSVDate(endVal, endFmt);
+      endDateObj = new Date(normalizedEnd);
+      if (isNaN(endDateObj.getTime())) {
+        errors.push(`Row ${rowNum}: invalid end date format ("${endVal}")`);
+      } else {
+        validEnd = true;
+      }
+    }
+
+    if (validStart && validEnd && startDateObj > endDateObj) {
+      errors.push(`Row ${rowNum}: start date ("${startVal}") cannot be after end date ("${endVal}")`);
+    }
   });
   if (errors.length > 0) {
     showCSVValidationError(errors, fileName);
     return false;
   }
-
-  // Detect date formats
-  const startColIdx = colByBuiltIn.period_start;
-  const endColIdx = colByBuiltIn.period_end;
-  const startFmt = detectDateFormat(rows.map(r => r[startColIdx] || ''));
-  const endFmt = detectDateFormat(rows.map(r => r[endColIdx] || ''));
 
   // Collect unique vehicles and statuses
   const vehicleMap = {};
