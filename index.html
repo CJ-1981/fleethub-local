@@ -764,7 +764,12 @@ function parseCSV(text) {
       }
     } else {
       if (ch === '"') {
-        inQuoted = true; i++;
+        if (field.length === 0) {
+          inQuoted = true;
+        } else {
+          field += ch;
+        }
+        i++;
       } else if (ch === delimiter) {
         fields.push(field); field = ''; i++;
       } else if (ch === '\n') {
@@ -787,20 +792,37 @@ function parseCSV(text) {
 }
 
 function detectDateFormat(values) {
-  const patterns = {
-    iso: /^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2})?/,
-    dmy: /^\d{1,2}\.\d{1,2}\.\d{4}([ T]\d{2}:\d{2})?/,
-    mdy: /^\d{1,2}\/\d{1,2}\/\d{4}([ T]\d{2}:\d{2})?/
-  };
-  const scores = { iso: 0, dmy: 0, mdy: 0 };
+  // Use a flexible separator regex: matches . / -
+  const sepRe = /[\.\/\-]/;
+  // Loose numeric-date pattern: NN sep NN sep NNNN (with optional time suffix)
+  const numericDateRe = /^\d{1,2}[\.\/\-]\d{1,2}[\.\/\-]\d{2,4}([ T]\d{1,2}:\d{2}(:\d{2})?)?/;
+  const isoRe = /^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2})?/;
+
+  let isoCount = 0, ambiguousCount = 0;
+  let forcedDmy = 0, forcedMdy = 0;
+
   const sample = values.filter(v => v && v.trim()).slice(0, 20);
   for (const v of sample) {
-    for (const [fmt, re] of Object.entries(patterns)) {
-      if (re.test(v.trim())) { scores[fmt]++; break; }
-    }
+    const t = v.trim();
+    if (isoRe.test(t)) { isoCount++; continue; }
+    if (!numericDateRe.test(t)) continue;
+    const parts = t.split(/[\.\/\-]/);
+    if (parts.length < 3) continue;
+    const a = parseInt(parts[0], 10);
+    const b = parseInt(parts[1], 10);
+    // If year is in first position (NNNN-NN-NN without leading iso match) treat as ISO-ish
+    if (a > 31) { isoCount++; continue; }
+    // If either component > 12 it must be a day → reveals true order
+    if (a > 12 && b <= 12) { forcedDmy++; continue; }
+    if (b > 12 && a <= 12) { forcedMdy++; continue; }
+    ambiguousCount++;
   }
-  const best = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
-  return best[1] > 0 ? best[0] : 'iso';
+
+  // Forced signals win over ambiguity
+  if (forcedDmy > 0 || forcedMdy > 0) return forcedDmy >= forcedMdy ? 'dmy' : 'mdy';
+  if (isoCount > 0) return 'iso';
+  // Heuristic: default ambiguous Euro-style (DD.MM.YYYY) to DMY
+  return ambiguousCount > 0 ? 'dmy' : 'iso';
 }
 
 function normalizeCSVDate(value, detectedFormat) {
@@ -827,15 +849,24 @@ function normalizeCSVDate(value, detectedFormat) {
     const ss = tParts[2] ? tParts[2].padStart(2, '0') : '00';
     time = 'T' + hh + ':' + mm + ':' + ss;
   }
+  // Flexible separator: split on . / or -
+  const parts = dateStr.split(/[\.\/\-]/);
+  if (parts.length !== 3) return v; // unparseable
+
+  // 2-digit year normalization: < 50 → 2000s, >= 50 → 1900s
+  const normalizeYear = (y) => y < 100 ? (y < 50 ? 2000 + y : 1900 + y) : y;
+
+  const a = parseInt(parts[0], 10);
+  const b = parseInt(parts[1], 10);
+  const c = parseInt(parts[2], 10);
+
   if (detectedFormat === 'dmy') {
-    const parts = dateStr.split('.');
-    if (parts.length === 3) { day = parseInt(parts[0]); month = parseInt(parts[1]); year = parseInt(parts[2]); }
+    day = a; month = b; year = normalizeYear(c);
   } else if (detectedFormat === 'mdy') {
-    const parts = dateStr.split('/');
-    if (parts.length === 3) { month = parseInt(parts[0]); day = parseInt(parts[1]); year = parseInt(parts[2]); }
+    month = a; day = b; year = normalizeYear(c);
   } else {
-    const parts = dateStr.split('-');
-    if (parts.length === 3) { year = parseInt(parts[0]); month = parseInt(parts[1]); day = parseInt(parts[2]); }
+    // ISO or fallback: YYYY-MM-DD (year in first position)
+    year = normalizeYear(a); month = b; day = c;
   }
   if (!year || !month || !day) return v; // return raw if unparseable
   return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}${time}`;
@@ -1222,18 +1253,21 @@ function genId() { return Date.now().toString(36) + Math.random().toString(36).s
 const _escDiv = document.createElement('div');
 function esc(s) { if (s == null || s === '') return ''; _escDiv.textContent = String(s); return _escDiv.innerHTML; }
 function escAttr(s) { if (s == null || s === '') return ''; return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+let _statusColorCache = null;
 function getStatusColor(status) {
   if (!status) return '#6b7280';
   const s = String(status).toLowerCase().trim();
+  if (_cache.dirty) _statusColorCache = null;
+  if (_statusColorCache && _statusColorCache[s]) return _statusColorCache[s];
   try {
-    const colors = getSettings().statusColors || {};
-    // Direct match first
-    if (colors[s]) return colors[s];
-    // Case-insensitive match
-    for (const key of Object.keys(colors)) {
-      if (key.toLowerCase().trim() === s) return colors[key];
+    if (!_statusColorCache) {
+      _statusColorCache = {};
+      const colors = getSettings().statusColors || {};
+      for (const [k, v] of Object.entries(colors)) {
+        _statusColorCache[k.toLowerCase().trim()] = v;
+      }
     }
-    return '#6b7280';
+    return _statusColorCache[s] || '#6b7280';
   } catch(e) { return '#6b7280'; }
 }
 function hexToRgba(hex, alpha) {
@@ -4139,7 +4173,8 @@ function executeCSVImport(mapping, customKeys, rows, fileName, existingVehicleMa
       const now = new Date(importBaseTime + i).toISOString();
       // Use periodEnd as updated_at so descending sort by updatedAt reflects chronological order
       // Add incrementing ms to ensure unique timestamps for stable sorting when end dates match
-      const updatedAt = periodEnd ? new Date(new Date(periodEnd).getTime() + i).toISOString() : now;
+      const periodEndTime = periodEnd ? new Date(periodEnd).getTime() : NaN;
+      const updatedAt = (!isNaN(periodEndTime)) ? new Date(periodEndTime + i).toISOString() : now;
       db.run("INSERT OR REPLACE INTO bookings (id, vehicle_id, period_start, period_end, user_name, purpose, status, remarks, custom_fields, share_with, share_note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         [id, vehicleId, periodStart, periodEnd, userName, purpose, status, remarks,
          JSON.stringify(customFields), JSON.stringify([]), '', now, updatedAt]);
