@@ -2581,14 +2581,8 @@ function renderCalendar() {
   const lastVisibleEnd = new Date(dateCells[dateCells.length - 1].date);
   lastVisibleEnd.setDate(lastVisibleEnd.getDate() + 1);
 
-  const activeVehicleIdsInVisibleRange = new Set(
-    bookings
-      .filter(b => b.status !== 'cancelled' && new Date(b.periodEnd) > firstVisibleDate && new Date(b.periodStart) < lastVisibleEnd)
-      .map(b => b.vehicleId)
-  );
-
-  // Generate vehicle rows with booking bars
-  const vehicleRows = vehicles.length ? vehicles.filter(v => activeVehicleIdsInVisibleRange.has(v.id)).map(v => {
+  // Generate vehicle rows with booking bars (show all vehicles, even if no bookings in range)
+  const vehicleRows = vehicles.length ? vehicles.map(v => {
     const vehicleBookings = bookings.filter(b => b.vehicleId === v.id && b.status !== 'cancelled');
 
     // Clamp to visible range for slot assignment and rendering
