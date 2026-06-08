@@ -869,6 +869,11 @@ function normalizeCSVDate(value, detectedFormat) {
     year = normalizeYear(a); month = b; day = c;
   }
   if (!year || !month || !day) return v; // return raw if unparseable
+  // Reject impossible dates (e.g. 2026-02-31) by verifying roundtrip through Date.UTC
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() !== month - 1 || parsed.getUTCDate() !== day) {
+    return v;
+  }
   return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}${time}`;
 }
 
@@ -1257,7 +1262,6 @@ let _statusColorCache = null;
 function getStatusColor(status) {
   if (!status) return '#6b7280';
   const s = String(status).toLowerCase().trim();
-  if (_cache.dirty) _statusColorCache = null;
   if (_statusColorCache && _statusColorCache[s]) return _statusColorCache[s];
   try {
     if (!_statusColorCache) {
@@ -1647,6 +1651,7 @@ function invalidateCache() {
   _cache.dirty = true;
   _cache.vehicles = null;
   _cache.bookings = null;
+  _statusColorCache = null;
   updateSaveIndicator();
 }
 
@@ -2123,6 +2128,14 @@ function editUserName() {
     if (newName) {
       S.lockUser = newName;
       localStorage.setItem('fleethub_user_name', newName);
+      if (S.lockedBy === S.lockId) {
+        writeLockState({
+          lockedBy: S.lockId,
+          lockedAt: new Date().toISOString(),
+          lockedUser: newName
+        });
+        try { if (S.bc) S.bc.postMessage('lock-user-updated'); } catch (e) {}
+      }
       updateUserNameBadge();
       updateLockBadge();
       showToast('User name updated', 'success');
@@ -2130,6 +2143,14 @@ function editUserName() {
       // Allow clearing
       S.lockUser = '';
       localStorage.removeItem('fleethub_user_name');
+      if (S.lockedBy === S.lockId) {
+        writeLockState({
+          lockedBy: S.lockId,
+          lockedAt: new Date().toISOString(),
+          lockedUser: ''
+        });
+        try { if (S.bc) S.bc.postMessage('lock-user-updated'); } catch (e) {}
+      }
       updateUserNameBadge();
       updateLockBadge();
       showToast('User name cleared', 'info');
@@ -4610,6 +4631,17 @@ function getAITools() {
 
 
 function executeToolCall(name, args) {
+  const mutatingTools = new Set([
+    'create_booking',
+    'update_vehicle_status',
+    'cancel_booking',
+    'update_booking',
+    'add_vehicle',
+    'delete_vehicle'
+  ]);
+  if (mutatingTools.has(name) && !ownsLock()) {
+    return 'Error: This file is view-only. Take over the lock before making changes.';
+  }
   switch (name) {
     case 'create_booking': {
       const found = findVehicleByName(args.vehicleName);
